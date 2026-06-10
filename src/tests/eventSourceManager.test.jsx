@@ -42,6 +42,7 @@ describe('eventSourceManager', () => {
             nodeStatus: {}, nodeMonitor: {}, nodeStats: {}, objectStatus: {},
             objectInstanceStatus: {}, heartbeatStatus: {}, instanceMonitor: {},
             instanceConfig: {}, configUpdates: [],
+            pendingDeletes: {},
             setNodeStatuses: jest.fn((v) => {
                 if (!mockShallowEqual(mockStore.nodeStatus, v)) mockStore.nodeStatus = v;
             }),
@@ -76,6 +77,8 @@ describe('eventSourceManager', () => {
                 if (!mockShallowEqual(mockStore.instanceConfig[path][node], config))
                     mockStore.instanceConfig[path][node] = config;
             }),
+            removeInstanceFromObject: jest.fn(),
+            removePendingDelete: jest.fn(),
         };
         useEventStore.getState.mockReturnValue(mockStore);
 
@@ -634,7 +637,9 @@ describe('eventSourceManager', () => {
         test('should handle Safari batch updates', () => {
             const originalUA = navigator.userAgent;
             Object.defineProperty(navigator, 'userAgent', {
-                value: 'Mozilla/5.0 AppleWebKit/605.1.15 Version/14.0 Safari/605.1.15', writable: true
+                value: 'Mozilla/5.0 AppleWebKit/605.1.15 Version/14.0 Safari/605.1.15',
+                writable: true,
+                configurable: true
             });
             const es = eventSourceManager.createEventSource(URL_NODE_EVENT, 'fake-token');
             const handler = getHandler(es, 'NodeStatusUpdated');
@@ -642,7 +647,11 @@ describe('eventSourceManager', () => {
                 handler({data: JSON.stringify({node: `node${i}`, node_status: {status: 'up'}})});
             jest.runAllTimers();
             expect(mockStore.setNodeStatuses).toHaveBeenCalled();
-            Object.defineProperty(navigator, 'userAgent', {value: originalUA});
+            Object.defineProperty(navigator, 'userAgent', {
+                value: originalUA,
+                writable: true,
+                configurable: true
+            });
         });
 
         test('should handle isEqual comparison with null values', () => {
@@ -651,6 +660,38 @@ describe('eventSourceManager', () => {
             getHandler(es, 'NodeStatusUpdated')({data: JSON.stringify({node: 'node1', node_status: {status: 'up'}})});
             jest.runAllTimers();
             expect(mockStore.setNodeStatuses).toHaveBeenCalled();
+        });
+
+        test('should remove buffered instanceStatus if pending delete exists', () => {
+            const es = eventSourceManager.createEventSource(URL_NODE_EVENT, 'fake-token');
+            const handler = getHandler(es, 'InstanceStatusUpdated');
+            handler({data: JSON.stringify({path: 'obj1', node: 'node1', instance_status: {status: 'running'}})});
+            mockStore.pendingDeletes = {'obj1:node1': true};
+            jest.runAllTimers();
+            // Buffer is cleaned, but the path key remains as empty object
+            expect(mockStore.setInstanceStatuses).toHaveBeenCalled();
+            const calledWith = mockStore.setInstanceStatuses.mock.calls[0][0];
+            // obj1 should be an empty object (no nodes)
+            expect(calledWith.obj1).toEqual({});
+        });
+
+        test('should remove buffered instanceConfig if pending delete exists', () => {
+            const es = eventSourceManager.createEventSource(URL_NODE_EVENT, 'fake-token');
+            const handler = getHandler(es, 'InstanceConfigUpdated');
+            handler({data: JSON.stringify({path: 'obj1', node: 'node1', instance_config: {cfg: 1}})});
+            mockStore.pendingDeletes = {'obj1:node1': true};
+            jest.runAllTimers();
+            expect(mockStore.setInstanceConfig).not.toHaveBeenCalled();
+        });
+
+        test('should handle configUpdated event with missing name/node', () => {
+            const es = eventSourceManager.createEventSource(URL_NODE_EVENT, 'fake-token');
+            const handler = getHandler(es, 'InstanceConfigUpdated');
+            handler({data: JSON.stringify({instance_config: {cfg: 1}})});
+            jest.runAllTimers();
+            // No configUpdated should be buffered because name and node are missing
+            expect(mockStore.setConfigUpdated).not.toHaveBeenCalled();
+            expect(console.warn).toHaveBeenCalledWith('⚠️ InstanceConfigUpdated event missing name or node:', expect.any(Object));
         });
     });
 
@@ -732,6 +773,20 @@ describe('eventSourceManager', () => {
         test('should configure EventSource with objectName - adds path to filter URL', () => {
             eventSourceManager.configureEventSource('fake-token', 'my-service/svc1');
             expect(EventSourcePolyfill.mock.calls[0][0]).toContain('path');
+        });
+
+        test('should create URL with cache=false when useCache is false', () => {
+            eventSourceManager.configureEventSource('fake-token', null, ['NodeStatusUpdated'], false);
+            expect(EventSourcePolyfill.mock.calls[0][0]).toContain('cache=false');
+        });
+
+        test('clearEventBuffers should reset buffers and state', () => {
+            const es = eventSourceManager.createEventSource(URL_NODE_EVENT, 'fake-token');
+            const handler = getHandler(es, 'NodeStatusUpdated');
+            handler({data: JSON.stringify({node: 'node1', node_status: {status: 'up'}})});
+            eventSourceManager.clearEventBuffers();
+            eventSourceManager.forceFlush();
+            expect(mockStore.setNodeStatuses).not.toHaveBeenCalled();
         });
     });
 
@@ -888,6 +943,97 @@ describe('eventSourceManager', () => {
             jest.clearAllMocks();
             eventSourceManager.startLoggerReception('fake-token', eventSourceManager.DEFAULT_FILTERS, 'my-service/svc1');
             expect(EventSourcePolyfill.mock.calls[0][0]).toContain('path');
+        });
+    });
+
+    // Safari-specific branch coverage using isolated module loading
+    describe('Safari optimizations (isSafari true)', () => {
+        let SafariESManager;
+        let safMockStore, safMockLogStore;
+        let originalUA;
+
+        beforeEach(() => {
+            jest.resetModules();
+            originalUA = navigator.userAgent;
+            Object.defineProperty(navigator, 'userAgent', {
+                value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15',
+                writable: true,
+                configurable: true
+            });
+
+            jest.doMock('event-source-polyfill', () => ({
+                EventSourcePolyfill: jest.fn(),
+            }));
+            jest.doMock('../hooks/useEventStore.js', () => ({
+                __esModule: true,
+                default: {getState: jest.fn()},
+            }));
+            jest.doMock('../hooks/useEventLogStore.js', () => ({
+                __esModule: true,
+                default: {getState: jest.fn()},
+            }));
+            jest.doMock('../utils/logger.js', () => ({
+                info: jest.fn(),
+                warn: jest.fn(),
+                error: jest.fn(),
+                debug: jest.fn(),
+            }));
+
+            SafariESManager = require('../eventSourceManager');
+
+            safMockStore = {...mockStore, pendingDeletes: {}};
+            safMockLogStore = {addEventLog: jest.fn()};
+            const useEventStore = require('../hooks/useEventStore.js').default;
+            useEventStore.getState.mockReturnValue(safMockStore);
+            const useEventLogStore = require('../hooks/useEventLogStore.js').default;
+            useEventLogStore.getState.mockReturnValue(safMockLogStore);
+
+            const polyfill = require('event-source-polyfill');
+            polyfill.EventSourcePolyfill.mockImplementation(() => ({
+                onopen: jest.fn(),
+                onerror: null,
+                addEventListener: jest.fn(),
+                close: jest.fn(),
+                readyState: 1,
+                url: URL_NODE_EVENT + '?cache=true&filter=NodeStatusUpdated',
+            }));
+        });
+
+        afterEach(() => {
+            Object.defineProperty(navigator, 'userAgent', {
+                value: originalUA,
+                writable: true,
+                configurable: true
+            });
+            jest.resetModules();
+        });
+
+        test('should use setTimeout instead of requestAnimationFrame for batch flush', () => {
+            const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+            SafariESManager.createEventSource(URL_NODE_EVENT, 'fake-token');
+            const esMock = require('event-source-polyfill').EventSourcePolyfill.mock.results[0].value;
+            const handler = esMock.addEventListener.mock.calls.find(c => c[0] === 'NodeStatusUpdated')[1];
+            for (let i = 0; i < 150; i++) {
+                handler({data: JSON.stringify({node: `node${i}`, node_status: {status: 'up'}})});
+            }
+            expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 0);
+            setTimeoutSpy.mockRestore();
+            jest.runAllTimers();
+        });
+
+        test('should set BATCH_SIZE to 150', () => {
+            const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+            SafariESManager.createEventSource(URL_NODE_EVENT, 'fake-token');
+            const esMock = require('event-source-polyfill').EventSourcePolyfill.mock.results[0].value;
+            const handler = esMock.addEventListener.mock.calls.find(c => c[0] === 'NodeStatusUpdated')[1];
+            for (let i = 0; i < 149; i++) {
+                handler({data: JSON.stringify({node: `node${i}`, node_status: {status: 'up'}})});
+            }
+            expect(setTimeoutSpy).not.toHaveBeenCalledWith(expect.any(Function), 0);
+            handler({data: JSON.stringify({node: 'node149', node_status: {status: 'up'}})});
+            expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 0);
+            setTimeoutSpy.mockRestore();
+            jest.runAllTimers();
         });
     });
 });
