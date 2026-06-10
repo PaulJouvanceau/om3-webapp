@@ -22,6 +22,7 @@ describe('useEventStore', () => {
                 instanceMonitor: {},
                 instanceConfig: {},
                 configUpdates: [],
+                pendingDeletes: {},
             });
         });
         jest.clearAllMocks();
@@ -846,5 +847,312 @@ describe('useEventStore', () => {
         const second = useEventStore.getState().objectInstanceStatus;
 
         expect(second).toEqual(first);
+    });
+
+    describe('removePendingDelete', () => {
+        test('should remove pending delete entry for given objectPath and node', () => {
+            const {removePendingDelete} = useEventStore.getState();
+
+            act(() => {
+                useEventStore.setState({pendingDeletes: {'obj:node1': true, 'obj:node2': true}});
+            });
+
+            act(() => {
+                removePendingDelete('obj', 'node1');
+            });
+
+            expect(useEventStore.getState().pendingDeletes).toEqual({'obj:node2': true});
+        });
+
+        test('should do nothing if the key does not exist', () => {
+            const {removePendingDelete} = useEventStore.getState();
+
+            act(() => {
+                useEventStore.setState({pendingDeletes: {'obj:node1': true}});
+            });
+
+            act(() => {
+                removePendingDelete('obj', 'node2');
+            });
+
+            expect(useEventStore.getState().pendingDeletes).toEqual({'obj:node1': true});
+        });
+    });
+
+    describe('removeInstanceFromObject', () => {
+        test('should remove instance from objectInstanceStatus, instanceConfig and instanceMonitor', () => {
+            const {removeInstanceFromObject} = useEventStore.getState();
+
+            act(() => {
+                useEventStore.setState({
+                    objectInstanceStatus: {
+                        svc1: {nodeA: {node: 'nodeA', path: 'svc1', status: 'up'}}
+                    },
+                    instanceConfig: {
+                        svc1: {nodeA: {config: 'data'}}
+                    },
+                    instanceMonitor: {
+                        'nodeA:svc1': {monitor: 'ok'}
+                    }
+                });
+            });
+
+            act(() => {
+                removeInstanceFromObject('svc1', 'nodeA');
+            });
+
+            const state = useEventStore.getState();
+            // After removing the only node, the path becomes an empty object (not deleted)
+            expect(state.objectInstanceStatus.svc1).toEqual({});
+            expect(state.instanceConfig.svc1).toEqual({});
+            expect(state.instanceMonitor['nodeA:svc1']).toBeUndefined();
+        });
+
+        test('should handle partial removal (only instance status exists)', () => {
+            const {removeInstanceFromObject} = useEventStore.getState();
+
+            act(() => {
+                useEventStore.setState({
+                    objectInstanceStatus: {
+                        svc1: {nodeA: {node: 'nodeA', path: 'svc1'}}
+                    },
+                    instanceConfig: {},
+                    instanceMonitor: {}
+                });
+            });
+
+            act(() => {
+                removeInstanceFromObject('svc1', 'nodeA');
+            });
+
+            const state = useEventStore.getState();
+            expect(state.objectInstanceStatus.svc1).toEqual({});
+        });
+
+        test('should handle removal when only instanceConfig entry exists', () => {
+            const {removeInstanceFromObject} = useEventStore.getState();
+
+            act(() => {
+                useEventStore.setState({
+                    objectInstanceStatus: {},
+                    instanceConfig: {
+                        svc1: {nodeA: {cfg: 1}}
+                    },
+                    instanceMonitor: {}
+                });
+            });
+
+            act(() => {
+                removeInstanceFromObject('svc1', 'nodeA');
+            });
+
+            const state = useEventStore.getState();
+            expect(state.instanceConfig.svc1).toEqual({});
+        });
+
+        test('should handle removal when only instanceMonitor entry exists', () => {
+            const {removeInstanceFromObject} = useEventStore.getState();
+
+            act(() => {
+                useEventStore.setState({
+                    objectInstanceStatus: {},
+                    instanceConfig: {},
+                    instanceMonitor: {
+                        'nodeA:svc1': {mon: 1}
+                    }
+                });
+            });
+
+            act(() => {
+                removeInstanceFromObject('svc1', 'nodeA');
+            });
+
+            const state = useEventStore.getState();
+            expect(state.instanceMonitor['nodeA:svc1']).toBeUndefined();
+        });
+
+        test('should not mutate state if nothing to remove', () => {
+            const {removeInstanceFromObject} = useEventStore.getState();
+            const initialState = useEventStore.getState();
+
+            act(() => {
+                removeInstanceFromObject('svc1', 'nodeA');
+            });
+
+            expect(useEventStore.getState()).toBe(initialState);
+        });
+    });
+
+    describe('setInstanceStatuses with replace = true', () => {
+        test('should replace entire instance status for a path', () => {
+            const {setInstanceStatuses} = useEventStore.getState();
+
+            act(() => {
+                setInstanceStatuses(
+                    {svc1: {nodeA: {status: 'old'}, nodeB: {status: 'old'}}}
+                );
+            });
+
+            act(() => {
+                setInstanceStatuses(
+                    {svc1: {nodeC: {status: 'new'}}},
+                    true // replace
+                );
+            });
+
+            const state = useEventStore.getState();
+            expect(state.objectInstanceStatus.svc1).toEqual({
+                nodeC: {node: 'nodeC', path: 'svc1', status: 'new'}
+            });
+        });
+
+        test('should skip inherited properties during replace', () => {
+            const {setInstanceStatuses} = useEventStore.getState();
+
+            const nodes = {nodeA: {status: 'a'}};
+            const proto = {inheritedNode: {status: 'proto'}};
+            Object.setPrototypeOf(nodes, proto);
+
+            act(() => {
+                setInstanceStatuses({svc1: nodes}, true);
+            });
+
+            const state = useEventStore.getState();
+            expect(state.objectInstanceStatus.svc1).toEqual({
+                nodeA: {node: 'nodeA', path: 'svc1', status: 'a'}
+            });
+            expect(state.objectInstanceStatus.svc1.inheritedNode).toBeUndefined();
+        });
+
+        test('should not update state when replacement is shallow equal to existing', () => {
+            const {setInstanceStatuses} = useEventStore.getState();
+
+            act(() => {
+                setInstanceStatuses(
+                    {svc1: {nodeA: {status: 'up'}}},
+                    true
+                );
+            });
+
+            const firstState = useEventStore.getState();
+
+            act(() => {
+                setInstanceStatuses(
+                    {svc1: {nodeA: {status: 'up'}}},
+                    true
+                );
+            });
+
+            const secondState = useEventStore.getState();
+            // Because of persist middleware the references may be lost;
+            // we assert deep equality instead of reference equality.
+            expect(secondState.objectInstanceStatus.svc1).toEqual(
+                firstState.objectInstanceStatus.svc1
+            );
+        });
+
+        test('should replace multiple paths independently', () => {
+            const {setInstanceStatuses} = useEventStore.getState();
+
+            act(() => {
+                setInstanceStatuses(
+                    {
+                        svc1: {nodeA: {status: 'a'}, nodeB: {status: 'b'}},
+                        svc2: {nodeX: {status: 'x'}}
+                    },
+                    true
+                );
+            });
+
+            const state = useEventStore.getState();
+            expect(state.objectInstanceStatus.svc1).toEqual({
+                nodeA: {node: 'nodeA', path: 'svc1', status: 'a'},
+                nodeB: {node: 'nodeB', path: 'svc1', status: 'b'}
+            });
+            expect(state.objectInstanceStatus.svc2).toEqual({
+                nodeX: {node: 'nodeX', path: 'svc2', status: 'x'}
+            });
+        });
+
+        test('should handle replace with empty incoming nodes', () => {
+            const {setInstanceStatuses} = useEventStore.getState();
+
+            act(() => {
+                setInstanceStatuses(
+                    {svc1: {}},
+                    true
+                );
+            });
+
+            const state = useEventStore.getState();
+            expect(state.objectInstanceStatus.svc1).toEqual({});
+        });
+    });
+
+    describe('setConfigUpdated additional coverage', () => {
+        test('should handle InstanceConfigUpdated with missing labels.namespace', () => {
+            const {setConfigUpdated} = useEventStore.getState();
+            const updates = [{
+                kind: 'InstanceConfigUpdated',
+                data: {
+                    path: 'test-svc',
+                    node: 'nodeX',
+                    labels: {} // no namespace
+                }
+            }];
+
+            act(() => {
+                setConfigUpdated(updates);
+            });
+
+            const state = useEventStore.getState();
+            expect(state.configUpdates).toHaveLength(1);
+            expect(state.configUpdates[0]).toMatchObject({
+                name: 'test-svc',
+                fullName: 'root/svc/test-svc',
+                node: 'nodeX'
+            });
+        });
+
+        test('should handle SSE format with cluster name', () => {
+            const {setConfigUpdated} = useEventStore.getState();
+            const updates = [{
+                kind: 'InstanceConfigUpdated',
+                data: {
+                    path: 'cluster',
+                    node: 'nodeY',
+                    labels: {namespace: 'root'}
+                }
+            }];
+
+            act(() => {
+                setConfigUpdated(updates);
+            });
+
+            const state = useEventStore.getState();
+            expect(state.configUpdates).toHaveLength(1);
+            expect(state.configUpdates[0]).toMatchObject({
+                name: 'cluster',
+                fullName: 'root/ccfg/cluster',
+                node: 'nodeY'
+            });
+        });
+
+        test('should ignore updates with missing path in SSE format', () => {
+            const {setConfigUpdated} = useEventStore.getState();
+            const updates = [{
+                kind: 'InstanceConfigUpdated',
+                data: {
+                    // path missing
+                    node: 'nodeZ'
+                }
+            }];
+
+            act(() => {
+                setConfigUpdated(updates);
+            });
+
+            expect(useEventStore.getState().configUpdates).toEqual([]);
+        });
     });
 });
