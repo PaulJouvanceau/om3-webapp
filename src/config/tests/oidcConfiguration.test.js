@@ -7,6 +7,11 @@ const mockLocation = {
 };
 const originalWindow = global.window;
 
+// This mock must be at the top level so it hoists properly
+jest.mock("oidc-client-ts", () => ({
+    WebStorageStateStore: jest.fn().mockImplementation(() => ({})),
+}));
+
 describe('oidcConfiguration (browser environment)', () => {
     beforeAll(() => {
         Object.defineProperty(window, 'location', {
@@ -32,11 +37,6 @@ describe('oidcConfiguration (browser environment)', () => {
         console.debug = jest.fn();
         console.info = jest.fn();
     });
-
-    // Mock WebStorageStateStore
-    jest.mock("oidc-client-ts", () => ({
-        WebStorageStateStore: jest.fn().mockImplementation(() => ({})),
-    }));
 
     test('returns default configuration when authInfo is missing', async () => {
         const result = await oidcConfiguration(null);
@@ -100,10 +100,10 @@ describe('oidcConfiguration (browser environment)', () => {
             monitorSession: true,
             authority: 'https://auth.example.com',
             scope: 'openid profile',
-            redirect_uri: 'https://example.com/app/subpath/auth-callback',
-            silent_redirect_uri: 'https://example.com/app/subpath/silent-renew',
+            redirect_uri: 'https://example.com/auth-callback',
+            silent_redirect_uri: 'https://example.com/silent-renew',
             useRefreshToken: true,
-            post_logout_redirect_uri: 'https://example.com/app/subpath/',
+            post_logout_redirect_uri: 'https://example.com/',
             userStore: expect.any(Object),
         });
     });
@@ -126,10 +126,10 @@ describe('oidcConfiguration (browser environment)', () => {
             monitorSession: true,
             authority: 'https://auth.example.com',
             scope: 'openid profile email offline_access opensvc:om3 opensvc:om3:root opensvc:om3:guest opensvc:badscope',
-            redirect_uri: 'https://example.com/app/subpath/auth-callback',
-            silent_redirect_uri: 'https://example.com/app/subpath/silent-renew',
+            redirect_uri: 'https://example.com/auth-callback',
+            silent_redirect_uri: 'https://example.com/silent-renew',
             useRefreshToken: true,
-            post_logout_redirect_uri: 'https://example.com/app/subpath/',
+            post_logout_redirect_uri: 'https://example.com/',
             userStore: expect.any(Object),
         });
     });
@@ -167,7 +167,7 @@ describe('oidcConfiguration (browser environment)', () => {
         const authInfo = {openid: {issuer: 'https://auth.example.com', client_id: 'test-client'}};
         fetch.mockResolvedValueOnce({
             ok: true,
-            json: async () => ({scopes_supported: []}), // Tableau vide
+            json: async () => ({scopes_supported: []}),
         });
 
         const result = await oidcConfiguration(authInfo);
@@ -242,7 +242,6 @@ describe('oidcConfiguration (non-browser environment)', () => {
             silent_redirect_uri: '/silent-renew',
             useRefreshToken: true,
             post_logout_redirect_uri: '/',
-            // userStore absent car isBrowser false
         });
         expect(result.userStore).toBeUndefined();
     });

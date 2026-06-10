@@ -38,6 +38,12 @@ function filterScopes(allowedScopes) {
 
 const isBrowser = typeof window !== 'undefined' && typeof window.location !== 'undefined';
 
+const getBasePath = () => {
+    if (!isBrowser) return "";
+    const match = window.location.pathname.match(/^\/ui/);
+    return match ? match[0] : "";
+};
+
 async function oidcConfiguration(authInfo) {
     let scopesSupported = DEFAULT_SCOPES;
     if (!authInfo?.openid?.issuer) {
@@ -70,10 +76,7 @@ async function oidcConfiguration(authInfo) {
         return initData;
     }
 
-    const baseUrl = isBrowser
-        ? window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf("/"))
-        : '';
-
+    const baseUrl = isBrowser ? window.location.origin + getBasePath() : "";
     const finalScope = filterScopes(scopesSupported);
     const userStore = isBrowser && typeof window.localStorage !== 'undefined'
         ? new WebStorageStateStore({store: window.localStorage})
