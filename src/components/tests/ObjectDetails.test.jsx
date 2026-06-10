@@ -75,8 +75,14 @@ jest.mock('@mui/material', () => {
         Paper: ({elevation, children, ...props}) => <div {...props}>{children}</div>,
         ClickAwayListener: ({onClickAway, children, ...props}) => <div
             onClick={onClickAway} {...props}>{children}</div>,
-        Drawer: ({children, open, anchor, onClose, slotProps, ...props}) =>
-            open ? <div role="complementary" {...props}>{children}</div> : null,
+        Drawer: ({children, open, anchor, onClose, slotProps, sx, ...props}) => {
+            const width = sx?.['& .MuiDrawer-paper']?.width || '';
+            return open ? (
+                <div role="complementary" data-width={width} {...props}>
+                    {children}
+                </div>
+            ) : null;
+        },
     };
 });
 
@@ -111,15 +117,7 @@ jest.mock('../../utils/logger', () => ({
 
 jest.mock('../ConfigSection', () => ({
     __esModule: true,
-    default: ({
-                  decodedObjectName,
-                  configNode,
-                  setConfigNode,
-                  openSnackbar,
-                  configDialogOpen,
-                  setConfigDialogOpen,
-                  configRefreshTrigger
-              }) => (
+    default: ({decodedObjectName, configNode, setConfigNode, openSnackbar, configDialogOpen, setConfigDialogOpen, configRefreshTrigger}) => (
         <div>
             <button onClick={() => setConfigDialogOpen(true)} data-testid="open-config-dialog">
                 View Configuration
@@ -221,33 +219,15 @@ const fullMockState = {
                 avail: 'up',
                 frozen_at: null,
                 resources: {
-                    res1: {
-                        status: 'up',
-                        label: 'Resource 1',
-                        type: 'disk',
-                        provisioned: {state: 'true', mtime: '2023-01-01T12:00:00Z'},
-                        running: true
-                    },
-                    res2: {
-                        status: 'down',
-                        label: 'Resource 2',
-                        type: 'task',
-                        provisioned: {state: 'false', mtime: '2023-01-01T12:00:00Z'},
-                        running: false
-                    },
+                    res1: {status: 'up', label: 'Resource 1', type: 'disk', provisioned: {state: 'true'}, running: true},
+                    res2: {status: 'down', label: 'Resource 2', type: 'task', provisioned: {state: 'false'}, running: false},
                 },
             },
             node2: {
                 avail: 'down',
                 frozen_at: null,
                 resources: {
-                    res3: {
-                        status: 'warn',
-                        label: 'Resource 3',
-                        type: 'compute',
-                        provisioned: {state: 'true', mtime: '2023-01-01T12:00:00Z'},
-                        running: false
-                    },
+                    res3: {status: 'warn', label: 'Resource 3', type: 'compute', provisioned: {state: 'true'}, running: false},
                 },
             },
         },
@@ -256,32 +236,14 @@ const fullMockState = {
                 avail: 'up',
                 frozen_at: null,
                 resources: {
-                    res1: {
-                        status: 'up',
-                        label: 'Resource 1',
-                        type: 'disk',
-                        provisioned: {state: 'true', mtime: '2023-01-01T12:00:00Z'},
-                        running: true
-                    },
-                    res2: {
-                        status: 'down',
-                        label: 'Resource 2',
-                        type: 'task',
-                        provisioned: {state: 'false', mtime: '2023-01-01T12:00:00Z'},
-                        running: false
-                    },
+                    res1: {status: 'up', label: 'Resource 1', type: 'disk', provisioned: {state: 'true'}, running: true},
+                    res2: {status: 'down', label: 'Resource 2', type: 'task', provisioned: {state: 'false'}, running: false},
                     res5: {status: 'up', label: 'Resource 5', type: 'ip', provisioned: true, running: true},
                 },
                 encap: {
                     container1: {
                         resources: {
-                            res4: {
-                                status: 'up',
-                                label: 'Encap Resource 1',
-                                type: 'container',
-                                provisioned: {state: 'true', mtime: '2023-01-01T12:00:00Z'},
-                                running: true
-                            },
+                            res4: {status: 'up', label: 'Encap Resource 1', type: 'container', provisioned: {state: 'true'}, running: true},
                         },
                     },
                 },
@@ -290,28 +252,14 @@ const fullMockState = {
                 avail: 'down',
                 frozen_at: null,
                 resources: {
-                    res3: {
-                        status: 'warn',
-                        label: 'Resource 3',
-                        type: 'compute',
-                        provisioned: {state: 'true', mtime: '2023-01-01T12:00:00Z'},
-                        running: false
-                    },
+                    res3: {status: 'warn', label: 'Resource 3', type: 'compute', provisioned: {state: 'true'}, running: false},
                 },
             },
         },
     },
     instanceMonitor: {
-        'node1:root/cfg/cfg1': {
-            state: 'running',
-            global_expect: 'placed@node1',
-            resources: {res1: {restart: {remaining: 0}}}
-        },
-        'node1:root/svc/svc1': {
-            state: 'running',
-            global_expect: 'placed@node1',
-            resources: {res1: {restart: {remaining: 0}}}
-        },
+        'node1:root/cfg/cfg1': {state: 'running', global_expect: 'placed@node1', resources: {res1: {restart: {remaining: 0}}}},
+        'node1:root/svc/svc1': {state: 'running', global_expect: 'placed@node1', resources: {res1: {restart: {remaining: 0}}}},
         'node2:root/svc/svc1': {state: 'idle', global_expect: 'none', resources: {res3: {restart: {remaining: 0}}}},
     },
     instanceConfig: {
@@ -484,7 +432,8 @@ describe('ObjectDetail Component', () => {
     test('mount/unmount lifecycle', () => {
         const {unmount} = renderComponent('root/cfg/cfg1');
         expect(localStorage.getItem).toHaveBeenCalledWith('authToken');
-        expect(startEventReception).toHaveBeenCalled();
+        expect(startEventReception).toHaveBeenCalledWith('mock-token', expect.any(Array), 'root/cfg/cfg1');
+        expect(useEventStore.getState().removeObject).toHaveBeenCalledWith('root/cfg/cfg1');
         unmount();
         expect(closeEventSource).toHaveBeenCalled();
     });
@@ -863,6 +812,28 @@ describe('ObjectDetail Component', () => {
         Object.defineProperty(window, 'innerWidth', {writable: true, configurable: true, value: 1024});
     });
 
+    test('drawer resize does not exceed maxWidth', async () => {
+        Object.defineProperty(window, 'innerWidth', {writable: true, configurable: true, value: 1000});
+        renderSvc();
+        await waitForNode('node1');
+        const logsBtn = screen.getAllByRole('button', {name: /logs/i})[0];
+        await user.click(logsBtn);
+        await waitFor(() => expect(screen.getByLabelText('Resize drawer')).toBeInTheDocument());
+        const handle = screen.getByLabelText('Resize drawer');
+
+        fireEvent.mouseDown(handle, {clientX: 100});
+        fireEvent.mouseMove(document, {clientX: -100});
+        fireEvent.mouseUp(document);
+        expect(screen.getByRole('complementary').getAttribute('data-width')).toBe('800px');
+
+        fireEvent.mouseDown(handle, {clientX: 100});
+        fireEvent.mouseMove(document, {clientX: -200});
+        fireEvent.mouseUp(document);
+        expect(screen.getByRole('complementary').getAttribute('data-width')).toBe('800px');
+
+        Object.defineProperty(window, 'innerWidth', {writable: true, configurable: true, value: 1024});
+    });
+
     test('instanceConfig subscription triggers snackbar', async () => {
         const state = {
             objectStatus: {}, instanceMonitor: {},
@@ -921,7 +892,7 @@ describe('ObjectDetail Component', () => {
         if (closeButtons.length > 0) await user.click(closeButtons[0]);
     });
 
-    test('console dialog not shown by default (no console action in INSTANCE_ACTIONS)', async () => {
+    test('console dialog not shown by default', async () => {
         renderSvc();
         await waitForNode('node1');
         await waitFor(() => expect(screen.queryByText(/Open Console/i)).not.toBeInTheDocument());
@@ -948,20 +919,27 @@ describe('ObjectDetail Component', () => {
         }
     });
 
-    test('handleConsoleConfirm: without rid → no console fetch', async () => {
+    test('handleConsoleConfirm without rid does not call postConsoleAction', async () => {
         const {INSTANCE_ACTIONS} = require('../../constants/actions');
         const orig = [...INSTANCE_ACTIONS];
         INSTANCE_ACTIONS.push({name: 'console', icon: 'ConsoleIcon'});
         try {
             renderSvc();
-            const dialog = await openConsoleDialogFn();
-            if (!dialog) return;
-            const fetchsBefore = global.fetch.mock.calls.filter(([u, o]) => o?.method === 'POST' && u.includes('/console')).length;
-            const openBtn = within(dialog).queryByRole('button', {name: /open console/i});
-            if (openBtn) {
-                await user.click(openBtn);
-                await new Promise(r => setTimeout(r, 200));
-                expect(global.fetch.mock.calls.filter(([u, o]) => o?.method === 'POST' && u.includes('/console')).length).toBe(fetchsBefore);
+            await waitForNode('node1');
+            await userEvent.click(screen.getByRole('button', {name: /Node node1 actions/i}));
+            await waitFor(() => expect(screen.queryAllByRole('menu').length).toBeGreaterThan(0));
+            const menu = screen.getAllByRole('menu')[0];
+            const consoleItem = within(menu).queryByRole('menuitem', {name: /console/i});
+            if (consoleItem) {
+                await userEvent.click(consoleItem);
+                const dialog = await screen.findByRole('dialog');
+                const openBtn = within(dialog).getByRole('button', {name: /open console/i});
+                const fetchCallsBefore = global.fetch.mock.calls.filter(([u, opts]) => opts?.method === 'POST' && u.includes('/console')).length;
+                await userEvent.click(openBtn);
+                await waitFor(() => {
+                    const fetchCallsAfter = global.fetch.mock.calls.filter(([u, opts]) => opts?.method === 'POST' && u.includes('/console')).length;
+                    expect(fetchCallsAfter).toBe(fetchCallsBefore);
+                });
             }
         } finally {
             INSTANCE_ACTIONS.length = 0;
@@ -1093,5 +1071,136 @@ describe('ObjectDetail Component', () => {
     test('removes object on mount via store.removeObject', () => {
         renderComponent('root/cfg/cfg1');
         expect(fullMockState.removeObject).toHaveBeenCalledWith('root/cfg/cfg1');
+    });
+
+    // ─── Fallback fetch & error tests ──────────────────────────────────────
+    describe('fallback fetch', () => {
+        beforeEach(() => {
+            jest.useFakeTimers();
+        });
+
+        afterEach(() => {
+            jest.useRealTimers();
+        });
+
+        test('triggers after 5 seconds when no SSE data', async () => {
+            const emptyState = {
+                objectStatus: {},
+                objectInstanceStatus: {},
+                instanceMonitor: {},
+                instanceConfig: {},
+                configUpdates: [],
+                clearConfigUpdate: jest.fn(),
+                removeObject: jest.fn(),
+                setObjectStatuses: jest.fn(),
+                setInstanceStatuses: jest.fn(),
+            };
+            useEventStore.mockImplementation(s => s(emptyState));
+            useEventStore.getState.mockReturnValue(emptyState);
+
+            renderSvc();
+
+            expect(screen.getByText(/Loading object data.../i)).toBeInTheDocument();
+
+            act(() => {
+                jest.advanceTimersByTime(5000);
+            });
+
+            await waitFor(() => {
+                expect(global.fetch).toHaveBeenCalledWith(
+                    expect.stringMatching(/\/api\/object\/path\/root(%2F|\/)svc(%2F|\/)svc1/),
+                    expect.any(Object)
+                );
+                expect(global.fetch).toHaveBeenCalledWith(
+                    expect.stringMatching(/\/api\/node\/name\/all\/instance\/path\/root(%2F|\/)svc(%2F|\/)svc1/),
+                    expect.any(Object)
+                );
+            });
+        });
+
+        test('handles fallback fetch failure gracefully', async () => {
+            const emptyState = {
+                objectStatus: {},
+                objectInstanceStatus: {},
+                instanceMonitor: {},
+                instanceConfig: {},
+                configUpdates: [],
+                clearConfigUpdate: jest.fn(),
+                removeObject: jest.fn(),
+                setObjectStatuses: jest.fn(),
+                setInstanceStatuses: jest.fn(),
+            };
+            useEventStore.mockImplementation(s => s(emptyState));
+            useEventStore.getState.mockReturnValue(emptyState);
+
+            global.fetch.mockRejectedValueOnce(new Error('Network failure'));
+
+            renderSvc();
+
+            act(() => {
+                jest.advanceTimersByTime(5000);
+            });
+
+            await waitFor(() => {
+                expect(screen.queryByText(/Loading object data.../i)).not.toBeInTheDocument();
+            });
+
+            expect(screen.queryByText(/Network failure/i)).not.toBeInTheDocument();
+            expect(screen.getByRole('button', {name: /Object Events/i})).toBeInTheDocument();
+        });
+    });
+
+    // ─── configNode switching test ─────────────────────────────────────────
+    test('switches configNode when current node disappears', async () => {
+        const debugSpy = jest.spyOn(logger, 'debug').mockImplementation();
+
+        const initialState = {
+            ...buildState(),
+            objectInstanceStatus: {
+                'root/svc/svc1': {
+                    node2: { avail: 'up', resources: {} }
+                }
+            }
+        };
+        useEventStore.mockImplementation(s => s(initialState));
+        useEventStore.getState.mockReturnValue(initialState);
+
+        const { rerender } = render(
+            <MemoryRouter initialEntries={['/object/root%2Fsvc%2Fsvc1']}>
+                <Routes>
+                    <Route path="/object/:objectName" element={<ObjectDetail/>}/>
+                </Routes>
+            </MemoryRouter>
+        );
+        require('react-router-dom').useParams.mockReturnValue({ objectName: 'root/svc/svc1' });
+
+        await screen.findByText('node2');
+
+        const updatedState = {
+            ...buildState(),
+            objectInstanceStatus: {
+                'root/svc/svc1': {
+                    node1: { avail: 'up', resources: {} }
+                }
+            }
+        };
+        useEventStore.mockImplementation(s => s(updatedState));
+        useEventStore.getState.mockReturnValue(updatedState);
+
+        rerender(
+            <MemoryRouter initialEntries={['/object/root%2Fsvc%2Fsvc1']}>
+                <Routes>
+                    <Route path="/object/:objectName" element={<ObjectDetail/>}/>
+                </Routes>
+            </MemoryRouter>
+        );
+
+        await waitFor(() => {
+            expect(debugSpy).toHaveBeenCalledWith(
+                expect.stringContaining('configNode "node2" removed, switching to "node1"')
+            );
+        });
+
+        debugSpy.mockRestore();
     });
 });
