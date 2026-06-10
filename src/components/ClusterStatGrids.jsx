@@ -157,6 +157,8 @@ export const GridNamespaces = memo(({namespaceCount, namespaceSubtitle, onClick}
             subtitle={subtitle}
             onClick={handleCardClick}
             isLoading={isCardLoading}
+            dynamicHeight={true}
+            maxSubtitleHeight={220}
         />
     );
 });
@@ -466,6 +468,8 @@ export const GridKinds = memo(({kindCount, kindSubtitle, onClick}) => {
             subtitle={subtitle}
             onClick={handleCardClick}
             isLoading={isCardLoading}
+            dynamicHeight={true}
+            maxSubtitleHeight={220}
         />
     );
 });
