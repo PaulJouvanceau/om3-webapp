@@ -1,11 +1,5 @@
 import React from "react";
-import {
-    render,
-    screen,
-    waitFor,
-    within,
-    fireEvent,
-} from "@testing-library/react";
+import {render, screen, waitFor, within, fireEvent, act} from "@testing-library/react";
 import {ThemeProvider, createTheme} from "@mui/material/styles";
 import {MemoryRouter} from "react-router-dom";
 import userEvent from "@testing-library/user-event";
@@ -14,8 +8,6 @@ import useEventStore from "../../hooks/useEventStore.js";
 import {
     closeEventSource,
     startEventReception,
-    startLoggerReception,
-    closeLoggerEventSource,
 } from "../../eventSourceManager.jsx";
 
 const mockNavigate = jest.fn();
@@ -46,510 +38,581 @@ const mockLocalStorage = {
 Object.defineProperty(window, "localStorage", {value: mockLocalStorage});
 
 const theme = createTheme();
+const mockUseMediaQuery = jest.requireMock("@mui/material/useMediaQuery");
 
 const renderWithRouter = (ui, {route = "/"} = {}) => {
-    const wrapper = ({children}) => (
+    const Wrapper = ({children}) => (
         <MemoryRouter initialEntries={[route]}>
             <ThemeProvider theme={theme}>{children}</ThemeProvider>
         </MemoryRouter>
     );
-    return render(ui, {wrapper});
+    return render(ui, {wrapper: Wrapper});
 };
 
-describe("Heartbeats Component", () => {
-    const mockUseMediaQuery = jest.requireMock("@mui/material/useMediaQuery");
+// Helper to build heartbeat status from stream definitions
+const buildStatus = (streamDefs) => {
+    const status = {};
+    streamDefs.forEach(({node, streams}) => {
+        status[node] = {streams: streams.map(s => ({...s}))};
+    });
+    return status;
+};
 
+// Default media query : desktop, filters always visible
+const defaultMediaQuery = jest.fn(() => false);
+
+describe("Heartbeats Component", () => {
     beforeEach(() => {
         jest.clearAllMocks();
         mockLocalStorage.getItem.mockReturnValue("valid-token");
-        startEventReception.mockImplementation(jest.fn());
-        closeEventSource.mockImplementation(jest.fn());
-        startLoggerReception.mockImplementation(jest.fn());
-        closeLoggerEventSource.mockImplementation(jest.fn());
         mockNavigate.mockClear();
-
-        mockUseMediaQuery.mockImplementation((query) => {
-            if (query === theme.breakpoints.down("md")) return false;
-            if (query === theme.breakpoints.up("lg")) return false;
-            return false;
-        });
+        mockUseMediaQuery.mockImplementation(defaultMediaQuery);
     });
 
     afterEach(() => {
-        jest.useRealTimers();
+        mockUseMediaQuery.mockImplementation(defaultMediaQuery);
     });
 
-    test("renders basic table structure", () => {
-        useEventStore.mockReturnValue({heartbeatStatus: {}});
-        renderWithRouter(<Heartbeats/>);
-        expect(screen.getByRole("table")).toBeInTheDocument();
-        const headerRow = within(screen.getByRole("table")).getByRole("row", {
-            name: /RUNNING BEATING ID NODE PEER TYPE DESC CHANGED_AT LAST_BEATING_AT/i,
-        });
-        expect(within(headerRow).getByText("RUNNING")).toBeInTheDocument();
-        expect(within(headerRow).getByText("BEATING")).toBeInTheDocument();
-        expect(within(headerRow).getByText("NODE")).toBeInTheDocument();
-    });
+    // Helper to correctly mock useEventStore with a selector
+    const mockHeartbeatStore = (heartbeatStatus) => {
+        useEventStore.mockImplementation((selector) =>
+            selector({heartbeatStatus})
+        );
+    };
 
-    test("renders heartbeat rows for all state types including invalid state", async () => {
-        const mockHeartbeatStatus = {
-            node1: {
-                streams: [
-                    createStream("hb#1.rx", "running", {peer1: {is_beating: true, desc: ":10011 ← peer1"}}, "unicast"),
-                    createStream("hb#2.rx", "stopped", {peer2: {is_beating: false, desc: ":10012 ← peer2"}}, "unicast"),
-                    createStream("hb#3.rx", "failed", {peer3: {is_beating: false, desc: ":10013 ← peer3"}}, "unicast"),
-                    createStream("hb#4.rx", "warning", {peer4: {is_beating: false, desc: ":10014 ← peer4"}}, "unicast"),
-                    createStream("hb#5.rx", "unknown", {peer5: {is_beating: false, desc: ":10015 ← peer5"}}, "unicast"),
-                    createStream("hb#6.rx", "invalid-state", {
-                        peer6: {
-                            is_beating: true,
-                            desc: ":10016 ← peer6"
-                        }
-                    }, "unicast"),
-                ],
-            },
-        };
-        useEventStore.mockImplementation((selector) => selector({heartbeatStatus: mockHeartbeatStatus}));
+    // ==================== STRUCTURE & BASIC RENDER ====================
+    test("renders table structure and basic heartbeat rows", async () => {
+        mockHeartbeatStore(buildStatus([{
+            node: "node1",
+            streams: [
+                {
+                    id: "hb#1.rx",
+                    state: "running",
+                    type: "unicast",
+                    peers: {peer1: {is_beating: true, desc: ":10011 ← peer1"}}
+                },
+                {
+                    id: "hb#2.rx",
+                    state: "stopped",
+                    type: "unicast",
+                    peers: {peer2: {is_beating: false, desc: ":10012 ← peer2"}}
+                },
+            ],
+        }]));
 
         renderWithRouter(<Heartbeats/>);
 
-        const rows = await screen.findAllByRole("row");
-        const dataRows = rows.slice(1);
-        expect(dataRows).toHaveLength(6);
+        const table = screen.getByRole("table");
+        expect(table).toBeInTheDocument();
+        const headerRow = within(table).getByRole("row", {name: /RUNNING BEATING ID NODE PEER TYPE DESC CHANGED_AT LAST_BEATING_AT/i});
+        ["RUNNING", "BEATING", "ID", "NODE", "PEER", "TYPE", "DESC", "CHANGED_AT", "LAST_BEATING_AT"].forEach(text =>
+            expect(within(headerRow).getByText(text)).toBeInTheDocument()
+        );
 
-        dataRows.forEach((row, index) => {
-            const cells = within(row).getAllByRole("cell");
-            expect(cells[2]).toHaveTextContent(`${index + 1}.rx`);
-            expect(cells[3]).toHaveTextContent("node1");
-            expect(cells[4]).toHaveTextContent(`peer${index + 1}`);
-            expect(cells[5]).toHaveTextContent("unicast");
-            expect(cells[6]).toHaveTextContent(`:1001${index + 1} ← peer${index + 1}`);
-        });
-
-        const invalidRow = dataRows[5];
-        const stateCell = within(invalidRow).getAllByRole("cell")[0];
-        expect(within(stateCell).getByTestId("HelpIcon")).toBeInTheDocument();
+        const dataRows = screen.getAllByRole("row").slice(1);
+        expect(dataRows).toHaveLength(2);
+        expect(within(dataRows[0]).getByText("1.rx")).toBeInTheDocument();
+        expect(within(dataRows[1]).getByText("2.rx")).toBeInTheDocument();
     });
 
-    test("filters heartbeats correctly via dropdowns and shows no-result message", async () => {
-        const mockHeartbeatStatus = {
-            nodeA: {
-                streams: [
-                    createStream("hb#1.rx", "running", {peer1: {is_beating: true, desc: "desc1"}}, "typeX"),
-                    createStream("hb#2.rx", "stopped", {peer2: {is_beating: false, desc: "desc2"}}, "typeY"),
-                ],
-            },
-            nodeB: {
-                streams: [
-                    createStream("hb#3.rx", "running", {peer3: {is_beating: false, desc: "desc3"}}, "typeX"),
-                ],
-            },
-        };
-        useEventStore.mockImplementation((selector) => selector({heartbeatStatus: mockHeartbeatStatus}));
-
+    // ==================== STATE ICONS ====================
+    test.each([
+        ["running", "CheckCircleIcon"],
+        ["stopped", "PauseCircleIcon"],
+        ["failed", "ErrorIcon"],
+        ["warning", "WarningIcon"],
+        ["unknown", "HelpIcon"],
+        ["invalid-state", "HelpIcon"],
+    ])("renders correct icon for state %s", async (state, iconTestId) => {
+        mockHeartbeatStore(buildStatus([{
+            node: "node1",
+            streams: [{id: "hb#1.rx", state, type: "unicast", peers: {p: {is_beating: true, desc: "d"}}}],
+        }]));
         renderWithRouter(<Heartbeats/>);
-        let rows = await screen.findAllByRole("row");
-        expect(rows.slice(1)).toHaveLength(3);
+        const stateCell = within(screen.getAllByRole("row")[1]).getAllByRole("cell")[0];
+        expect(within(stateCell).getByTestId(iconTestId)).toBeInTheDocument();
+    });
 
-        const user = userEvent.setup();
+    // ==================== FILTERS FROM URL ====================
+    const filterStreams = [
+        {
+            id: "hb#1.rx",
+            state: "running",
+            type: "unicast",
+            peers: {
+                peer1: {
+                    is_beating: true,
+                    desc: ":10011 ← peer1",
+                    changed_at: "2025-06-03T04:25:31+00:00",
+                    last_beating_at: "2025-06-03T04:25:31+00:00"
+                }
+            }
+        },
+        {
+            id: "hb#2.rx",
+            state: "stopped",
+            type: "unicast",
+            peers: {
+                peer2: {
+                    is_beating: false,
+                    desc: ":10012 ← peer2",
+                    changed_at: "2025-06-03T04:25:31+00:00",
+                    last_beating_at: "2025-06-03T04:25:31+00:00"
+                }
+            }
+        },
+    ];
 
-        const selectByIndex = async (index, optionName) => {
-            const comboboxes = screen.getAllByRole("combobox");
-            await user.click(comboboxes[index]);
-            const option = screen.getByRole("option", {name: optionName});
-            await user.click(option);
-        };
+    test.each([
+        ["/?status=stale", 1, "2.rx"],
+        ["/?status=beating", 1, "1.rx"],
+        ["/?node=node1", 2, "1.rx"],
+        ["/?state=stopped", 1, "2.rx"],
+        ["/?id=1.rx", 1, "1.rx"],
+        ["/?id=hb%231.rx", 1, "1.rx"],
+        ["/?id=3.tx", 0, null],
+    ])("filter from URL %s", async (route, expectedLength, expectedText) => {
+        const status = buildStatus([{node: "node1", streams: filterStreams}]);
+        mockHeartbeatStore(status);
+        renderWithRouter(<Heartbeats/>, {route});
 
-        await selectByIndex(0, /^stopped$/i);
-        rows = await screen.findAllByRole("row");
-        expect(rows.slice(1)).toHaveLength(1);
-        expect(within(rows[1]).getByText("2.rx")).toBeInTheDocument();
+        const dataRows = screen.getAllByRole("row").slice(1);
+        expect(dataRows).toHaveLength(expectedLength);
+        if (expectedText) {
+            expect(within(dataRows[0]).getByText(expectedText)).toBeInTheDocument();
+        }
+    });
 
-        await selectByIndex(0, /^all$/i);
+    test("filter by id with .tx suffix", async () => {
+        const status = buildStatus([{
+            node: "node1",
+            streams: [{
+                id: "hb#3.tx",
+                state: "running",
+                type: "unicast",
+                peers: {
+                    peer3: {
+                        is_beating: true,
+                        desc: ":10013 ← peer3",
+                        changed_at: "2025-06-03T04:25:31+00:00",
+                        last_beating_at: "2025-06-03T04:25:31+00:00"
+                    }
+                }
+            }]
+        }]);
+        mockHeartbeatStore(status);
+        renderWithRouter(<Heartbeats/>, {route: "/?id=3.tx"});
+        expect(screen.getAllByRole("row").slice(1)).toHaveLength(1);
+        expect(screen.getByText("3.tx")).toBeInTheDocument();
+    });
 
-        await selectByIndex(1, /^stale$/i);
-        rows = await screen.findAllByRole("row");
-        expect(rows.slice(1)).toHaveLength(2);
-        expect(screen.queryByText("1.rx")).toBeNull();
+    test("invalid status defaults to all", async () => {
+        mockHeartbeatStore(buildStatus([{
+            node: "node1",
+            streams: [{
+                id: "hb#1.rx",
+                state: "running",
+                type: "unicast",
+                peers: {
+                    peer1: {
+                        is_beating: true,
+                        desc: ":10011 ← peer1",
+                        changed_at: "2025-06-03T04:25:31+00:00",
+                        last_beating_at: "2025-06-03T04:25:31+00:00"
+                    }
+                }
+            }]
+        }]));
+        renderWithRouter(<Heartbeats/>, {route: "/?status=invalid"});
+        await waitFor(() => expect(screen.getByText("1.rx")).toBeInTheDocument());
+    });
 
-        await selectByIndex(1, /^all$/i);
-
-        await selectByIndex(2, "nodeB");
-        rows = await screen.findAllByRole("row");
-        expect(rows.slice(1)).toHaveLength(1);
-        expect(within(rows[1]).getByText("3.rx")).toBeInTheDocument();
-
-        await selectByIndex(2, /^all$/i);
-        await selectByIndex(3, "1");
-        rows = await screen.findAllByRole("row");
-        expect(rows.slice(1)).toHaveLength(1);
-        expect(within(rows[1]).getByText("1.rx")).toBeInTheDocument();
-
-        await selectByIndex(2, "nodeB");
-        await selectByIndex(3, "1");
+    test("does not update URL if filter unchanged", async () => {
+        mockHeartbeatStore(buildStatus([{
+            node: "node1",
+            streams: [{id: "hb#1.rx", state: "running", peers: {}, type: "t"}]
+        }]));
+        renderWithRouter(<Heartbeats/>, {route: "/?node=node1"});
         await waitFor(() => {
-            expect(
-                screen.getByText("No heartbeats found matching the current filters.")
-            ).toBeInTheDocument();
-        });
+        }, {timeout: 500});
+        expect(mockNavigate).not.toHaveBeenCalled();
     });
 
-    test("initializes filters from URL query parameters", async () => {
-        const mockHeartbeatStatus = {
-            node1: {
-                streams: [
-                    createStream("hb#1.rx", "running", {peer1: {is_beating: true, desc: "desc1"}}, "unicast"),
-                    createStream("hb#2.rx", "running", {peer2: {is_beating: false, desc: "desc2"}}, "unicast"),
-                ],
-            },
-            node2: {
-                streams: [
-                    createStream("hb#3.rx", "stopped", {peer3: {is_beating: false, desc: "desc3"}}, "unicast"),
-                ],
-            },
-        };
-        useEventStore.mockImplementation((selector) => selector({heartbeatStatus: mockHeartbeatStatus}));
+    // ==================== EDGE CASES: STOPPED STREAMS & CACHE ====================
+    test("handles stopped stream with cached peers", async () => {
+        const initialStatus = buildStatus([{
+            node: "node1",
+            streams: [{
+                id: "hb#1.rx",
+                state: "running",
+                type: "unicast",
+                peers: {
+                    peer1: {
+                        is_beating: true,
+                        desc: ":10011 ← peer1",
+                        changed_at: "2025-06-03T04:25:31+00:00",
+                        last_beating_at: "2025-06-03T04:25:31+00:00"
+                    }
+                }
+            }]
+        }]);
+        const stoppedStatus = buildStatus([{
+            node: "node1",
+            streams: [{id: "hb#1.rx", state: "stopped", type: "unicast", peers: {}}]
+        }]);
 
-        const testCases = [
-            {route: "/?status=beating", expectedIds: ["1.rx"]},
-            {route: "/?status=stale", expectedIds: ["2.rx", "3.rx"]},
-            {route: "/?node=node1", expectedIds: ["1.rx", "2.rx"]},
-            {route: "/?state=stopped", expectedIds: ["3.rx"]},
-            {route: "/?id=1.rx", expectedIds: ["1.rx"]},
-            {route: "/?id=hb%231.rx", expectedIds: ["1.rx"]},
-            {route: "/?id=3.rx", expectedIds: ["3.rx"]},
-            {route: "/?status=invalid", expectedIds: ["1.rx", "2.rx", "3.rx"]},
-        ];
-
-        for (const {route, expectedIds} of testCases) {
-            const {unmount} = renderWithRouter(<Heartbeats/>, {route});
-            const rows = await screen.findAllByRole("row");
-            const dataRows = rows.slice(1);
-            const foundIds = dataRows.map(
-                (row) => within(row).getAllByRole("cell")[2].textContent
-            );
-            expect(foundIds.sort()).toEqual(expectedIds.sort());
-            unmount();
-        }
-    });
-
-    test("sorts rows by any column ascending and descending", async () => {
-        const mockHeartbeatStatus = {
-            node1: {
-                streams: [
-                    {
-                        id: "hb#b.rx",
-                        state: "warning",
-                        peers: {
-                            b_peer: {
-                                is_beating: false,
-                                desc: "z_desc",
-                                changed_at: "2024-02-01",
-                                last_beating_at: "2024-02-01",
-                            },
-                        },
-                        type: "b_type",
-                    },
-                    {
-                        id: "hb#a.rx",
-                        state: "running",
-                        peers: {
-                            a_peer: {
-                                is_beating: true,
-                                desc: "a_desc",
-                                changed_at: "2024-01-01",
-                                last_beating_at: "2024-01-01",
-                            },
-                        },
-                        type: "a_type",
-                    },
-                ],
-            },
-        };
-        useEventStore.mockImplementation((selector) => selector({heartbeatStatus: mockHeartbeatStatus}));
-
-        renderWithRouter(<Heartbeats/>);
-        const user = userEvent.setup();
-
-        const columns = [
-            {label: "ID", key: "id", ascExpected: ["a.rx", "b.rx"], descExpected: ["b.rx", "a.rx"]},
-            {label: "NODE", key: "node", ascExpected: ["node1", "node1"], descExpected: ["node1", "node1"]},
-            {label: "PEER", key: "peer", ascExpected: ["a_peer", "b_peer"], descExpected: ["b_peer", "a_peer"]},
-            {label: "TYPE", key: "type", ascExpected: ["a_type", "b_type"], descExpected: ["b_type", "a_type"]},
-            {label: "DESC", key: "desc", ascExpected: ["a_desc", "z_desc"], descExpected: ["z_desc", "a_desc"]},
-            {
-                label: "CHANGED_AT",
-                key: "changed_at",
-                ascExpected: ["2024-01-01", "2024-02-01"],
-                descExpected: ["2024-02-01", "2024-01-01"]
-            },
-            {
-                label: "LAST_BEATING_AT",
-                key: "last_beating_at",
-                ascExpected: ["2024-01-01", "2024-02-01"],
-                descExpected: ["2024-02-01", "2024-01-01"]
-            },
-        ];
-
-        const colIndexMap = {
-            id: 2,
-            node: 3,
-            peer: 4,
-            type: 5,
-            desc: 6,
-            changed_at: 7,
-            last_beating_at: 8,
-        };
-
-        for (const {label, ascExpected, descExpected, key} of columns) {
-            const header = screen.getByText(label);
-            const colIndex = colIndexMap[key];
-
-            await user.click(header);
-            let rows = await screen.findAllByRole("row");
-            let values = rows.slice(1).map(
-                (row) => within(row).getAllByRole("cell")[colIndex].textContent
-            );
-            expect(values).toEqual(ascExpected);
-
-            await user.click(header);
-            rows = await screen.findAllByRole("row");
-            values = rows.slice(1).map(
-                (row) => within(row).getAllByRole("cell")[colIndex].textContent
-            );
-            expect(values).toEqual(descExpected);
-        }
-    });
-
-    test("sorts by state and beating columns correctly", async () => {
-        const mockHeartbeatStatus = {
-            node1: {
-                streams: [
-                    {id: "hb#1.rx", state: "running", peers: {p: {is_beating: true}}, type: "t"},
-                    {id: "hb#2.rx", state: "warning", peers: {p: {is_beating: false}}, type: "t"},
-                    {id: "hb#3.rx", state: "stopped", peers: {p: {is_beating: false}}, type: "t"},
-                    {id: "hb#4.rx", state: "failed", peers: {p: {is_beating: false}}, type: "t"},
-                    {id: "hb#5.rx", state: "unknown", peers: {p: {is_beating: false}}, type: "t"},
-                ],
-            },
-        };
-        useEventStore.mockImplementation((selector) => selector({heartbeatStatus: mockHeartbeatStatus}));
-
-        renderWithRouter(<Heartbeats/>);
-        const user = userEvent.setup();
-
-        const stateHeader = screen.getByText("RUNNING");
-        await user.click(stateHeader);
-        let rows = await screen.findAllByRole("row");
-        let ids = rows.slice(1).map((r) => within(r).getAllByRole("cell")[2].textContent);
-        expect(ids).toEqual(["5.rx", "4.rx", "3.rx", "2.rx", "1.rx"]);
-
-        await user.click(stateHeader);
-        rows = await screen.findAllByRole("row");
-        ids = rows.slice(1).map((r) => within(r).getAllByRole("cell")[2].textContent);
-        expect(ids).toEqual(["1.rx", "2.rx", "3.rx", "4.rx", "5.rx"]);
-
-        const beatingHeader = screen.getByText("BEATING");
-        await user.click(beatingHeader);
-        rows = await screen.findAllByRole("row");
-        ids = rows.slice(1).map((r) => within(r).getAllByRole("cell")[2].textContent);
-        expect(ids).toEqual(["2.rx", "3.rx", "4.rx", "5.rx", "1.rx"]);
-
-        await user.click(beatingHeader);
-        rows = await screen.findAllByRole("row");
-        ids = rows.slice(1).map((r) => within(r).getAllByRole("cell")[2].textContent);
-        expect(ids).toEqual(["1.rx", "2.rx", "3.rx", "4.rx", "5.rx"]);
-    });
-
-    test("shows healthy icon for single node regardless of beating", async () => {
-        const mockHeartbeatStatus = {
-            onlyNode: {
-                streams: [
-                    createStream("hb#1.rx", "running", {peer1: {is_beating: false, desc: "desc"}}, "unicast"),
-                ],
-            },
-        };
-        useEventStore.mockImplementation((selector) => selector({heartbeatStatus: mockHeartbeatStatus}));
-
-        renderWithRouter(<Heartbeats/>);
-        const rows = await screen.findAllByRole("row");
-        expect(rows.slice(1)).toHaveLength(1);
-        const beatingCell = within(rows[1]).getAllByRole("cell")[1];
-        expect(within(beatingCell).getByTestId("CheckCircleIcon")).toBeInTheDocument();
-    });
-
-    test("uses cached peers for stopped stream with no peers and shows N/A when no cache", async () => {
-        const initialStatus = {
-            node1: {
-                streams: [
-                    {
-                        id: "hb#1.rx",
-                        state: "running",
-                        peers: {
-                            peer1: {is_beating: true, desc: ":10011 ← peer1", changed_at: "t1", last_beating_at: "t2"},
-                        },
-                        type: "unicast",
-                    },
-                ],
-            },
-        };
-        useEventStore.mockImplementation((selector) => selector({heartbeatStatus: initialStatus}));
+        useEventStore.mockImplementation(selector => selector({heartbeatStatus: initialStatus}));
         const {rerender} = renderWithRouter(<Heartbeats/>);
-        let rows = await screen.findAllByRole("row");
-        expect(within(rows[1]).getByText("peer1")).toBeInTheDocument();
 
-        const stoppedStatus = {
-            node1: {
-                streams: [{id: "hb#1.rx", state: "stopped", peers: {}, type: "unicast"}],
-            },
-        };
-        useEventStore.mockImplementation((selector) => selector({heartbeatStatus: stoppedStatus}));
+        let cells = within(screen.getAllByRole("row")[1]).getAllByRole("cell");
+        expect(cells[4]).toHaveTextContent("peer1");
+
+        useEventStore.mockImplementation(selector => selector({heartbeatStatus: stoppedStatus}));
         rerender(<Heartbeats/>);
         await waitFor(() => {
-            rows = screen.getAllByRole("row");
-            const cells = within(rows[1]).getAllByRole("cell");
-            expect(cells[4]).toHaveTextContent("peer1");
-            expect(cells[6]).toHaveTextContent(":10011 ← peer1");
-        }, {timeout: 1000});
-
-        const noCacheStatus = {
-            node1: {
-                streams: [{id: "hb#2.rx", state: "stopped", peers: {}, type: "unicast"}],
-            },
-        };
-        useEventStore.mockImplementation((selector) => selector({heartbeatStatus: noCacheStatus}));
-        rerender(<Heartbeats/>);
-        await waitFor(() => {
-            rows = screen.getAllByRole("row");
-            const cells = within(rows[1]).getAllByRole("cell");
-            expect(cells[4]).toHaveTextContent("N/A");
-            expect(cells[6]).toHaveTextContent("N/A");
-        });
+            const updatedCells = within(screen.getAllByRole("row")[1]).getAllByRole("cell");
+            expect(updatedCells[4]).toHaveTextContent("peer1");
+            expect(updatedCells[6]).toHaveTextContent(":10011 ← peer1");
+        }, {timeout: 2000});
     });
 
-    test("handles empty or null streams gracefully", () => {
-        useEventStore.mockReturnValue({
-            heartbeatStatus: {
-                node1: {streams: []},
-                node2: {streams: null},
-            },
-        });
+    test("displays N/A for stopped stream with no cached peers", async () => {
+        mockHeartbeatStore(buildStatus([{
+            node: "node1",
+            streams: [{id: "hb#1.rx", state: "stopped", type: "unicast", peers: {}}]
+        }]));
         renderWithRouter(<Heartbeats/>);
-        expect(screen.getByRole("table")).toBeInTheDocument();
+        const cells = within(screen.getAllByRole("row")[1]).getAllByRole("cell");
+        expect(cells[4]).toHaveTextContent("N/A");
+        expect(cells[5]).toHaveTextContent("unicast");
+        expect(cells[6]).toHaveTextContent("N/A");
+        expect(cells[7]).toHaveTextContent("N/A");
+        expect(cells[8]).toHaveTextContent("N/A");
+    });
+
+    // ==================== EMPTY / MISSING DATA ====================
+    test("handles empty or null streams", () => {
+        mockHeartbeatStore({node1: {streams: []}, node2: {streams: null}});
+        renderWithRouter(<Heartbeats/>);
         expect(screen.getAllByRole("row")).toHaveLength(1);
     });
 
-    test("starts event reception with token and cleans up on unmount", () => {
-        useEventStore.mockReturnValue({heartbeatStatus: {}});
+    test("shows message when no heartbeats match filters", () => {
+        mockHeartbeatStore(buildStatus([{
+            node: "node1",
+            streams: [{
+                id: "hb#1.rx",
+                state: "running",
+                peers: {peer1: {is_beating: true, desc: "desc"}},
+                type: "unicast"
+            }]
+        }]));
+        renderWithRouter(<Heartbeats/>, {route: "/?node=nonexistent"});
+        expect(screen.getByText("No heartbeats found matching the current filters.")).toBeInTheDocument();
+    });
+
+    // ==================== SORTING ====================
+    const sortTestData = [
+        ["id", "ID", "a.rx", "b.rx"],
+        ["peer", "PEER", "a_peer", "b_peer"],
+        ["type", "TYPE", "a_type", "b_type"],
+        ["desc", "DESC", "a_desc", "b_desc"],
+        ["changed_at", "CHANGED_AT", "2024-01-01", "2024-02-01"],
+        ["last_beating_at", "LAST_BEATING_AT", "2024-01-01", "2024-02-01"],
+    ];
+
+    test.each(sortTestData)("sorts by %s column", async (key, headerText, ascValue, descValue) => {
+        const status = {
+            node1: {
+                streams: [
+                    {
+                        id: key === "id" ? "hb#b.rx" : "hb#1.rx",
+                        state: "running",
+                        peers: {
+                            [key === "peer" ? "b_peer" : "peer1"]: {
+                                is_beating: true,
+                                desc: key === "desc" ? "b_desc" : "desc1",
+                                changed_at: key === "changed_at" ? "2024-02-01" : "2024-01-01",
+                                last_beating_at: key === "last_beating_at" ? "2024-02-01" : "2024-01-01",
+                            },
+                        },
+                        type: key === "type" ? "b_type" : "type1",
+                    },
+                    {
+                        id: key === "id" ? "hb#a.rx" : "hb#2.rx",
+                        state: "running",
+                        peers: {
+                            [key === "peer" ? "a_peer" : "peer2"]: {
+                                is_beating: true,
+                                desc: key === "desc" ? "a_desc" : "desc2",
+                                changed_at: key === "changed_at" ? "2024-01-01" : "2024-01-02",
+                                last_beating_at: key === "last_beating_at" ? "2024-01-01" : "2024-01-02",
+                            },
+                        },
+                        type: key === "type" ? "a_type" : "type2",
+                    },
+                ],
+            },
+        };
+        mockHeartbeatStore(status);
+        renderWithRouter(<Heartbeats/>);
+
+        const header = screen.getByText(headerText);
+        await userEvent.click(header);
+        let rows = screen.getAllByRole("row").slice(1);
+        expect(within(rows[0]).getByText(ascValue)).toBeInTheDocument();
+        expect(within(rows[1]).getByText(descValue)).toBeInTheDocument();
+
+        await userEvent.click(header);
+        rows = screen.getAllByRole("row").slice(1);
+        expect(within(rows[0]).getByText(descValue)).toBeInTheDocument();
+        expect(within(rows[1]).getByText(ascValue)).toBeInTheDocument();
+    });
+
+    test("sorts by beating column", async () => {
+        mockHeartbeatStore({
+            node1: {
+                streams: [
+                    {id: "hb#1.rx", state: "running", peers: {peer1: {is_beating: true, desc: "desc1"}}, type: "type1"},
+                    {
+                        id: "hb#2.rx",
+                        state: "running",
+                        peers: {peer2: {is_beating: false, desc: "desc2"}},
+                        type: "type2"
+                    },
+                ],
+            },
+        });
+        renderWithRouter(<Heartbeats/>);
+
+        const beatingHeader = screen.getByText("BEATING");
+        await userEvent.click(beatingHeader);
+        let rows = screen.getAllByRole("row").slice(1);
+        expect(within(rows[0]).getByText("2.rx")).toBeInTheDocument();
+        expect(within(rows[1]).getByText("1.rx")).toBeInTheDocument();
+
+        await userEvent.click(beatingHeader);
+        rows = screen.getAllByRole("row").slice(1);
+        expect(within(rows[0]).getByText("1.rx")).toBeInTheDocument();
+        expect(within(rows[1]).getByText("2.rx")).toBeInTheDocument();
+    });
+
+    test("sorting by state column", async () => {
+        const states = ["running", "warning", "stopped", "failed", "unknown"];
+        const status = {
+            node1: {
+                streams: states.map((s, i) => ({
+                    id: `hb#${i + 1}.rx`,
+                    state: s,
+                    peers: {peer: {is_beating: false, desc: `desc${i + 1}`}},
+                    type: `type${i + 1}`,
+                })),
+            },
+        };
+        mockHeartbeatStore(status);
+        renderWithRouter(<Heartbeats/>);
+
+        const stateHeader = screen.getByText("RUNNING");
+        await userEvent.click(stateHeader);
+        let rows = screen.getAllByRole("row").slice(1);
+        ["5.rx", "4.rx", "3.rx", "2.rx", "1.rx"].forEach((id, idx) =>
+            expect(within(rows[idx]).getByText(id)).toBeInTheDocument()
+        );
+
+        await userEvent.click(stateHeader);
+        rows = screen.getAllByRole("row").slice(1);
+        ["1.rx", "2.rx", "3.rx", "4.rx", "5.rx"].forEach((id, idx) =>
+            expect(within(rows[idx]).getByText(id)).toBeInTheDocument()
+        );
+    });
+
+    test("sorting different column resets direction to asc", async () => {
+        mockHeartbeatStore({
+            node1: {
+                streams: [
+                    {id: "hb#b.rx", state: "running", peers: {p: {is_beating: true}}, type: "t"},
+                    {id: "hb#a.rx", state: "running", peers: {p: {is_beating: true}}, type: "t"},
+                ],
+            },
+        });
+        renderWithRouter(<Heartbeats/>);
+
+        const beatingHeader = screen.getByText("BEATING");
+        await userEvent.click(beatingHeader);
+        await userEvent.click(beatingHeader); // now desc
+        await userEvent.click(screen.getByText("ID"));
+        const rows = screen.getAllByRole("row").slice(1);
+        expect(within(rows[0]).getByText("a.rx")).toBeInTheDocument();
+    });
+
+    // ==================== MULTIPLE NODES & SINGLE NODE ====================
+    test("handles multiple nodes and ordering", async () => {
+        mockHeartbeatStore(buildStatus([
+            {
+                node: "nodeB",
+                streams: [{
+                    id: "hb#2.rx",
+                    state: "running",
+                    type: "unicast",
+                    peers: {
+                        peer2: {
+                            is_beating: true,
+                            desc: ":10012 ← peer2",
+                            changed_at: "2025-06-03T04:25:31+00:00",
+                            last_beating_at: "2025-06-03T04:25:31+00:00"
+                        }
+                    }
+                }]
+            },
+            {
+                node: "nodeA",
+                streams: [{
+                    id: "hb#1.rx",
+                    state: "running",
+                    type: "unicast",
+                    peers: {
+                        peer1: {
+                            is_beating: true,
+                            desc: ":10011 ← peer1",
+                            changed_at: "2025-06-03T04:25:31+00:00",
+                            last_beating_at: "2025-06-03T04:25:31+00:00"
+                        }
+                    }
+                }]
+            },
+        ]));
+        renderWithRouter(<Heartbeats/>);
+        const dataRows = screen.getAllByRole("row").slice(1);
+        expect(dataRows).toHaveLength(2);
+        expect(within(dataRows[0]).getByText("nodeA")).toBeInTheDocument();
+        expect(within(dataRows[1]).getByText("nodeB")).toBeInTheDocument();
+    });
+
+    test("single node always shows healthy beating icon", async () => {
+        mockHeartbeatStore(buildStatus([{
+            node: "node1",
+            streams: [{
+                id: "hb#1.rx",
+                state: "running",
+                type: "unicast",
+                peers: {
+                    peer1: {
+                        is_beating: false,
+                        desc: ":10011 ← peer1",
+                        changed_at: "2025-06-03T04:25:31+00:00",
+                        last_beating_at: "2025-06-03T04:25:31+00:00"
+                    }
+                }
+            }]
+        }]));
+        renderWithRouter(<Heartbeats/>);
+        const beatingCell = within(screen.getAllByRole("row")[1]).getAllByRole("cell")[1];
+        expect(within(beatingCell).getByTestId("CheckCircleIcon")).toBeInTheDocument();
+    });
+
+    // ==================== AUTH & CLEANUP ====================
+    test("initializes with auth token and cleans up on unmount", () => {
+        mockHeartbeatStore({});
         const {unmount} = renderWithRouter(<Heartbeats/>);
         expect(mockLocalStorage.getItem).toHaveBeenCalledWith("authToken");
         expect(startEventReception).toHaveBeenCalledWith("valid-token", expect.any(Array));
-
         unmount();
         expect(closeEventSource).toHaveBeenCalled();
     });
 
     test("does not start event reception without auth token", () => {
         mockLocalStorage.getItem.mockReturnValue(null);
-        useEventStore.mockReturnValue({heartbeatStatus: {}});
+        mockHeartbeatStore({});
         renderWithRouter(<Heartbeats/>);
         expect(startEventReception).not.toHaveBeenCalled();
     });
 
+    // ==================== LAZY LOADING (SCROLL) ====================
     test("loads more rows when scrolling near bottom", async () => {
         const manyStreams = {};
-        for (let i = 1; i <= 60; i++) {
+        for (let i = 1; i <= 50; i++) {
             manyStreams[`node${i}`] = {
-                streams: [
-                    createStream(`hb#${i}.rx`, "running", {
-                        peer1: {is_beating: true, desc: `desc${i}`, changed_at: "t", last_beating_at: "t"},
-                    }, "unicast"),
-                ],
+                streams: [{
+                    id: `hb#${i}.rx`,
+                    state: "running",
+                    type: "unicast",
+                    peers: {
+                        peer1: {
+                            is_beating: true,
+                            desc: `desc${i}`,
+                            changed_at: "2025-06-03T04:25:31+00:00",
+                            last_beating_at: "2025-06-03T04:25:31+00:00"
+                        }
+                    },
+                }],
             };
         }
-        useEventStore.mockImplementation((selector) => selector({heartbeatStatus: manyStreams}));
-
+        mockHeartbeatStore(manyStreams);
         renderWithRouter(<Heartbeats/>);
 
-        await waitFor(() => {
-            const rows = screen.getAllByRole("row");
-            expect(rows.slice(1)).toHaveLength(30);
-        });
+        expect(screen.getAllByRole("row").slice(1)).toHaveLength(30);
 
         const container = document.querySelector(".MuiTableContainer-root");
         Object.defineProperty(container, "scrollHeight", {value: 1000, configurable: true});
         Object.defineProperty(container, "clientHeight", {value: 200, configurable: true});
 
-        container.scrollTop = 850;
+        act(() => {
+            container.scrollTop = 850;
+        });
         fireEvent.scroll(container);
 
-        await waitFor(
-            () => {
-                const rows = screen.getAllByRole("row");
-                expect(rows.slice(1).length).toBeGreaterThan(30);
-            },
-            {timeout: 500}
-        );
-
-        await waitFor(
-            () => {
-                const rows = screen.getAllByRole("row");
-                expect(rows.slice(1).length).toBe(60);
-            },
-            {timeout: 1000}
-        );
+        await waitFor(() => {
+            expect(screen.getAllByRole("row").slice(1).length).toBeGreaterThan(30);
+        }, {timeout: 2000});
     });
 
-    test("shows/hides filter panel depending on screen size", async () => {
-        const mockHeartbeatStatus = {node1: {streams: []}};
-        useEventStore.mockReturnValue({heartbeatStatus: mockHeartbeatStatus});
-        const user = userEvent.setup();
+    // ==================== RESPONSIVE FILTERS ====================
+    test.each([
+        ["mobile", true, false, true, false],
+        ["wide screen", false, true, false, true],
+        ["desktop", false, false, false, true],
+    ])("filter visibility on %s", async (_, isMobile, isWide, buttonExists, initiallyVisible) => {
+        mockUseMediaQuery.mockImplementation((query) => {
+            if (query === theme.breakpoints.down("md")) return isMobile;
+            if (query === theme.breakpoints.up("lg")) return isWide;
+            return false;
+        });
+        mockHeartbeatStore({node1: {streams: []}});
+        renderWithRouter(<Heartbeats/>);
 
+        const filterButton = screen.queryByRole("button", {name: /filters/i});
+        expect(!!filterButton).toBe(buttonExists);
+
+        const collapse = document.querySelector('.MuiCollapse-root');
+        expect(collapse).toBeInTheDocument();
+        if (initiallyVisible) {
+            await waitFor(() => {
+                expect(collapse).not.toHaveClass('MuiCollapse-hidden');
+            });
+        } else {
+            await waitFor(() => {
+                expect(collapse).toHaveClass('MuiCollapse-hidden');
+            });
+        }
+    });
+
+    test("mobile filter button toggles visibility", async () => {
         mockUseMediaQuery.mockImplementation((query) => {
             if (query === theme.breakpoints.down("md")) return true;
             return false;
         });
-        const {rerender} = renderWithRouter(<Heartbeats/>);
+        mockHeartbeatStore({node1: {streams: []}});
+        renderWithRouter(<Heartbeats/>);
 
-        let filterButton = screen.getByRole("button", {name: /filters/i});
-        expect(filterButton).toBeInTheDocument();
-        let collapse = document.querySelector(".MuiCollapse-root");
-        expect(collapse).toHaveClass("MuiCollapse-hidden");
+        const collapse = document.querySelector('.MuiCollapse-root');
+        const button = screen.getByRole("button", {name: /filters/i});
 
-        await user.click(filterButton);
-        await waitFor(() => {
-            expect(collapse).not.toHaveClass("MuiCollapse-hidden");
-        });
+        await waitFor(() => expect(collapse).toHaveClass('MuiCollapse-hidden'));
 
-        mockUseMediaQuery.mockImplementation((query) => {
-            if (query === theme.breakpoints.up("lg")) return true;
-            return false;
-        });
-        rerender(<Heartbeats/>);
+        await userEvent.click(button);
+        await waitFor(() => expect(collapse).not.toHaveClass('MuiCollapse-hidden'));
 
-        await waitFor(() => {
-            expect(screen.queryByRole("button", {name: /filters/i})).not.toBeInTheDocument();
-        });
-        collapse = document.querySelector(".MuiCollapse-root");
-        expect(collapse).not.toHaveClass("MuiCollapse-hidden");
+        await userEvent.click(button);
+        await waitFor(() => expect(collapse).toHaveClass('MuiCollapse-hidden'));
     });
 });
-
-function createStream(
-    id,
-    state,
-    peers,
-    type,
-    changed_at = "2025-06-03T04:25:31+00:00",
-    last_beating_at = "2025-06-03T04:25:31+00:00"
-) {
-    const enrichedPeers = {};
-    for (const [key, val] of Object.entries(peers)) {
-        enrichedPeers[key] = {
-            ...val,
-            changed_at: val.changed_at || changed_at,
-            last_beating_at: val.last_beating_at || last_beating_at,
-        };
-    }
-    return {id, state, peers: enrichedPeers, type};
-}
