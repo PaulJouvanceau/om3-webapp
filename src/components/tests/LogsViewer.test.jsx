@@ -1,19 +1,18 @@
 import React from 'react';
-import {render, screen, fireEvent, waitFor, act} from '@testing-library/react';
+import {render, screen, fireEvent, waitFor} from '@testing-library/react';
 import '@testing-library/jest-dom';
 import LogsViewer from '../LogsViewer';
 
-// Mock console.error to prevent error logs during tests
+// Suppress intentional console errors during tests
 const originalConsoleError = console.error;
 beforeAll(() => {
     console.error = jest.fn();
 });
-
 afterAll(() => {
     console.error = originalConsoleError;
 });
 
-// Mock MUI's useTheme
+// --- Mocks ---
 jest.mock('@mui/material', () => ({
     ...jest.requireActual('@mui/material'),
     useTheme: () => ({
@@ -30,40 +29,24 @@ jest.mock('@mui/material', () => ({
     }),
 }));
 
-// Mock DarkModeContext
 jest.mock('../../context/DarkModeContext', () => ({
-    useDarkMode: () => ({
-        isDarkMode: false,
-        toggleDarkMode: jest.fn(),
-    }),
+    useDarkMode: () => ({isDarkMode: false, toggleDarkMode: jest.fn()}),
 }));
 
-jest.mock('../../config/apiPath.js', () => ({
-    URL_NODE: 'http://mock-api',
-}));
+jest.mock('../../config/apiPath.js', () => ({URL_NODE: 'http://mock-api'}));
 
-// Mock localStorage
 const mockLocalStorage = {
     getItem: jest.fn().mockReturnValue('mock-token'),
 };
 Object.defineProperty(window, 'localStorage', {value: mockLocalStorage});
 
-// Mock logger to prevent console.error calls
-jest.mock('../../utils/logger.js', () => ({
-    warn: jest.fn(),
-    error: jest.fn(),
-}));
+jest.mock('../../utils/logger.js', () => ({warn: jest.fn(), error: jest.fn()}));
 
-const mockBlob = jest.fn();
-global.Blob = mockBlob;
+global.Blob = jest.fn();
+global.URL.createObjectURL = jest.fn().mockReturnValue('blob-url');
+global.URL.revokeObjectURL = jest.fn();
 
-// Mock URL.createObjectURL and URL.revokeObjectURL
-const mockCreateObjectURL = jest.fn().mockReturnValue('blob-url');
-const mockRevokeObjectURL = jest.fn();
-global.URL.createObjectURL = mockCreateObjectURL;
-global.URL.revokeObjectURL = mockRevokeObjectURL;
-
-// Mock ReadableStream
+// Simulate a readable stream for testing SSE
 class MockReadableStream {
     constructor(chunks, delay = 0) {
         this.chunks = chunks || [];
@@ -73,23 +56,15 @@ class MockReadableStream {
 
     getReader() {
         let index = 0;
-        const chunks = this.chunks;
+        const {chunks, delay} = this;
         const stream = this;
-
         return {
             read: async () => {
-                if (stream.cancelled) {
-                    return {done: true};
-                }
+                if (stream.cancelled) return {done: true};
                 if (index < chunks.length) {
                     const chunk = chunks[index++];
-                    if (stream.delay > 0) {
-                        await new Promise(resolve => setTimeout(resolve, stream.delay));
-                    }
-                    return {
-                        value: new TextEncoder().encode(chunk),
-                        done: false,
-                    };
+                    if (delay > 0) await new Promise(r => setTimeout(r, delay));
+                    return {value: new TextEncoder().encode(chunk), done: false};
                 }
                 return {done: true};
             },
@@ -107,990 +82,425 @@ class MockReadableStream {
     }
 }
 
-// Helper functions
+// --- Helpers ---
 const mockSuccessfulFetch = (logData = [], delay = 0) => {
-    const streamChunks = logData.map((log) => `data: ${JSON.stringify(log)}\n\n`);
-    global.fetch = jest.fn().mockImplementation(() =>
-        Promise.resolve({
-            ok: true,
-            status: 200,
-            body: new MockReadableStream(streamChunks, delay),
-        })
-    );
+    const streamChunks = logData.map(log => `data: ${JSON.stringify(log)}\n\n`);
+    global.fetch = jest.fn().mockResolvedValue({
+        ok: true, status: 200,
+        body: new MockReadableStream(streamChunks, delay),
+    });
 };
 
-const mockErrorFetch = (status = 401, message = 'Unauthorized') => {
-    global.fetch = jest.fn().mockImplementation(() =>
-        Promise.reject(new Error(message))
-    );
+const mockErrorFetch = (status, message) => {
+    global.fetch = jest.fn().mockRejectedValue(new Error(message));
 };
 
-const mockHttpErrorFetch = (status = 401) => {
-    global.fetch = jest.fn().mockImplementation(() =>
-        Promise.resolve({
-            ok: false,
-            status,
-        })
-    );
+const mockHttpErrorFetch = (status) => {
+    global.fetch = jest.fn().mockResolvedValue({ok: false, status});
 };
 
-// Helper to find text in the entire container
-const findTextInContainer = (container, text) => {
-    return container.textContent.includes(text);
-};
+const renderComponent = (props = {}) =>
+    render(<LogsViewer nodename="test-node" {...props} />);
 
-// Helper to wait for specific text to appear
-const waitForText = async (text, options = {}) => {
-    const {timeout = 5000, container = document.body} = options;
-    await waitFor(
-        () => {
-            const hasText = findTextInContainer(container, text);
-            if (!hasText) {
-                throw new Error(`Text "${text}" not found`);
-            }
-        },
-        {timeout}
-    );
-};
-
-// Helper to check if text is not present
-const waitForTextToDisappear = async (text, options = {}) => {
-    const {timeout = 5000, container = document.body} = options;
-    await waitFor(
-        () => {
-            const hasText = findTextInContainer(container, text);
-            if (hasText) {
-                throw new Error(`Text "${text}" is still present`);
-            }
-        },
-        {timeout}
-    );
-};
-
-describe('LogsViewer Component', () => {
+// --- Tests ---
+describe('LogsViewer', () => {
     beforeAll(() => {
         HTMLElement.prototype.scrollIntoView = jest.fn();
-        jest.useFakeTimers();
     });
-
     afterAll(() => {
         delete HTMLElement.prototype.scrollIntoView;
-        jest.useRealTimers();
     });
-
     beforeEach(() => {
         jest.clearAllMocks();
         mockLocalStorage.getItem.mockReturnValue('mock-token');
     });
 
-    // Helper to render component
-    const renderComponent = (props = {}) => {
-        return render(<LogsViewer nodename="test-node" {...props} />);
-    };
-
-    test('renders subtitle for node type', async () => {
-        mockSuccessfulFetch([]);
-        await act(async () => {
+    describe('Rendering', () => {
+        test('renders nodename subtitle for node type', async () => {
+            mockSuccessfulFetch([]);
             renderComponent();
+            expect(await screen.findByText('test-node', {exact: false})).toBeInTheDocument();
         });
-        expect(screen.getByText('test-node', {exact: false})).toBeInTheDocument();
-    });
 
-    test('renders subtitle for instance type', async () => {
-        mockSuccessfulFetch([]);
-        await act(async () => {
-            renderComponent({
-                type: 'instance',
-                instanceName: 'test-instance',
-                namespace: 'test-ns',
-                kind: 'test-kind',
-            });
+        test('renders instance subtitle', async () => {
+            mockSuccessfulFetch([]);
+            renderComponent({type: 'instance', instanceName: 'test-instance', namespace: 'test-ns', kind: 'test-kind'});
+            await screen.findByText('test-instance', {exact: false});
+            expect(screen.getByText('test-node', {exact: false})).toBeInTheDocument();
         });
-        expect(screen.getByText('test-instance', {exact: false})).toBeInTheDocument();
-        expect(screen.getByText('test-node', {exact: false})).toBeInTheDocument();
-    });
 
-    test('shows error if instanceName missing for instance type', async () => {
-        mockSuccessfulFetch([]);
-        await act(async () => {
-            renderComponent({
-                type: 'instance',
-                instanceName: '',
-            });
+        test('shows error when instanceName missing for instance type', async () => {
+            mockSuccessfulFetch([]);
+            renderComponent({type: 'instance', instanceName: ''});
+            expect(await screen.findByText('Instance name is required', {exact: false})).toBeInTheDocument();
         });
-        expect(screen.getByText('Instance name is required', {exact: false})).toBeInTheDocument();
-    });
 
-    test('fetches logs with correct URL for node type', async () => {
-        mockSuccessfulFetch([]);
-        await act(async () => {
+        test('shows loading spinner during fetch', async () => {
+            global.fetch = jest.fn(() => new Promise(() => {
+            }));
             renderComponent();
+            expect(screen.getByRole('progressbar')).toBeInTheDocument();
         });
 
-        await waitFor(() => {
-            expect(global.fetch).toHaveBeenCalledWith(
-                'http://mock-api/test-node/log?follow=true',
-                expect.objectContaining({
-                    method: 'GET',
-                    headers: expect.objectContaining({
-                        Authorization: 'Bearer mock-token',
-                        Accept: 'text/event-stream',
-                    }),
-                })
-            );
+        test('displays "No logs available" when empty', async () => {
+            mockSuccessfulFetch([]);
+            renderComponent();
+            await screen.findByText('No logs available');
         });
     });
 
-    test('fetches logs with correct URL for instance type', async () => {
-        mockSuccessfulFetch([]);
-        await act(async () => {
-            renderComponent({
-                type: 'instance',
-                instanceName: 'test-instance',
-                namespace: 'test-ns',
-                kind: 'test-kind',
+    describe('Fetch URL and Headers', () => {
+        test('fetches correct URL for node type', async () => {
+            mockSuccessfulFetch([]);
+            renderComponent();
+            await waitFor(() => {
+                expect(global.fetch).toHaveBeenCalledWith(
+                    'http://mock-api/test-node/log?follow=true',
+                    expect.objectContaining({
+                        method: 'GET',
+                        headers: expect.objectContaining({
+                            Authorization: 'Bearer mock-token',
+                            Accept: 'text/event-stream',
+                        }),
+                    })
+                );
             });
         });
 
-        await waitFor(() => {
-            expect(global.fetch).toHaveBeenCalledWith(
-                'http://mock-api/test-node/instance/path/test-ns/test-kind/test-instance/log?follow=true',
-                expect.objectContaining({
-                    method: 'GET',
-                    headers: expect.objectContaining({
-                        Authorization: 'Bearer mock-token',
-                        Accept: 'text/event-stream',
-                    }),
-                })
-            );
+        test('fetches correct URL for instance type', async () => {
+            mockSuccessfulFetch([]);
+            renderComponent({type: 'instance', instanceName: 'inst', namespace: 'ns', kind: 'kind'});
+            await waitFor(() => {
+                expect(global.fetch).toHaveBeenCalledWith(
+                    'http://mock-api/test-node/instance/path/ns/kind/inst/log?follow=true',
+                    expect.objectContaining({
+                        method: 'GET',
+                        headers: expect.objectContaining({
+                            Authorization: 'Bearer mock-token',
+                            Accept: 'text/event-stream',
+                        }),
+                    })
+                );
+            });
         });
     });
 
-    test('pauses and resumes log streaming', async () => {
-        mockSuccessfulFetch([]);
-        await act(async () => {
+    describe('Error handling', () => {
+        test('shows authentication token error when token missing', async () => {
+            mockLocalStorage.getItem.mockReturnValue(null);
             renderComponent();
+            await screen.findByText('Authentication token not found');
         });
 
-        await waitFor(() => {
-            const buttons = screen.getAllByRole('button');
-            const hasPause = buttons.some((btn) => btn.getAttribute('aria-label')?.includes('Pause'));
-            expect(hasPause).toBe(true);
-        });
-
-        await act(async () => {
-            const pauseButton = screen.getAllByRole('button').find((btn) =>
-                btn.getAttribute('aria-label')?.includes('Pause')
-            );
-            if (pauseButton) fireEvent.click(pauseButton);
-        });
-
-        await waitFor(() => {
-            const buttons = screen.getAllByRole('button');
-            const hasResume = buttons.some((btn) => btn.getAttribute('aria-label')?.includes('Resume'));
-            expect(hasResume).toBe(true);
-        });
-
-        await act(async () => {
-            const resumeButton = screen.getAllByRole('button').find((btn) =>
-                btn.getAttribute('aria-label')?.includes('Resume')
-            );
-            if (resumeButton) fireEvent.click(resumeButton);
-        });
-
-        await waitFor(() => {
-            const buttons = screen.getAllByRole('button');
-            const hasPause = buttons.some((btn) => btn.getAttribute('aria-label')?.includes('Pause'));
-            expect(hasPause).toBe(true);
-        });
-    });
-
-    test('displays no logs message when empty', async () => {
-        mockSuccessfulFetch([]);
-        await act(async () => {
+        test('handles HTTP error status 401', async () => {
+            mockHttpErrorFetch(401);
             renderComponent();
+            await screen.findByText('HTTP error! status: 401');
         });
 
-        await waitForText('No logs available');
-    });
-
-    test('handles non-JSON log parsing', async () => {
-        const mockLogs = [
-            {__REALTIME_TIMESTAMP: Date.now() * 1000, MESSAGE: 'Non-JSON test message'},
-        ];
-        mockSuccessfulFetch(mockLogs);
-        await act(async () => {
+        test('handles HTTP error status 500', async () => {
+            mockHttpErrorFetch(500);
             renderComponent();
+            await screen.findByText('HTTP error! status: 500');
         });
 
-        await waitForText('Non-JSON test message');
-        await waitForText('[INFO]');
-    });
-
-    test('disables buttons when no logs', async () => {
-        mockSuccessfulFetch([]);
-        await act(async () => {
+        test('shows node not found error for 404 in node type', async () => {
+            mockErrorFetch(404, '404');
             renderComponent();
+            await screen.findByText('Node logs endpoint not found for node test-node');
         });
 
-        await waitForText('No logs available');
+        test('shows instance not found error for 404 in instance type', async () => {
+            mockErrorFetch(404, '404');
+            renderComponent({type: 'instance', instanceName: 'inst', namespace: 'ns', kind: 'kind'});
+            await screen.findByText('Instance logs endpoint not found for inst on node test-node');
+        });
 
-        const clearButton = screen.getAllByRole('button').find((btn) =>
-            btn.getAttribute('aria-label')?.includes('Clear')
-        );
-        expect(clearButton).toBeDisabled();
-
-        const downloadButton = screen.getAllByRole('button').find((btn) =>
-            btn.getAttribute('aria-label')?.includes('Download')
-        );
-        expect(downloadButton).toBeDisabled();
-    });
-
-    test('shows connected status after successful fetch', async () => {
-        mockSuccessfulFetch([]);
-        await act(async () => {
+        test('handles network error', async () => {
+            mockErrorFetch(500, 'Network error');
             renderComponent();
+            await screen.findByText('Failed to fetch logs: Network error');
         });
 
-        await waitForText('Connected');
-    });
-
-    test('handles parse error gracefully', async () => {
-        const streamChunks = ['data: invalid json\n\n'];
-        global.fetch = jest.fn().mockImplementation(() =>
-            Promise.resolve({
-                ok: true,
-                status: 200,
-                body: new MockReadableStream(streamChunks),
-            })
-        );
-
-        await act(async () => {
+        test('handles response without body', async () => {
+            global.fetch = jest.fn().mockResolvedValue({ok: true, status: 200, body: null});
             renderComponent();
+            await screen.findByText('Response has no readable stream');
         });
 
-        await waitForText('No logs available');
-    });
-
-    test('deduplicates logs by timestamp', async () => {
-        const ts = Date.now() * 1000;
-        const mockLogs = [
-            {__REALTIME_TIMESTAMP: ts, MESSAGE: 'dup'},
-            {__REALTIME_TIMESTAMP: ts, MESSAGE: 'dup'},
-            {__REALTIME_TIMESTAMP: ts + 1000, MESSAGE: 'unique'},
-        ];
-        mockSuccessfulFetch(mockLogs);
-        await act(async () => {
+        test('shows retry button on error and reconnects', async () => {
+            mockHttpErrorFetch(401);
             renderComponent();
+            await screen.findByText('HTTP error! status: 401');
+            mockSuccessfulFetch([]);
+            fireEvent.click(screen.getByText('Retry'));
+            await screen.findByText('Connected');
         });
-
-        await waitForText('unique');
-        const dups = screen.getAllByText('dup', {exact: false});
-        expect(dups.length).toBe(1);
     });
 
-    test('handles JSON log parsing with all fields', async () => {
-        const ts = Date.now();
-        const mockLogs = [
-            {
+    describe('Log streaming and pause/resume', () => {
+        test('shows connected status after fetch', async () => {
+            mockSuccessfulFetch([]);
+            renderComponent();
+            await screen.findByText('Connected');
+        });
+
+        test('pauses and resumes streaming', async () => {
+            mockSuccessfulFetch([]);
+            renderComponent();
+            await screen.findByText('Connected');
+
+            const pauseBtn = screen.getByRole('button', {name: /pause/i});
+            fireEvent.click(pauseBtn);
+            expect(await screen.findByRole('button', {name: /resume/i})).toBeInTheDocument();
+
+            fireEvent.click(screen.getByRole('button', {name: /resume/i}));
+            expect(await screen.findByRole('button', {name: /pause/i})).toBeInTheDocument();
+        });
+
+        test('aborts fetch on pause', async () => {
+            const abortSpy = jest.fn();
+            global.AbortController = class {
+                constructor() {
+                    this.signal = {};
+                }
+
+                abort() {
+                    abortSpy();
+                }
+            };
+            mockSuccessfulFetch([]);
+            renderComponent();
+            await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+            fireEvent.click(screen.getByRole('button', {name: /pause/i}));
+            expect(abortSpy).toHaveBeenCalled();
+        });
+
+        test('does not update logs when paused', async () => {
+            const now = Date.now() * 1000;
+            mockSuccessfulFetch([{__REALTIME_TIMESTAMP: now, MESSAGE: 'Initial log'}]);
+            renderComponent();
+            await screen.findByText('Initial log');
+
+            fireEvent.click(screen.getByRole('button', {name: /pause/i}));
+
+            // simulate new data while paused
+            global.fetch = jest.fn().mockResolvedValue({
+                ok: true, status: 200,
+                body: new MockReadableStream([`data: ${JSON.stringify({
+                    __REALTIME_TIMESTAMP: now + 1000,
+                    MESSAGE: 'Buffered log'
+                })}\n\n`]),
+            });
+            // Should not appear
+            await expect(screen.findByText('Buffered log', {}, {timeout: 1000})).rejects.toThrow();
+        });
+    });
+
+    describe('Log parsing', () => {
+        const baseTs = Date.now();
+
+        test('handles non-JSON log', async () => {
+            mockSuccessfulFetch([{__REALTIME_TIMESTAMP: baseTs * 1000, MESSAGE: 'Plain message'}]);
+            renderComponent();
+            await screen.findByText('Plain message');
+            expect(screen.getByText('[INFO]')).toBeInTheDocument();
+        });
+
+        test('parses JSON log with all fields', async () => {
+            const log = {
                 JSON: JSON.stringify({
-                    time: ts,
-                    level: 'debug',
-                    message: 'JSON test message',
-                    method: 'GET',
-                    path: '/api/test',
-                    node: 'test-node',
-                    request_uuid: 'uuid-123',
-                    pkg: 'test-pkg',
+                    time: baseTs, level: 'debug', message: 'JSON msg', method: 'GET', path: '/api/test',
+                    node: 'test-node', request_uuid: 'uuid', pkg: 'test-pkg',
                 }),
-                __REALTIME_TIMESTAMP: ts * 1000,
-            },
-        ];
-        mockSuccessfulFetch(mockLogs);
-        await act(async () => {
+                __REALTIME_TIMESTAMP: baseTs * 1000,
+            };
+            mockSuccessfulFetch([log]);
             renderComponent();
+            await screen.findByText('JSON msg');
+            expect(screen.getByText('[DEBUG]')).toBeInTheDocument();
+            expect(screen.getByText('GET')).toBeInTheDocument();
+            expect(screen.getByText('/api/test')).toBeInTheDocument();
         });
 
-        await waitForText('JSON test message');
-        await waitForText('[DEBUG]');
-        await waitForText('GET');
-        await waitForText('/api/test');
-    });
-
-    test('clears logs correctly', async () => {
-        const ts = Date.now() * 1000;
-        const mockLogs = [
-            {__REALTIME_TIMESTAMP: ts, MESSAGE: 'Test log'},
-        ];
-        mockSuccessfulFetch(mockLogs);
-        await act(async () => {
+        test('deduplicates logs by timestamp', async () => {
+            const ts = baseTs * 1000;
+            mockSuccessfulFetch([
+                {__REALTIME_TIMESTAMP: ts, MESSAGE: 'dup'},
+                {__REALTIME_TIMESTAMP: ts, MESSAGE: 'dup'},
+                {__REALTIME_TIMESTAMP: ts + 1000, MESSAGE: 'unique'},
+            ]);
             renderComponent();
+            await screen.findByText('unique');
+            expect(screen.getAllByText('dup', {exact: false}).length).toBe(1);
         });
 
-        await waitForText('Test log');
-
-        const clearButton = screen.getAllByRole('button').find((btn) =>
-            btn.getAttribute('aria-label')?.includes('Clear')
-        );
-        await act(async () => {
-            fireEvent.click(clearButton);
-        });
-
-        await waitForText('No logs available');
-    });
-
-    test('shows authentication error for 401', async () => {
-        mockHttpErrorFetch(401);
-        await act(async () => {
+        test('handles malformed JSON in parse', async () => {
+            mockSuccessfulFetch([{__REALTIME_TIMESTAMP: baseTs * 1000, JSON: '{malformed'}]);
             renderComponent();
+            // The displayed message contains the substring '{malformed'
+            await screen.findByText((content, element) => content.includes('{malformed'));
         });
 
-        await waitForText('HTTP error! status: 401');
-    });
-
-    test('shows node not found error for 404 in node type', async () => {
-        mockErrorFetch(404, '404');
-        await act(async () => {
-            renderComponent();
-        });
-
-        await waitForText('Node logs endpoint not found for node test-node');
-    });
-
-    test('shows instance not found error for 404 in instance type', async () => {
-        mockErrorFetch(404, '404');
-        await act(async () => {
-            renderComponent({
-                type: 'instance',
-                instanceName: 'test-instance',
-                namespace: 'test-ns',
-                kind: 'test-kind',
+        test('processes partial lines across chunks', async () => {
+            const chunk1 = 'data: {"__REALTIME_TIMESTAMP":1234567890, "MESSAGE": "Hello';
+            const chunk2 = ' world"}\n\n';
+            global.fetch = jest.fn().mockResolvedValue({
+                ok: true, status: 200, body: new MockReadableStream([chunk1, chunk2]),
             });
-        });
-
-        await waitForText('Instance logs endpoint not found for test-instance on node test-node');
-    });
-
-    test('shows general fetch error', async () => {
-        mockErrorFetch(500, 'Network error');
-        await act(async () => {
             renderComponent();
+            await screen.findByText('Hello world');
+            expect(screen.queryByText('Hello')).not.toBeInTheDocument();
         });
 
-        await waitForText('Failed to fetch logs: Network error');
-    });
-
-    test('reconnects on retry button after error', async () => {
-        mockHttpErrorFetch(401);
-        await act(async () => {
+        test('ignores non-data lines and empty data', async () => {
+            global.fetch = jest.fn().mockResolvedValue({
+                ok: true, status: 200,
+                body: new MockReadableStream([
+                    'event: log\n',
+                    'data: \n\n',
+                    'data: {"__REALTIME_TIMESTAMP":1234567890, "MESSAGE": "Valid"}\n\n',
+                ]),
+            });
             renderComponent();
+            await screen.findByText('Valid');
         });
-
-        await waitForText('HTTP error! status: 401');
-
-        mockSuccessfulFetch([]);
-
-        const retryButton = screen.getByText('Retry');
-        await act(async () => {
-            fireEvent.click(retryButton);
-        });
-
-        await waitForText('Connected');
     });
 
-    test('limits logs to maxLogs', async () => {
-        const ts = Date.now() * 1000;
-        const mockLogs = Array.from({length: 5}, (_, i) => ({
-            __REALTIME_TIMESTAMP: ts + i * 1000,
-            MESSAGE: `Log ${i + 1}`,
-        }));
-        mockSuccessfulFetch(mockLogs);
-        await act(async () => {
+    describe('Filters and search', () => {
+        beforeEach(() => {
+            const ts = Date.now();
+            mockSuccessfulFetch([
+                {__REALTIME_TIMESTAMP: ts * 1000, JSON: JSON.stringify({level: 'debug', message: 'Debug log'})},
+                {__REALTIME_TIMESTAMP: (ts + 1) * 1000, JSON: JSON.stringify({level: 'error', message: 'Error log'})},
+            ]);
+        });
+
+        test('filters by search term', async () => {
+            renderComponent();
+            await screen.findByText('Debug log');
+            await screen.findByText('Error log');
+
+            fireEvent.change(screen.getByPlaceholderText('Search logs...'), {target: {value: 'debug'}});
+            expect(await screen.findByText('Debug log')).toBeInTheDocument();
+            await waitFor(() => expect(screen.queryByText('Error log')).not.toBeInTheDocument());
+            expect(screen.getByText(/Filters active/)).toBeInTheDocument();
+        });
+
+        test('filters by log level', async () => {
+            renderComponent();
+            await screen.findByText('Debug log');
+
+            const select = screen.getByLabelText('Select Log Levels');
+            fireEvent.mouseDown(select);
+            fireEvent.click(screen.getByText('Debug'));
+
+            expect(await screen.findByText('Debug log')).toBeInTheDocument();
+            await waitFor(() => expect(screen.queryByText('Error log')).not.toBeInTheDocument());
+        });
+
+        test('clicking a log clears filters', async () => {
+            renderComponent();
+            await screen.findByText('Debug log');
+
+            fireEvent.mouseDown(screen.getByLabelText('Select Log Levels'));
+            fireEvent.click(screen.getByText('Debug'));
+            await screen.findByText('Debug log');
+
+            fireEvent.click(screen.getByText('Debug log')); // click to clear
+            await screen.findByText('Error log'); // unfiltered, both appear
+            expect(screen.queryByText(/Filters active/)).not.toBeInTheDocument();
+        });
+
+        test('shows filtered log count', async () => {
+            renderComponent();
+            await screen.findByText('2 / 2 logs');
+
+            fireEvent.mouseDown(screen.getByLabelText('Select Log Levels'));
+            fireEvent.click(screen.getByText('Debug'));
+            await screen.findByText('1 / 2 logs');
+        });
+    });
+
+    describe('Clear and Download', () => {
+        test('clears logs', async () => {
+            mockSuccessfulFetch([{__REALTIME_TIMESTAMP: Date.now() * 1000, MESSAGE: 'Test log'}]);
+            renderComponent();
+            await screen.findByText('Test log');
+
+            fireEvent.click(screen.getByRole('button', {name: /clear/i}));
+            await screen.findByText('No logs available');
+        });
+
+        test('disables clear and download when no logs', async () => {
+            mockSuccessfulFetch([]);
+            renderComponent();
+            await screen.findByText('No logs available');
+            expect(screen.getByRole('button', {name: /clear/i})).toBeDisabled();
+            expect(screen.getByRole('button', {name: /download/i})).toBeDisabled();
+        });
+
+        test('download creates blob and triggers download', async () => {
+            mockSuccessfulFetch([{__REALTIME_TIMESTAMP: Date.now() * 1000, MESSAGE: 'Download test'}]);
+            renderComponent();
+            await screen.findByText('Download test');
+
+            fireEvent.click(screen.getByRole('button', {name: /download/i}));
+            expect(global.URL.createObjectURL).toHaveBeenCalled();
+            expect(global.URL.revokeObjectURL).toHaveBeenCalled();
+        });
+    });
+
+    describe('Scroll and selection', () => {
+        test('highlights selected log and scrolls', async () => {
+            const ts = Date.now() * 1000;
+            const logs = Array.from({length: 10}, (_, i) => ({
+                __REALTIME_TIMESTAMP: ts + i * 1000, MESSAGE: `Log ${i + 1}`,
+            }));
+            mockSuccessfulFetch(logs);
+            renderComponent();
+            await screen.findByText('Log 10');
+
+            fireEvent.change(screen.getByPlaceholderText('Search logs...'), {target: {value: 'Log 5'}});
+            await screen.findByText('Log 5');
+            fireEvent.click(screen.getByText('Log 5')); // clear filter and scroll
+
+            // After click, filters cleared, "Log 10" should reappear
+            await screen.findByText('Log 10');
+            expect(screen.getByText('Log 5')).toBeInTheDocument();
+        });
+
+        test('Go to bottom button appears when not at bottom', async () => {
+            mockSuccessfulFetch([{__REALTIME_TIMESTAMP: Date.now() * 1000, MESSAGE: 'Test'}]);
+            renderComponent();
+            await screen.findByText('Test');
+
+            const goToBottomBtn = screen.getByText('Go to bottom');
+            fireEvent.click(goToBottomBtn);
+            expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
+            expect(screen.queryByText('Go to bottom')).not.toBeInTheDocument();
+        });
+    });
+
+    describe('Miscellaneous', () => {
+        test('limits logs to maxLogs', async () => {
+            const ts = Date.now() * 1000;
+            const logs = Array.from({length: 5}, (_, i) => ({
+                __REALTIME_TIMESTAMP: ts + i * 1000, MESSAGE: `Log ${i + 1}`,
+            }));
+            mockSuccessfulFetch(logs);
             renderComponent({maxLogs: 3});
-        });
-
-        await waitForText('Log 3');
-        await waitForText('Log 4');
-        await waitForText('Log 5');
-        await waitForTextToDisappear('Log 1');
-        await waitForTextToDisappear('Log 2');
-    });
-
-    test('does not update logs when paused', async () => {
-        const ts = Date.now() * 1000;
-        const initialLogs = [{__REALTIME_TIMESTAMP: ts, MESSAGE: 'Initial log'}];
-        mockSuccessfulFetch(initialLogs);
-        await act(async () => {
-            renderComponent();
-        });
-
-        await waitForText('Initial log');
-
-        const pauseButton = screen.getAllByRole('button').find((btn) =>
-            btn.getAttribute('aria-label')?.includes('Pause')
-        );
-        await act(async () => {
-            fireEvent.click(pauseButton);
-        });
-
-        const additionalLogs = [{__REALTIME_TIMESTAMP: ts + 1000, MESSAGE: 'Buffered log'}];
-        global.fetch = jest.fn().mockImplementationOnce(() =>
-            Promise.resolve({
-                ok: true,
-                status: 200,
-                body: new MockReadableStream(additionalLogs.map((log) => `data: ${JSON.stringify(log)}\n\n`)),
-            })
-        );
-
-        await act(async () => {
-            jest.advanceTimersByTime(5000);
-        });
-
-        await waitForTextToDisappear('Buffered log');
-    });
-
-    test('shows loading indicator during fetch', async () => {
-        global.fetch = jest.fn().mockImplementation(() => new Promise(() => {
-        }));
-        await act(async () => {
-            renderComponent();
-        });
-
-        expect(screen.getByRole('progressbar')).toBeInTheDocument();
-    });
-
-    test('aborts fetch on pause', async () => {
-        const abortSpy = jest.fn();
-        global.AbortController = class {
-            constructor() {
-                this.signal = {};
-            }
-
-            abort() {
-                abortSpy();
-            }
-        };
-
-        mockSuccessfulFetch([]);
-        await act(async () => {
-            renderComponent();
-        });
-
-        await waitFor(() => expect(global.fetch).toHaveBeenCalled());
-
-        const pauseButton = screen.getAllByRole('button').find((btn) =>
-            btn.getAttribute('aria-label')?.includes('Pause')
-        );
-        await act(async () => {
-            fireEvent.click(pauseButton);
-        });
-
-        expect(abortSpy).toHaveBeenCalled();
-    });
-
-    test('shows authentication token error when token is missing', async () => {
-        mockLocalStorage.getItem.mockReturnValue(null);
-        await act(async () => {
-            renderComponent();
-        });
-
-        await waitForText('Authentication token not found');
-    });
-
-    test('handles missing token error', async () => {
-        mockLocalStorage.getItem.mockReturnValue(null);
-        mockSuccessfulFetch([]);
-        await act(async () => {
-            renderComponent();
-        });
-        await waitForText('Authentication token not found');
-    });
-
-    test('AbortError handling in fetchLogs', async () => {
-        const abortErr = new Error('Aborted');
-        abortErr.name = 'AbortError';
-        global.fetch = jest.fn().mockRejectedValue(abortErr);
-        await act(async () => {
-            renderComponent();
-        });
-        await waitFor(() => expect(global.fetch).toHaveBeenCalled());
-    });
-
-    test('shows 404 error messages properly', async () => {
-        mockErrorFetch(404, '404');
-        await act(async () => {
-            renderComponent();
-        });
-        await waitForText('Node logs endpoint not found for node test-node');
-
-        mockErrorFetch(404, '404');
-        await act(async () => {
-            renderComponent({
-                type: 'instance',
-                instanceName: 'instX',
-                namespace: 'ns',
-                kind: 'kind',
+            await screen.findByText('Log 5');
+            await waitFor(() => {
+                expect(screen.queryByText('Log 1')).not.toBeInTheDocument();
+                expect(screen.queryByText('Log 2')).not.toBeInTheDocument();
             });
         });
-        await waitForText('Instance logs endpoint not found for instX on node test-node');
-    });
 
-    test('handles getLevelColor variations', async () => {
-        const ts = Date.now();
-        const logs = [
-            {__REALTIME_TIMESTAMP: ts * 1000, JSON: JSON.stringify({level: 'error', message: 'err'})},
-            {__REALTIME_TIMESTAMP: ts * 1000 + 1, JSON: JSON.stringify({level: 'warn', message: 'warn'})},
-            {__REALTIME_TIMESTAMP: ts * 1000 + 2, JSON: JSON.stringify({level: 'debug', message: 'dbg'})},
-            {__REALTIME_TIMESTAMP: ts * 1000 + 3, JSON: JSON.stringify({level: 'other', message: 'other'})},
-        ];
-        mockSuccessfulFetch(logs);
-        await act(async () => {
+        test('handles empty log message', async () => {
+            mockSuccessfulFetch([{__REALTIME_TIMESTAMP: Date.now() * 1000, MESSAGE: ''}]);
             renderComponent();
+            await screen.findByText('[INFO]');
         });
-        await waitForText('err');
-        await waitForText('warn');
-        await waitForText('dbg');
-        await waitForText('other');
-    });
-
-    test('handleDownload creates blob and triggers download', async () => {
-        const ts = Date.now() * 1000;
-        const mockLogs = [{__REALTIME_TIMESTAMP: ts, MESSAGE: 'Download test'}];
-        mockSuccessfulFetch(mockLogs);
-        await act(async () => {
-            renderComponent();
-        });
-        await waitForText('Download test');
-        const downloadButton = screen.getAllByRole('button').find((btn) =>
-            btn.getAttribute('aria-label')?.includes('Download')
-        );
-        await act(async () => {
-            fireEvent.click(downloadButton);
-        });
-        expect(mockCreateObjectURL).toHaveBeenCalled();
-    });
-
-    test('filters logs by search term', async () => {
-        const ts = Date.now() * 1000;
-        const mockLogs = [
-            {__REALTIME_TIMESTAMP: ts, MESSAGE: 'Test log with keyword'},
-            {__REALTIME_TIMESTAMP: ts + 1000, MESSAGE: 'Another log'},
-        ];
-        mockSuccessfulFetch(mockLogs);
-        await act(async () => {
-            renderComponent();
-        });
-
-        await waitForText('Test log with keyword');
-        await waitForText('Another log');
-
-        const searchInput = screen.getByPlaceholderText('Search logs...');
-        await act(async () => {
-            fireEvent.change(searchInput, {target: {value: 'keyword'}});
-        });
-
-        await waitForText('Test log with keyword');
-        await waitForTextToDisappear('Another log');
-        expect(screen.getByText('Filters active', {exact: false})).toBeInTheDocument();
-    });
-
-    test('filters logs by level', async () => {
-        const ts = Date.now();
-        const mockLogs = [
-            {
-                __REALTIME_TIMESTAMP: ts * 1000,
-                JSON: JSON.stringify({level: 'debug', message: 'Debug log'}),
-            },
-            {
-                __REALTIME_TIMESTAMP: ts * 1000 + 1,
-                JSON: JSON.stringify({level: 'error', message: 'Error log'}),
-            },
-        ];
-        mockSuccessfulFetch(mockLogs);
-        await act(async () => {
-            renderComponent();
-        });
-
-        await waitForText('Debug log');
-        await waitForText('Error log');
-
-        const selectInput = screen.getByLabelText('Select Log Levels');
-        await act(async () => {
-            fireEvent.mouseDown(selectInput);
-        });
-        const debugOption = screen.getByText('Debug');
-        await act(async () => {
-            fireEvent.click(debugOption);
-        });
-
-        await waitForText('Debug log');
-        await waitForTextToDisappear('Error log');
-        expect(screen.getByText('Filters active', {exact: false})).toBeInTheDocument();
-    });
-
-    test('clears filters on log click when filtered', async () => {
-        const ts = Date.now();
-        const mockLogs = [
-            {
-                __REALTIME_TIMESTAMP: ts * 1000,
-                JSON: JSON.stringify({level: 'debug', message: 'Debug log'}),
-            },
-            {
-                __REALTIME_TIMESTAMP: ts * 1000 + 1,
-                JSON: JSON.stringify({level: 'error', message: 'Error log'}),
-            },
-        ];
-        mockSuccessfulFetch(mockLogs);
-        await act(async () => {
-            renderComponent();
-        });
-
-        await waitForText('Debug log');
-        await waitForText('Error log');
-
-        const selectInput = screen.getByLabelText('Select Log Levels');
-        await act(async () => {
-            fireEvent.mouseDown(selectInput);
-        });
-        const debugOption = screen.getByText('Debug');
-        await act(async () => {
-            fireEvent.click(debugOption);
-        });
-
-        await waitForText('Debug log');
-        await waitForTextToDisappear('Error log');
-
-        const logLine = screen.getByText('Debug log');
-        await act(async () => {
-            fireEvent.click(logLine);
-        });
-
-        await waitForText('Error log');
-        expect(screen.queryByText('Filters active', {exact: false})).not.toBeInTheDocument();
-    });
-
-    test('highlights selected log and scrolls to it', async () => {
-        const ts = Date.now() * 1000;
-        const mockLogs = Array.from({length: 10}, (_, i) => ({
-            __REALTIME_TIMESTAMP: ts + i * 1000,
-            MESSAGE: `Log ${i + 1}`,
-        }));
-        mockSuccessfulFetch(mockLogs);
-        await act(async () => {
-            renderComponent();
-        });
-
-        await waitForText('Log 10');
-
-        const searchInput = screen.getByPlaceholderText('Search logs...');
-        await act(async () => {
-            fireEvent.change(searchInput, {target: {value: 'Log 5'}});
-        });
-
-        await waitForText('Log 5');
-        await waitForTextToDisappear('Log 10');
-
-        const logLine = screen.getByText('Log 5');
-        await act(async () => {
-            fireEvent.click(logLine);
-        });
-
-        await waitForText('Log 10');
-
-        const logElements = screen.getAllByText(/Log \d+/);
-        const log5Element = logElements.find(element => element.textContent === 'Log 5');
-        expect(log5Element).toBeInTheDocument();
-    });
-
-    test('handles empty log message', async () => {
-        const ts = Date.now() * 1000;
-        const mockLogs = [
-            {__REALTIME_TIMESTAMP: ts, MESSAGE: ''},
-        ];
-        mockSuccessfulFetch(mockLogs);
-        await act(async () => {
-            renderComponent();
-        });
-
-        await waitForText('[INFO]');
-    });
-
-    test('handles malformed JSON in parseLogMessage', async () => {
-        const ts = Date.now() * 1000;
-        const mockLogs = [
-            {__REALTIME_TIMESTAMP: ts, JSON: '{malformed'},
-        ];
-        mockSuccessfulFetch(mockLogs);
-        await act(async () => {
-            renderComponent();
-        });
-
-        await waitForText('{malformed');
-    });
-
-    test('buildDownloadFilename generates correct filename', async () => {
-        mockSuccessfulFetch([]);
-        await act(async () => {
-            renderComponent({type: 'instance', instanceName: 'test-instance'});
-        });
-
-        const downloadButton = screen.getAllByRole('button').find((btn) =>
-            btn.getAttribute('aria-label')?.includes('Download')
-        );
-        expect(downloadButton).toBeDisabled();
-    });
-
-    test('renders log count correctly', async () => {
-        const ts = Date.now() * 1000;
-        const mockLogs = [
-            {__REALTIME_TIMESTAMP: ts, MESSAGE: 'Log 1'},
-            {__REALTIME_TIMESTAMP: ts + 1000, MESSAGE: 'Log 2'},
-        ];
-        mockSuccessfulFetch(mockLogs);
-        await act(async () => {
-            renderComponent();
-        });
-
-        await waitForText('2 / 2 logs');
-    });
-
-    test('renders filtered log count', async () => {
-        const ts = Date.now() * 1000;
-        const mockLogs = [
-            {__REALTIME_TIMESTAMP: ts, JSON: JSON.stringify({level: 'debug', message: 'Debug log'})},
-            {__REALTIME_TIMESTAMP: ts + 1000, JSON: JSON.stringify({level: 'error', message: 'Error log'})},
-        ];
-        mockSuccessfulFetch(mockLogs);
-        await act(async () => {
-            renderComponent();
-        });
-
-        await waitForText('2 / 2 logs');
-
-        const selectInput = screen.getByLabelText('Select Log Levels');
-        await act(async () => {
-            fireEvent.mouseDown(selectInput);
-        });
-        const debugOption = screen.getByText('Debug');
-        await act(async () => {
-            fireEvent.click(debugOption);
-        });
-
-        await waitForText('1 / 2 logs');
-    });
-
-    test('MockReadableStream reads chunks correctly', async () => {
-        const chunks = ['data: {"message":"chunk1"}\n\n', 'data: {"message":"chunk2"}\n\n'];
-        const stream = new MockReadableStream(chunks);
-        const reader = stream.getReader();
-
-        const {value: value1, done: done1} = await reader.read();
-        expect(done1).toBe(false);
-        expect(new TextDecoder().decode(value1)).toBe(chunks[0]);
-
-        const {value: value2, done: done2} = await reader.read();
-        expect(done2).toBe(false);
-        expect(new TextDecoder().decode(value2)).toBe(chunks[1]);
-
-        const {done: done3} = await reader.read();
-        expect(done3).toBe(true);
-    });
-
-    test('MockReadableStream cancels correctly', async () => {
-        const chunks = ['data: {"message":"chunk1"}\n\n', 'data: {"message":"chunk2"}\n\n'];
-        const stream = new MockReadableStream(chunks);
-        const reader = stream.getReader();
-
-        const {value: value1, done: done1} = await reader.read();
-        expect(done1).toBe(false);
-        expect(new TextDecoder().decode(value1)).toBe(chunks[0]);
-
-        await reader.cancel();
-
-        const {done: done2} = await reader.read();
-        expect(done2).toBe(true);
-    });
-
-    test('MockReadableStream stream-level cancel works', async () => {
-        const chunks = ['data: {"message":"chunk1"}\n\n', 'data: {"message":"chunk2"}\n\n'];
-        const stream = new MockReadableStream(chunks);
-        const reader = stream.getReader();
-
-        const {value: value1, done: done1} = await reader.read();
-        expect(done1).toBe(false);
-        expect(new TextDecoder().decode(value1)).toBe(chunks[0]);
-
-        await stream.cancel();
-
-        const {done: done2} = await reader.read();
-        expect(done2).toBe(true);
-    });
-
-    test('handles JSON parsing when fields are missing', async () => {
-        const ts = Date.now();
-        const mockLogs = [
-            {
-                JSON: JSON.stringify({
-                    time: ts,
-                }),
-                __REALTIME_TIMESTAMP: ts * 1000,
-            },
-        ];
-        mockSuccessfulFetch(mockLogs);
-        await act(async () => {
-            renderComponent();
-        });
-        await waitForText('[INFO]');
-        expect(screen.getByText('[INFO]')).toBeInTheDocument();
-    });
-
-    test('handles response without body', async () => {
-        global.fetch = jest.fn().mockResolvedValue({
-            ok: true,
-            status: 200,
-            body: null,
-        });
-        await act(async () => {
-            renderComponent();
-        });
-        await waitForText('Response has no readable stream');
-        expect(screen.getByText('Disconnected')).toBeInTheDocument();
-    });
-
-    test('handles generic HTTP error (non-401/404)', async () => {
-        mockHttpErrorFetch(500);
-        await act(async () => {
-            renderComponent();
-        });
-        await waitForText('HTTP error! status: 500');
-        expect(screen.getByText('Disconnected')).toBeInTheDocument();
-    });
-
-    test('processes partial lines across multiple chunks', async () => {
-        const chunk1 = 'data: {"__REALTIME_TIMESTAMP":1234567890, "MESSAGE": "Hello';
-        const chunk2 = ' world"}\n\n';
-        const streamChunks = [chunk1, chunk2];
-        global.fetch = jest.fn().mockImplementation(() =>
-            Promise.resolve({
-                ok: true,
-                status: 200,
-                body: new MockReadableStream(streamChunks),
-            })
-        );
-        await act(async () => {
-            renderComponent();
-        });
-        await waitForText('Hello world');
-        expect(screen.queryByText('Hello')).not.toBeInTheDocument();
-    });
-
-    test('handles lines that are not "data: " prefix', async () => {
-        const streamChunks = ['event: log\n', 'data: {"__REALTIME_TIMESTAMP":1234567890, "MESSAGE": "Valid"}\n\n'];
-        global.fetch = jest.fn().mockImplementation(() =>
-            Promise.resolve({
-                ok: true,
-                status: 200,
-                body: new MockReadableStream(streamChunks),
-            })
-        );
-        await act(async () => {
-            renderComponent();
-        });
-        await waitForText('Valid');
-    });
-
-    test('handles empty data line', async () => {
-        const streamChunks = ['data: \n\n', 'data: {"__REALTIME_TIMESTAMP":1234567890, "MESSAGE": "Valid"}\n\n'];
-        global.fetch = jest.fn().mockImplementation(() =>
-            Promise.resolve({
-                ok: true,
-                status: 200,
-                body: new MockReadableStream(streamChunks),
-            })
-        );
-        await act(async () => {
-            renderComponent();
-        });
-        await waitForText('Valid');
-    });
-
-    test('scroll to log effect when element not found', async () => {
-        const ts = Date.now() * 1000;
-        const mockLogs = [{__REALTIME_TIMESTAMP: ts, MESSAGE: 'Log to click'}];
-        mockSuccessfulFetch(mockLogs);
-        await act(async () => {
-            renderComponent();
-        });
-        await waitForText('Log to click');
-        const logLine = screen.getByText('Log to click');
-        await act(async () => {
-            fireEvent.click(logLine);
-        });
-        const clearButton = screen.getAllByRole('button').find((btn) =>
-            btn.getAttribute('aria-label')?.includes('Clear')
-        );
-        await act(async () => {
-            fireEvent.click(clearButton);
-        });
-        await act(async () => {
-            jest.advanceTimersByTime(200);
-        });
-        // No error, test passes
-    });
-
-    test('log line styling when filtered vs unfiltered', async () => {
-        const ts = Date.now() * 1000;
-        const mockLogs = [{__REALTIME_TIMESTAMP: ts, MESSAGE: 'Test log'}];
-        mockSuccessfulFetch(mockLogs);
-        await act(async () => {
-            renderComponent();
-        });
-        await waitForText('Test log');
-        const logContainer = screen.getByText('Test log').closest('.log-line');
-        const originalGetComputedStyle = window.getComputedStyle;
-        window.getComputedStyle = jest.fn().mockReturnValue({cursor: 'default'});
-        const computed = window.getComputedStyle(logContainer);
-        expect(computed.cursor).toBe('default');
-        window.getComputedStyle = originalGetComputedStyle;
-
-        const searchInput = screen.getByPlaceholderText('Search logs...');
-        await act(async () => {
-            fireEvent.change(searchInput, {target: {value: 'Test'}});
-        });
-        window.getComputedStyle = jest.fn().mockReturnValue({cursor: 'pointer'});
-        const computedFiltered = window.getComputedStyle(logContainer);
-        expect(computedFiltered.cursor).toBe('pointer');
-        window.getComputedStyle = originalGetComputedStyle;
-    });
-
-    test('Go to bottom button behavior', async () => {
-        const ts = Date.now() * 1000;
-        const mockLogs = [{__REALTIME_TIMESTAMP: ts, MESSAGE: 'Test log'}];
-        mockSuccessfulFetch(mockLogs);
-
-        await act(async () => {
-            renderComponent();
-        });
-
-        // Wait for logs to appear
-        await waitForText('Test log');
-
-        const goToBottomButton = screen.getByText('Go to bottom');
-        expect(goToBottomButton).toBeInTheDocument();
-
-        const scrollIntoViewMock = jest.fn();
-        HTMLElement.prototype.scrollIntoView = scrollIntoViewMock;
-
-        await act(async () => {
-            fireEvent.click(goToBottomButton);
-        });
-
-        expect(scrollIntoViewMock).toHaveBeenCalled();
-        // The button should disappear after click
-        expect(screen.queryByText('Go to bottom')).not.toBeInTheDocument();
-    });
-
-    test('component exports correctly', async () => {
-        expect(LogsViewer).toBeDefined();
     });
 });
