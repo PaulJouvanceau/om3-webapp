@@ -20,6 +20,7 @@ export const GridNodes = memo(({nodeCount, frozenCount, onClick}) => {
         }, 50);
     }, [onClick]);
 
+    // Correction 1 : empêcher la propagation du clic sur le chip Frozen
     const handleChipClick = useCallback((e) => {
         e.stopPropagation();
         handleClick();
@@ -297,7 +298,7 @@ export const GridHeartbeats = memo(({heartbeatCount, perHeartbeatStats = {}, onC
         }, 50);
     }, [onClick]);
 
-    const handleChipClick = useCallback((baseId) => (e) => {
+    const handleChipClick = useCallback((baseId, e) => {
         e.stopPropagation();
         if (loadingId) return;
         setLoadingId(baseId);
@@ -306,7 +307,7 @@ export const GridHeartbeats = memo(({heartbeatCount, perHeartbeatStats = {}, onC
             onClick(null, null, baseId);
             setLoadingId('');
         }, 50);
-    }, [onClick, loadingId]);
+    }, [loadingId, onClick]);
 
     const subtitle = useMemo(() => {
         const groups = new Map();
@@ -335,7 +336,7 @@ export const GridHeartbeats = memo(({heartbeatCount, perHeartbeatStats = {}, onC
                             cursor: isLoading ? 'default' : 'pointer',
                             opacity: isLoading ? 0.7 : 1,
                         }}
-                        onClick={handleChipClick(baseId)}
+                        onClick={(e) => handleChipClick(baseId, e)}
                         disabled={isLoading}
                     />
                     {isLoading && <CircularProgress size={12}/>}
