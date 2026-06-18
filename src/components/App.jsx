@@ -99,6 +99,7 @@ const OidcInitializer = ({children}) => {
     const auth = useAuth();
     const authInfo = useAuthInfo();
     const navigate = useNavigate();
+    const resumeCheckTimer = useRef(null); // debounce timer
 
     const handleTokenExpired = useCallback(() => {
         logger.warn('Access token expired, redirecting to /ui/auth-choice');
@@ -240,19 +241,31 @@ const OidcInitializer = ({children}) => {
             }
         };
 
+        const debouncedCheck = () => {
+            if (resumeCheckTimer.current) {
+                clearTimeout(resumeCheckTimer.current);
+            }
+            resumeCheckTimer.current = setTimeout(handleCheckAuthOnResume, 500);
+        };
+
         const visibilityHandler = () => {
             if (document.visibilityState === 'visible') {
-                setTimeout(handleCheckAuthOnResume, 500);
+                debouncedCheck();
             }
         };
         const focusHandler = () => {
-            setTimeout(handleCheckAuthOnResume, 500);
+            debouncedCheck();
         };
+
         document.addEventListener('visibilitychange', visibilityHandler);
         window.addEventListener('focus', focusHandler);
+
         return () => {
             document.removeEventListener('visibilitychange', visibilityHandler);
             window.removeEventListener('focus', focusHandler);
+            if (resumeCheckTimer.current) {
+                clearTimeout(resumeCheckTimer.current);
+            }
         };
     }, [navigate, userManager, onUserRefreshed, location.pathname]);
 
@@ -294,7 +307,6 @@ const App = () => {
     const mainRef = useRef(null);
 
     useEffect(() => {
-        // Use bracket notation to avoid "unresolved variable overflow" warnings
         const htmlStyle = document.documentElement.style;
         const bodyStyle = document.body.style;
         const root = document.getElementById('root');
