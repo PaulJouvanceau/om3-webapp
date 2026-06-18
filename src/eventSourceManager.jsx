@@ -55,6 +55,12 @@ let isFlushing = false;
 let lastFlushTime = 0;
 let needsFlush = false;
 
+// Control buffer debug logging (set to true only for debugging buffer issues)
+const DEBUG_BUFFERS = false;
+const debugLog = (...args) => {
+    if (DEBUG_BUFFERS) logger.debug(...args);
+};
+
 // Safari-specific optimizations
 const SAFARI_BATCH_SIZE = 150;
 const SAFARI_FLUSH_DELAY = 100;
@@ -244,7 +250,7 @@ const flushBuffers = () => {
         if (hasObjectStatus) {
             const store = useEventStore.getState();
             const merged = {...store.objectStatus, ...buffersToFlush.objectStatus};
-            logger.debug('🔄 Flushing objectStatus:', {
+            debugLog('🔄 Flushing objectStatus:', {
                 bufferUpdates: buffersToFlush.objectStatus,
                 merged: merged
             });
@@ -301,28 +307,29 @@ const flushBuffers = () => {
         if (hasInstanceConfigDeleted) {
             const store = useEventStore.getState();
             for (const {path, node} of buffersToFlush.instanceConfigDeleted) {
-                logger.debug(`🗑️ Flushing InstanceConfigDeleted: path=${path} node=${node}`);
+                debugLog(`🗑️ Flushing InstanceConfigDeleted: path=${path} node=${node}`);
                 store.removeInstanceFromObject(path, node);
                 store.removePendingDelete(path, node);
             }
         }
 
         if (eventCount > 0) {
-            logger.debug(`✅ Flushed ${eventCount} events`);
+            debugLog(`✅ Flushed ${eventCount} events`);
         }
-        eventCount = 0;
+        // eventCount = 0;
     } catch (error) {
         logger.error('Error during buffer flush:', error);
     } finally {
         isFlushing = false;
 
         if (needsFlush && isPageActive) {
-            logger.debug('⚡ New events arrived during flush, scheduling immediate re-flush');
+            debugLog('⚡ New events arrived during flush, scheduling immediate re-flush');
             needsFlush = false;
             if (eventCount > 0) {
                 setTimeout(flushBuffers, 0);
             }
         }
+        eventCount = 0;
     }
 };
 
@@ -332,7 +339,7 @@ const scheduleFlush = () => {
     if (isFlushing) {
         needsFlush = true;
         eventCount++;
-        logger.debug(`⏳ Event arrived during flush, will schedule new flush after current one completes (eventCount: ${eventCount})`);
+        debugLog(`⏳ Event arrived during flush, will schedule new flush after current one completes (eventCount: ${eventCount})`);
         return;
     }
 
@@ -420,14 +427,14 @@ const addEventListener = (eventSource, eventType, handler) => {
 const updateBuffer = (bufferName, key, value) => {
     if (bufferName === 'configUpdated') {
         buffers.configUpdated.add(value);
-        logger.debug(`📝 Buffer[configUpdated]: Added ${value}`);
+        debugLog(`📝 Buffer[configUpdated]: Added ${value}`);
         scheduleFlush();
         return;
     }
 
     if (bufferName === 'instanceConfigDeleted') {
         buffers.instanceConfigDeleted.push(value);
-        logger.debug(`📝 Buffer[instanceConfigDeleted]:`, value);
+        debugLog(`📝 Buffer[instanceConfigDeleted]:`, value);
         scheduleFlush();
         return;
     }
@@ -435,7 +442,7 @@ const updateBuffer = (bufferName, key, value) => {
     if (bufferName === 'objectStatus') {
         const existing = buffers.objectStatus[key];
         buffers.objectStatus[key] = existing ? {...existing, ...value} : value;
-        logger.debug(`📝 Buffer[objectStatus]: ${key}`, {
+        debugLog(`📝 Buffer[objectStatus]: ${key}`, {
             incoming: value,
             existing: existing,
             merged: buffers.objectStatus[key]
@@ -447,7 +454,7 @@ const updateBuffer = (bufferName, key, value) => {
         }
         const existing = buffers.instanceStatus[path][node];
         buffers.instanceStatus[path][node] = existing ? {...existing, ...value} : value;
-        logger.debug(`📝 Buffer[instanceStatus]: ${path}:${node}`, {
+        debugLog(`📝 Buffer[instanceStatus]: ${path}:${node}`, {
             incoming: value,
             merged: buffers.instanceStatus[path][node]
         });
@@ -458,15 +465,15 @@ const updateBuffer = (bufferName, key, value) => {
         }
         const existing = buffers.instanceConfig[path][node];
         buffers.instanceConfig[path][node] = existing ? {...existing, ...value} : value;
-        logger.debug(`📝 Buffer[instanceConfig]: ${path}:${node}`, value);
+        debugLog(`📝 Buffer[instanceConfig]: ${path}:${node}`, value);
     } else if (bufferName === 'instanceMonitor') {
         const existing = buffers.instanceMonitor[key];
         buffers.instanceMonitor[key] = existing ? {...existing, ...value} : value;
-        logger.debug(`📝 Buffer[instanceMonitor]: ${key}`, value);
+        debugLog(`📝 Buffer[instanceMonitor]: ${key}`, value);
     } else {
         const existing = buffers[bufferName][key];
         buffers[bufferName][key] = existing ? {...existing, ...value} : value;
-        logger.debug(`📝 Buffer[${bufferName}]: ${key}`, value);
+        debugLog(`📝 Buffer[${bufferName}]: ${key}`, value);
     }
 
     // Always schedule flush
@@ -537,7 +544,7 @@ export const createEventSource = (url, token, filters = DEFAULT_FILTERS) => {
                 case EVENT_TYPES.OBJECT_STATUS_UPDATED: {
                     const name = data.path || data.labels?.path;
                     if (name && data.object_status) {
-                        logger.debug('📩 OBJECT_STATUS_UPDATED event:', {
+                        debugLog('📩 OBJECT_STATUS_UPDATED event:', {
                             path: name,
                             object_status: data.object_status,
                             fullData: data
@@ -562,7 +569,7 @@ export const createEventSource = (url, token, filters = DEFAULT_FILTERS) => {
                 case EVENT_TYPES.OBJECT_DELETED: {
                     const objectName = data.path || data.labels?.path;
                     if (objectName) {
-                        logger.debug('📩 Received ObjectDeleted event:', JSON.stringify({path: objectName}));
+                        logger.info('📩 Received ObjectDeleted event:', JSON.stringify({path: objectName}));
                         useEventStore.getState().removeObject(objectName);
                         // Clear from buffers
                         delete buffers.objectStatus[objectName];
@@ -576,7 +583,7 @@ export const createEventSource = (url, token, filters = DEFAULT_FILTERS) => {
                 case EVENT_TYPES.INSTANCE_STATUS_UPDATED: {
                     const instName = data.path || data.labels?.path;
                     if (instName && data.node && data.instance_status) {
-                        logger.debug('📩 INSTANCE_STATUS_UPDATED event:', {
+                        debugLog('📩 INSTANCE_STATUS_UPDATED event:', {
                             path: instName,
                             node: data.node,
                             instance_status: data.instance_status,
@@ -625,7 +632,7 @@ export const createEventSource = (url, token, filters = DEFAULT_FILTERS) => {
                     const deletedPath = data.path || data.labels?.path;
                     const deletedNode = data.node || data.labels?.node;
                     if (deletedPath && deletedNode) {
-                        logger.debug('📩 InstanceConfigDeleted event:', {path: deletedPath, node: deletedNode});
+                        logger.info('📩 InstanceConfigDeleted event:', {path: deletedPath, node: deletedNode});
                         updateBuffer('instanceConfigDeleted', null, {path: deletedPath, node: deletedNode});
                     } else {
                         logger.warn('⚠️ InstanceConfigDeleted event missing path or node:', data);
