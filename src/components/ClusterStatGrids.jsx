@@ -20,6 +20,11 @@ export const GridNodes = memo(({nodeCount, frozenCount, onClick}) => {
         }, 50);
     }, [onClick]);
 
+    const handleChipClick = useCallback((e) => {
+        e.stopPropagation();
+        handleClick();
+    }, [handleClick]);
+
     const subtitle = useMemo(() => (
         <Box sx={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, width: '100%'}}>
             <Chip
@@ -31,12 +36,12 @@ export const GridNodes = memo(({nodeCount, frozenCount, onClick}) => {
                     cursor: isLoading ? 'default' : 'pointer',
                     opacity: isLoading ? 0.7 : 1,
                 }}
-                onClick={handleClick}
+                onClick={handleChipClick}
                 disabled={isLoading}
             />
             <ClickLoader isLoading={isLoading}/>
         </Box>
-    ), [frozenCount, isLoading, handleClick]);
+    ), [frozenCount, isLoading, handleChipClick]);
 
     return <StatCard title="Nodes" value={nodeCount} subtitle={subtitle} onClick={handleClick}/>;
 });
