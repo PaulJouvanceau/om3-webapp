@@ -13,7 +13,7 @@ import {
     GridKinds
 } from "./ClusterStatGrids";
 import {URL_POOL, URL_NETWORK} from "../config/apiPath.js";
-import {startEventReception, DEFAULT_FILTERS} from "../eventSourceManager";
+import {startEventReception, closeEventSource, DEFAULT_FILTERS} from "../eventSourceManager";
 import EventLogger from "../components/EventLogger";
 import {useNodeStats, useObjectStats, useHeartbeatStats} from "../hooks/useClusterData";
 import {useKindData} from "../hooks/useKindData";
@@ -139,6 +139,7 @@ const ClusterOverview = () => {
             if (abortControllerRef.current) {
                 abortControllerRef.current.abort();
             }
+            closeEventSource();
         };
     }, [fetchClusterData]);
 
