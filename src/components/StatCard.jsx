@@ -52,7 +52,6 @@ const StatCard = memo(({
                         flexDirection: 'column',
                         justifyContent: 'flex-end'
                     }}
-                    onClick={(e) => e.stopPropagation()}
                 >
                     <Box
                         sx={{
