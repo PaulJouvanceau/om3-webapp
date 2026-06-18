@@ -582,14 +582,26 @@ describe('eventSourceManager', () => {
             const es = eventSourceManager.createEventSource(URL_NODE_EVENT, 'fake-token');
             const handler = getHandler(es, 'NodeStatusUpdated');
             let callCount = 0;
-            mockStore.setNodeStatuses = jest.fn(() => {
-                if (++callCount === 1)
+            const originalSetNodeStatuses = mockStore.setNodeStatuses;
+            mockStore.setNodeStatuses = jest.fn((v) => {
+                originalSetNodeStatuses(v);
+                if (++callCount === 1) {
                     handler({data: JSON.stringify({node: 'node99', node_status: {status: 'up'}})});
+                }
             });
             handler({data: JSON.stringify({node: 'node1', node_status: {status: 'up'}})});
             jest.clearAllTimers();
             eventSourceManager.forceFlush();
-            expect(console.debug).toHaveBeenCalledWith(expect.stringContaining('Event arrived during flush'));
+            mockNow += 20;
+            jest.advanceTimersByTime(100);
+            expect(mockStore.setNodeStatuses).toHaveBeenCalledTimes(2);
+            expect(mockStore.setNodeStatuses).toHaveBeenLastCalledWith(
+                expect.objectContaining({
+                    node1: {status: 'up'},
+                    node99: {status: 'up'}
+                })
+            );
+            mockStore.setNodeStatuses = originalSetNodeStatuses;
         });
 
         test('should debounce multiple rapid events into a single flush', () => {
