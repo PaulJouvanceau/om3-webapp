@@ -1,5 +1,5 @@
 import {create} from "zustand";
-import {persist} from "zustand/middleware";
+import {persist, createJSONStorage} from "zustand/middleware";
 import logger from '../utils/logger.js';
 
 const parseObjectPath = (objName) => {
@@ -24,6 +24,59 @@ const shallowEqual = (obj1, obj2) => {
         if (obj1[key] !== obj2[key]) return false;
     }
     return true;
+};
+
+const PERSIST_DEBOUNCE_MS = 800;
+
+const createDebouncedLocalStorage = (delayMs = PERSIST_DEBOUNCE_MS) => {
+    let pendingKey = null;
+    let pendingValue = null;
+    let timeoutId = null;
+
+    const flush = () => {
+        if (timeoutId) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
+        }
+        if (pendingKey !== null) {
+            try {
+                window.localStorage.setItem(pendingKey, pendingValue);
+            } catch (e) {
+                logger.warn('Failed to persist event store to localStorage:', e);
+            }
+            pendingKey = null;
+            pendingValue = null;
+        }
+    };
+
+    if (typeof window !== 'undefined') {
+        window.addEventListener('beforeunload', flush);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') flush();
+        });
+    }
+
+    return {
+        getItem: (name) => {
+            if (pendingKey === name) return pendingValue;
+            return window.localStorage.getItem(name);
+        },
+        setItem: (name, value) => {
+            pendingKey = name;
+            pendingValue = value;
+            if (timeoutId) clearTimeout(timeoutId);
+            timeoutId = setTimeout(flush, delayMs);
+        },
+        removeItem: (name) => {
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+                timeoutId = null;
+            }
+            pendingKey = null;
+            pendingValue = null;
+            window.localStorage.removeItem(name);
+        },
+    };
 };
 
 const useEventStore = create(
@@ -257,6 +310,7 @@ const useEventStore = create(
         }),
         {
             name: 'om3-event-storage',
+            storage: createJSONStorage(() => createDebouncedLocalStorage()),
             partialize: (state) => ({
                 objectStatus: state.objectStatus,
                 objectInstanceStatus: state.objectInstanceStatus,

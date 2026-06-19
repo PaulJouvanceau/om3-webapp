@@ -266,19 +266,7 @@ const flushBuffers = () => {
         }
         if (hasInstanceStatus) {
             const store = useEventStore.getState();
-            const mergedInst = {...store.objectInstanceStatus};
-            for (const obj in buffersToFlush.instanceStatus) {
-                if (!mergedInst[obj]) {
-                    mergedInst[obj] = {};
-                } else {
-                    mergedInst[obj] = {...mergedInst[obj]};
-                }
-                mergedInst[obj] = {
-                    ...mergedInst[obj],
-                    ...buffersToFlush.instanceStatus[obj]
-                };
-            }
-            store.setInstanceStatuses(mergedInst);
+            store.setInstanceStatuses(buffersToFlush.instanceStatus);
         }
         if (hasNodeMonitor) {
             const store = useEventStore.getState();
