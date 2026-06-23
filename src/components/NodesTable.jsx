@@ -1,4 +1,4 @@
-import React, {useEffect, useState, useRef, useMemo} from "react";
+import React, {useEffect, useState, useRef, useMemo, useCallback} from "react";
 import {
     Box,
     Table,
@@ -19,7 +19,6 @@ import {
     ListItemIcon,
     ListItemText,
     CircularProgress,
-    Drawer,
     IconButton,
 } from "@mui/material";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
@@ -64,6 +63,12 @@ const NodesTable = () => {
     const minDrawerWidth = 300;
     const maxDrawerWidth = window.innerWidth * 0.9;
 
+    // Resize state
+    const [isResizing, setIsResizing] = useState(false);
+    const startXRef = useRef(0);
+    const startWidthRef = useRef(0);
+    const isDraggingRef = useRef(false);
+
     const nodeEventTypes = useMemo(() => [
         "NodeStatusUpdated",
         "NodeMonitorUpdated",
@@ -75,7 +80,9 @@ const NodesTable = () => {
         "CONNECTION_CLOSED"
     ], []);
 
-    // Compute the zoom level
+    // Hauteur de la barre de navigation (AppBar) avec safe area
+    const appBarHeight = `calc(${theme.mixins.toolbar.minHeight || 64}px + env(safe-area-inset-top, 0px))`;
+
     const getZoomLevel = () => {
         return window.devicePixelRatio || 1;
     };
@@ -114,49 +121,64 @@ const NodesTable = () => {
         setSelectedNodeForLogs(null);
     };
 
-    const startResizing = (e) => {
+    // Resize handlers
+    const handleResizeStart = useCallback((e) => {
         e.preventDefault();
-
-        const isTouchEvent = e.type.startsWith('touch');
-        const startX = isTouchEvent ? e.touches[0].clientX : e.clientX;
-        const startWidth = drawerWidth;
-
-        const doResize = (moveEvent) => {
-            const currentX = moveEvent.type.startsWith('touch')
-                ? moveEvent.touches[0].clientX
-                : moveEvent.clientX;
-            const newWidth = startWidth + (startX - currentX);
-
-            if (newWidth >= minDrawerWidth && newWidth <= maxDrawerWidth) {
-                setDrawerWidth(newWidth);
-            }
-        };
-
-        const stopResize = () => {
-            if (isTouchEvent) {
-                document.removeEventListener("touchmove", doResize);
-                document.removeEventListener("touchend", stopResize);
-                document.removeEventListener("touchcancel", stopResize);
-            } else {
-                document.removeEventListener("mousemove", doResize);
-                document.removeEventListener("mouseup", stopResize);
-            }
-            document.body.style.cursor = "default";
-            document.body.style.userSelect = "";
-        };
-
-        if (isTouchEvent) {
-            document.addEventListener("touchmove", doResize, {passive: false});
-            document.addEventListener("touchend", stopResize);
-            document.addEventListener("touchcancel", stopResize);
-        } else {
-            document.addEventListener("mousemove", doResize);
-            document.addEventListener("mouseup", stopResize);
-        }
-
+        e.stopPropagation();
+        isDraggingRef.current = true;
+        setIsResizing(true);
+        startXRef.current = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+        startWidthRef.current = drawerWidth;
+        document.body.style.userSelect = 'none';
+        document.body.style.touchAction = 'none';
+        document.body.style.overflow = 'hidden';
         document.body.style.cursor = "ew-resize";
-        document.body.style.userSelect = "none";
-    };
+    }, [drawerWidth]);
+
+    const handleResizeMove = useCallback((e) => {
+        if (!isDraggingRef.current) return;
+        e.preventDefault();
+        const clientX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+        const deltaX = startXRef.current - clientX;
+        const newWidth = startWidthRef.current + deltaX;
+        if (newWidth >= minDrawerWidth && newWidth <= maxDrawerWidth) {
+            setDrawerWidth(newWidth);
+        }
+    }, [minDrawerWidth, maxDrawerWidth]);
+
+    const handleResizeEnd = useCallback(() => {
+        if (!isDraggingRef.current) return;
+        isDraggingRef.current = false;
+        setIsResizing(false);
+        document.body.style.userSelect = '';
+        document.body.style.touchAction = '';
+        document.body.style.overflow = '';
+        document.body.style.cursor = "default";
+    }, []);
+
+    useEffect(() => {
+        if (isResizing) {
+            const onMouseMove = (e) => handleResizeMove(e);
+            const onTouchMove = (e) => handleResizeMove(e);
+            const onMouseUp = () => handleResizeEnd();
+            const onTouchEnd = () => handleResizeEnd();
+            const onTouchCancel = () => handleResizeEnd();
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('touchmove', onTouchMove, {passive: false});
+            document.addEventListener('mouseup', onMouseUp);
+            document.addEventListener('touchend', onTouchEnd);
+            document.addEventListener('touchcancel', onTouchCancel);
+
+            return () => {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('touchmove', onTouchMove);
+                document.removeEventListener('mouseup', onMouseUp);
+                document.removeEventListener('touchend', onTouchEnd);
+                document.removeEventListener('touchcancel', onTouchCancel);
+            };
+        }
+    }, [isResizing, handleResizeMove, handleResizeEnd]);
 
     useEffect(() => {
         const token = localStorage.getItem("authToken");
@@ -623,64 +645,76 @@ const NodesTable = () => {
                 />
             </Box>
 
-            <Drawer
-                anchor="right"
-                open={logsDrawerOpen}
-                variant="persistent"
-                sx={{
-                    "& .MuiDrawer-paper": {
-                        width: logsDrawerOpen ? `${drawerWidth}px` : 0,
+            {/* Logs panel */}
+            {logsDrawerOpen && (
+                <Box
+                    sx={{
+                        position: "fixed",
+                        top: appBarHeight,
+                        right: 0,
+                        width: `${drawerWidth}px`,
                         maxWidth: "90vw",
-                        p: 2,
-                        boxSizing: "border-box",
+                        height: `calc(100% - ${appBarHeight})`,
                         backgroundColor: theme.palette.background.paper,
-                        top: 0,
-                        height: "100vh",
-                        overflow: "auto",
+                        borderLeft: `1px solid ${theme.palette.divider}`,
+                        zIndex: 1200,
+                        display: "flex",
+                        flexDirection: "column",
+                        overflow: "hidden",
+                        boxShadow: theme.shadows[3],
                         transition: theme.transitions.create("width", {
                             easing: theme.transitions.easing.sharp,
                             duration: theme.transitions.duration.enteringScreen,
                         }),
-                    },
-                }}
-            >
-                <Box
-                    sx={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        width: isMobile ? "12px" : "6px",
-                        height: "100%",
-                        cursor: "ew-resize",
-                        bgcolor: theme.palette.grey[300],
-                        "&:hover": {
-                            bgcolor: theme.palette.primary.light,
-                        },
-                        "&:active": {
-                            bgcolor: theme.palette.primary.main,
-                        },
-                        transition: "background-color 0.2s",
-                        touchAction: "none",
-                        zIndex: 1,
                     }}
-                    onMouseDown={startResizing}
-                    onTouchStart={startResizing}
-                    aria-label="Resize drawer"
-                />
-                <Box sx={{display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2}}>
-                    <Typography variant="h6">Node Logs</Typography>
-                    <IconButton onClick={handleCloseLogsDrawer}>
-                        <CloseIcon/>
-                    </IconButton>
-                </Box>
-                {selectedNodeForLogs !== null && (
-                    <LogsViewer
-                        nodename={selectedNodeForLogs}
-                        type="node"
-                        height="calc(100vh - 100px)"
+                >
+                    {/* Resize handle */}
+                    <Box
+                        onMouseDown={handleResizeStart}
+                        onTouchStart={handleResizeStart}
+                        sx={{
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            width: isMobile ? "16px" : "8px",
+                            height: "100%",
+                            cursor: "ew-resize",
+                            bgcolor: theme.palette.grey[300],
+                            zIndex: 10,
+                            touchAction: "none",
+                            userSelect: "none",
+                            WebkitUserSelect: "none",
+                            "&:hover": {
+                                bgcolor: theme.palette.primary.light,
+                            },
+                            "&:active": {
+                                bgcolor: theme.palette.primary.main,
+                            },
+                        }}
+                        aria-label="Resize drawer"
                     />
-                )}
-            </Drawer>
+
+                    {/* Header */}
+                    <Box sx={{display: "flex", justifyContent: "space-between", alignItems: "center", p: 2, pb: 1}}>
+                        <Typography variant="h6">Node Logs</Typography>
+                        <IconButton onClick={handleCloseLogsDrawer} size="large">
+                            <CloseIcon/>
+                        </IconButton>
+                    </Box>
+
+                    {/* LogsViewer container */}
+                    <Box sx={{flexGrow: 1, overflow: "hidden", position: "relative"}}>
+                        {selectedNodeForLogs !== null && (
+                            <LogsViewer
+                                nodename={selectedNodeForLogs}
+                                type="node"
+                                height="100%"
+                            />
+                        )}
+                    </Box>
+                </Box>
+            )}
+
             <EventLogger eventTypes={nodeEventTypes} title="Node Events Logger" buttonLabel="Node Events"/>
         </Box>
     );

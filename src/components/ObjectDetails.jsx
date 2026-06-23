@@ -12,7 +12,6 @@ import {
     Menu,
     MenuItem,
     Typography,
-    Drawer,
     IconButton,
     TextField,
     useTheme,
@@ -113,6 +112,12 @@ const ObjectDetail = () => {
     const minDrawerWidth = 300;
     const maxDrawerWidth = window.innerWidth * 0.8;
 
+    const [isResizing, setIsResizing] = useState(false);
+    const startXRef = useRef(0);
+    const startWidthRef = useRef(0);
+    const isDraggingRef = useRef(false);
+    const resizeHandleRef = useRef(null);
+
     const objectEventTypes = useMemo(() => [
         "ObjectStatusUpdated",
         "InstanceStatusUpdated",
@@ -131,6 +136,8 @@ const ObjectDetail = () => {
     const fallbackTimer = useRef(null);
     const hasFallbackFired = useRef(false);
     const [fallbackCompleted, setFallbackCompleted] = useState(false);
+
+    const appBarHeight = `calc(${theme.mixins.toolbar.minHeight || 64}px + env(safe-area-inset-top, 0px))`;
 
     const objectData = useMemo(() => {
         const avail = objectStatus?.avail || "n/a";
@@ -493,35 +500,65 @@ const ObjectDetail = () => {
         return {avail, frozen, state};
     }, [objectInstanceStatus, instanceMonitor, decodedObjectName]);
 
-    const startResizing = useCallback((e) => {
+    // Resize handlers (EventLogger style)
+    const handleResizeStart = useCallback((e) => {
         e.preventDefault();
-        const isTouch = e.type === 'touchstart';
-        const startX = isTouch ? e.touches[0].clientX : e.clientX;
-        const startWidth = drawerWidth;
-        const doResize = (moveEvent) => {
-            const currentX = isTouch ? moveEvent.touches[0].clientX : moveEvent.clientX;
-            const newWidth = startWidth + (startX - currentX);
-            if (newWidth >= minDrawerWidth && newWidth <= maxDrawerWidth) setDrawerWidth(newWidth);
-        };
-        const stopResize = () => {
-            if (isTouch) {
-                document.removeEventListener("touchmove", doResize);
-                document.removeEventListener("touchend", stopResize);
-            } else {
-                document.removeEventListener("mousemove", doResize);
-                document.removeEventListener("mouseup", stopResize);
-            }
-            document.body.style.cursor = "default";
-        };
-        if (isTouch) {
-            document.addEventListener("touchmove", doResize, {passive: false});
-            document.addEventListener("touchend", stopResize);
-        } else {
-            document.addEventListener("mousemove", doResize);
-            document.addEventListener("mouseup", stopResize);
-        }
+        e.stopPropagation();
+        isDraggingRef.current = true;
+        setIsResizing(true);
+        startXRef.current = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+        startWidthRef.current = drawerWidth;
+        document.body.style.userSelect = 'none';
+        document.body.style.touchAction = 'none';
+        document.body.style.overflow = 'hidden';
         document.body.style.cursor = "ew-resize";
-    }, [drawerWidth, minDrawerWidth, maxDrawerWidth]);
+    }, [drawerWidth]);
+
+    const handleResizeMove = useCallback((e) => {
+        if (!isDraggingRef.current) return;
+        e.preventDefault();
+        const clientX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+        const deltaX = startXRef.current - clientX;
+        const newWidth = startWidthRef.current + deltaX;
+        if (newWidth >= minDrawerWidth && newWidth <= maxDrawerWidth) {
+            setDrawerWidth(newWidth);
+        }
+    }, [minDrawerWidth, maxDrawerWidth]);
+
+    const handleResizeEnd = useCallback(() => {
+        if (!isDraggingRef.current) return;
+        isDraggingRef.current = false;
+        setIsResizing(false);
+        document.body.style.userSelect = '';
+        document.body.style.touchAction = '';
+        document.body.style.overflow = '';
+        document.body.style.cursor = "default";
+    }, []);
+
+    // Attach global listeners during resize
+    useEffect(() => {
+        if (isResizing) {
+            const onMouseMove = (e) => handleResizeMove(e);
+            const onTouchMove = (e) => handleResizeMove(e);
+            const onMouseUp = () => handleResizeEnd();
+            const onTouchEnd = () => handleResizeEnd();
+            const onTouchCancel = () => handleResizeEnd();
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('touchmove', onTouchMove, {passive: false});
+            document.addEventListener('mouseup', onMouseUp);
+            document.addEventListener('touchend', onTouchEnd);
+            document.addEventListener('touchcancel', onTouchCancel);
+
+            return () => {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('touchmove', onTouchMove);
+                document.removeEventListener('mouseup', onMouseUp);
+                document.removeEventListener('touchend', onTouchEnd);
+                document.removeEventListener('touchcancel', onTouchCancel);
+            };
+        }
+    }, [isResizing, handleResizeMove, handleResizeEnd]);
 
     useEffect(() => {
         let unsubscribe = null;
@@ -802,32 +839,78 @@ const ObjectDetail = () => {
             </Box>
 
             {logsDrawerOpen && selectedNodeForLogs && (
-                <Drawer anchor="right" open={logsDrawerOpen} variant="persistent" sx={{
-                    "& .MuiDrawer-paper": {
-                        width: `${drawerWidth}px`, maxWidth: "80vw", p: 2, boxSizing: "border-box",
-                        backgroundColor: theme.palette.background.paper, top: 0, height: "100vh",
-                        overflow: "auto", borderLeft: `1px solid ${theme.palette.divider}`,
+                <Box
+                    role="complementary"
+                    data-width={`${drawerWidth}px`}
+                    sx={{
+                        position: "fixed",
+                        top: appBarHeight,
+                        right: 0,
+                        width: `${drawerWidth}px`,
+                        maxWidth: "80vw",
+                        height: `calc(100% - ${appBarHeight})`,
+                        backgroundColor: theme.palette.background.paper,
+                        borderLeft: `1px solid ${theme.palette.divider}`,
+                        zIndex: 1200,
+                        display: "flex",
+                        flexDirection: "column",
+                        overflow: "hidden",
+                        boxShadow: theme.shadows[3],
                         transition: theme.transitions.create("width", {
                             easing: theme.transitions.easing.sharp,
-                            duration: theme.transitions.duration.enteringScreen
-                        })
-                    }
-                }}>
-                    <Box sx={{
-                        position: "absolute", top: 0, left: 0, width: "6px", height: "100%",
-                        cursor: "ew-resize", bgcolor: theme.palette.grey[300],
-                        "&:hover": {bgcolor: theme.palette.primary.light}, transition: "background-color 0.2s"
-                    }} onMouseDown={startResizing} onTouchStart={startResizing} aria-label="Resize drawer"/>
-                    <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2}}>
+                            duration: theme.transitions.duration.enteringScreen,
+                        }),
+                    }}
+                >
+                    {/* Resize handle */}
+                    <Box
+                        ref={resizeHandleRef}
+                        onMouseDown={handleResizeStart}
+                        onTouchStart={handleResizeStart}
+                        sx={{
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            width: "8px",
+                            height: "100%",
+                            cursor: "ew-resize",
+                            bgcolor: theme.palette.grey[300],
+                            zIndex: 10,
+                            touchAction: "none",
+                            userSelect: "none",
+                            WebkitUserSelect: "none",
+                            "&:hover": {
+                                bgcolor: theme.palette.primary.light,
+                            },
+                            "&:active": {
+                                bgcolor: theme.palette.primary.main,
+                            },
+                        }}
+                        aria-label="Resize drawer"
+                    />
+
+                    {/* Header */}
+                    <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, pb: 1}}>
                         <Typography variant="h6">
                             {selectedInstanceForLogs ? `Instance Logs - ${selectedInstanceForLogs}` : `Node Logs - ${selectedNodeForLogs}`}
                         </Typography>
-                        <IconButton onClick={handleCloseLogsDrawer}><CloseIcon/></IconButton>
+                        <IconButton onClick={handleCloseLogsDrawer} size="large">
+                            <CloseIcon/>
+                        </IconButton>
                     </Box>
-                    <LogsViewer nodename={selectedNodeForLogs} type={selectedInstanceForLogs ? "instance" : "node"}
-                                namespace={namespace} kind={kind} instanceName={selectedInstanceForLogs}
-                                height="calc(100vh - 100px)"/>
-                </Drawer>
+
+                    {/* LogsViewer container */}
+                    <Box sx={{flexGrow: 1, overflow: "hidden", position: "relative"}}>
+                        <LogsViewer
+                            nodename={selectedNodeForLogs}
+                            type={selectedInstanceForLogs ? "instance" : "node"}
+                            namespace={namespace}
+                            kind={kind}
+                            instanceName={selectedInstanceForLogs}
+                            height="100%"
+                        />
+                    </Box>
+                </Box>
             )}
 
             <EventLogger eventTypes={objectEventTypes} objectName={decodedObjectName}

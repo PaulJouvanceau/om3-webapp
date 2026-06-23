@@ -23,7 +23,6 @@ import {
     FormControlLabel,
     Checkbox,
     CircularProgress,
-    Drawer,
 } from "@mui/material";
 import {
     MoreVert as MoreVertIcon,
@@ -412,7 +411,6 @@ const ObjectInstanceView = () => {
     const [pendingAction, setPendingAction] = useState(null);
     const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
 
-
     const [consoleUrlDialogOpen, setConsoleUrlDialogOpen] = useState(false);
     const [currentConsoleUrl, setCurrentConsoleUrl] = useState(null);
     const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
@@ -433,15 +431,18 @@ const ObjectInstanceView = () => {
     const maxDrawerWidth = window.innerWidth * 0.8;
 
     const [initialLoading, setInitialLoading] = useState(true);
+    const [isResizing, setIsResizing] = useState(false);
 
     const isMounted = useRef(true);
+    const startXRef = useRef(0);
+    const startWidthRef = useRef(0);
+    const isDraggingRef = useRef(false);
 
     const instanceEventTypes = useMemo(() => [
         "InstanceStatusUpdated",
         "InstanceMonitorUpdated",
         "InstanceConfigUpdated",
     ], []);
-
 
     useEffect(() => {
         isMounted.current = true;
@@ -741,41 +742,67 @@ const ObjectInstanceView = () => {
         setLogsDrawerOpen(false);
     }, []);
 
-    const startResizing = useCallback((e) => {
+    const handleResizeStart = useCallback((e) => {
         e.preventDefault();
-        const isTouch = e.type === 'touchstart';
-        const startX = isTouch ? e.touches[0].clientX : e.clientX;
-        const startWidth = drawerWidth;
-        const doResize = (moveEvent) => {
-            const currentX = isTouch ? moveEvent.touches[0].clientX : moveEvent.clientX;
-            const newWidth = startWidth + (startX - currentX);
-            if (newWidth >= minDrawerWidth && newWidth <= maxDrawerWidth) {
-                setDrawerWidth(newWidth);
-            }
-        };
-        const stopResize = () => {
-            if (isTouch) {
-                document.removeEventListener("touchmove", doResize);
-                document.removeEventListener("touchend", stopResize);
-            } else {
-                document.removeEventListener("mousemove", doResize);
-                document.removeEventListener("mouseup", stopResize);
-            }
-            document.body.style.cursor = "default";
-        };
-        if (isTouch) {
-            document.addEventListener("touchmove", doResize, {passive: false});
-            document.addEventListener("touchend", stopResize);
-        } else {
-            document.addEventListener("mousemove", doResize);
-            document.addEventListener("mouseup", stopResize);
+        e.stopPropagation();
+        isDraggingRef.current = true;
+        setIsResizing(true);
+        startXRef.current = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+        startWidthRef.current = drawerWidth;
+        document.body.style.userSelect = 'none';
+        document.body.style.touchAction = 'none';
+        document.body.style.overflow = 'hidden';
+    }, [drawerWidth]);
+
+    const handleResizeMove = useCallback((e) => {
+        if (!isDraggingRef.current) return;
+        e.preventDefault();
+        const clientX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+        const deltaX = startXRef.current - clientX;
+        const newWidth = startWidthRef.current + deltaX;
+        if (newWidth >= minDrawerWidth && newWidth <= maxDrawerWidth) {
+            setDrawerWidth(newWidth);
         }
-        document.body.style.cursor = "ew-resize";
-    }, [drawerWidth, minDrawerWidth, maxDrawerWidth]);
+    }, [minDrawerWidth, maxDrawerWidth]);
+
+    const handleResizeEnd = useCallback(() => {
+        if (!isDraggingRef.current) return;
+        isDraggingRef.current = false;
+        setIsResizing(false);
+        document.body.style.userSelect = '';
+        document.body.style.touchAction = '';
+        document.body.style.overflow = '';
+    }, []);
+
+    useEffect(() => {
+        if (isResizing) {
+            const onMouseMove = (e) => handleResizeMove(e);
+            const onTouchMove = (e) => handleResizeMove(e);
+            const onMouseUp = () => handleResizeEnd();
+            const onTouchEnd = () => handleResizeEnd();
+            const onTouchCancel = () => handleResizeEnd();
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('touchmove', onTouchMove, {passive: false});
+            document.addEventListener('mouseup', onMouseUp);
+            document.addEventListener('touchend', onTouchEnd);
+            document.addEventListener('touchcancel', onTouchCancel);
+
+            return () => {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('touchmove', onTouchMove);
+                document.removeEventListener('mouseup', onMouseUp);
+                document.removeEventListener('touchend', onTouchEnd);
+                document.removeEventListener('touchcancel', onTouchCancel);
+            };
+        }
+    }, [isResizing, handleResizeMove, handleResizeEnd]);
 
     const instanceStatus = instanceData.avail || 'unknown';
     const isFrozen = instanceData.frozen_at && instanceData.frozen_at !== "0001-01-01T00:00:00Z";
     const isInstanceNotProvisioned = instanceData.provisioned !== undefined ? !instanceData.provisioned : false;
+
+    const appBarHeight = `calc(${theme.mixins.toolbar.minHeight || 64}px + env(safe-area-inset-top, 0px))`;
 
     if (initialLoading) {
         return (
@@ -1156,12 +1183,7 @@ const ObjectInstanceView = () => {
                 </DialogActions>
             </Dialog>
 
-            <Dialog
-                open={consoleUrlDialogOpen}
-                onClose={() => setConsoleUrlDialogOpen(false)}
-                maxWidth="sm"
-                fullWidth
-            >
+            <Dialog open={consoleUrlDialogOpen} onClose={() => setConsoleUrlDialogOpen(false)} maxWidth="sm" fullWidth>
                 <DialogTitle>Console URL</DialogTitle>
                 <DialogContent>
                     <Box
@@ -1233,63 +1255,83 @@ const ObjectInstanceView = () => {
             />
 
             {logsDrawerOpen && (
-                <Drawer
-                    anchor="right"
-                    open={logsDrawerOpen}
-                    variant="persistent"
+                <Box
                     sx={{
-                        "& .MuiDrawer-paper": {
-                            width: logsDrawerOpen ? `${drawerWidth}px` : 0,
-                            maxWidth: "80vw",
-                            p: 2,
-                            boxSizing: "border-box",
-                            backgroundColor: theme.palette.background.paper,
-                            top: 0,
-                            height: "100vh",
-                            overflow: "auto",
-                            borderLeft: `1px solid ${theme.palette.divider}`,
-                            transition: theme.transitions.create("width", {
-                                easing: theme.transitions.easing.sharp,
-                                duration: theme.transitions.duration.enteringScreen,
-                            }),
-                        },
+                        position: "fixed",
+                        top: appBarHeight,
+                        right: 0,
+                        width: `${drawerWidth}px`,
+                        maxWidth: "80vw",
+                        height: `calc(100% - ${appBarHeight})`,
+                        backgroundColor: theme.palette.background.paper,
+                        borderLeft: `1px solid ${theme.palette.divider}`,
+                        zIndex: 1200,
+                        display: "flex",
+                        flexDirection: "column",
+                        overflow: "hidden",
+                        boxShadow: theme.shadows[3],
+                        transition: theme.transitions.create("width", {
+                            easing: theme.transitions.easing.sharp,
+                            duration: theme.transitions.duration.enteringScreen,
+                        }),
                     }}
                 >
                     <Box
+                        onMouseDown={handleResizeStart}
+                        onTouchStart={handleResizeStart}
                         sx={{
                             position: "absolute",
                             top: 0,
                             left: 0,
-                            width: "6px",
+                            width: 24,
                             height: "100%",
                             cursor: "ew-resize",
-                            bgcolor: theme.palette.grey[300],
-                            "&:hover": {
+                            bgcolor: "transparent",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            zIndex: 10,
+                            touchAction: "none",
+                            userSelect: "none",
+                            WebkitUserSelect: "none",
+                            "&::after": {
+                                content: '""',
+                                position: "absolute",
+                                top: 0,
+                                left: "50%",
+                                transform: "translateX(-50%)",
+                                width: 6,
+                                height: "100%",
+                                bgcolor: theme.palette.grey[300],
+                                borderRadius: 3,
+                            },
+                            "&:hover::after": {
                                 bgcolor: theme.palette.primary.light,
                             },
-                            transition: "background-color 0.2s",
                         }}
-                        onMouseDown={startResizing}
-                        onTouchStart={startResizing}
                         aria-label="Resize drawer"
                     />
-                    <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2}}>
-                        <Typography variant="h6">
+
+                    <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, pb: 1}}>
+                        <Typography variant="h6" noWrap>
                             Instance Logs - {nodeName}/{decodedObjectName}
                         </Typography>
-                        <IconButton onClick={handleCloseLogsDrawer}>
+                        <IconButton onClick={handleCloseLogsDrawer} size="large">
                             <CloseIcon/>
                         </IconButton>
                     </Box>
-                    <LogsViewer
-                        nodename={nodeName}
-                        type="instance"
-                        namespace={namespace}
-                        kind={kind}
-                        instanceName={name}
-                        height="calc(100vh - 100px)"
-                    />
-                </Drawer>
+
+                    <Box sx={{flexGrow: 1, overflow: "hidden", position: "relative"}}>
+                        <LogsViewer
+                            nodename={nodeName}
+                            type="instance"
+                            namespace={namespace}
+                            kind={kind}
+                            instanceName={name}
+                            height="100%"
+                        />
+                    </Box>
+                </Box>
             )}
 
             <Snackbar
