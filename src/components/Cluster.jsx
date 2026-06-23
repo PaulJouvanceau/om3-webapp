@@ -197,13 +197,12 @@ const ClusterOverview = () => {
         return (
             <Box sx={{
                 p: 0,
-                width: '100vw',
+                width: '100%',
                 margin: 0,
-                minHeight: '100vh',
-                bgcolor: 'background.default',
                 display: 'flex',
                 justifyContent: 'center',
-                alignItems: 'center'
+                alignItems: 'center',
+                minHeight: '400px'
             }}>
                 <InitialLoader/>
             </Box>
@@ -212,62 +211,51 @@ const ClusterOverview = () => {
 
     return (
         <Box sx={{
-            p: 0,
-            width: '100vw',
-            margin: 0,
-            minHeight: '100vh',
-            bgcolor: 'background.default',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'flex-start'
+            width: "100%",
+            bgcolor: "background.paper",
+            border: "2px solid",
+            borderColor: "divider",
+            borderRadius: 0,
+            boxShadow: 3,
+            p: 3,
+            m: 0,
         }}>
-            <Box sx={{
-                width: "100%",
-                bgcolor: "background.paper",
-                border: "2px solid",
-                borderColor: "divider",
-                borderRadius: 0,
-                boxShadow: 3,
-                p: 3,
-                m: 0,
-            }}>
-                <Typography variant="h4" gutterBottom sx={{mb: 4}}>
-                    Cluster Overview
-                </Typography>
+            <Typography variant="h4" gutterBottom sx={{mb: 4}}>
+                Cluster Overview
+            </Typography>
 
+            <Box sx={{
+                display: 'grid',
+                gridTemplateColumns: {xs: '1fr', md: '2fr 1fr'},
+                gap: 3,
+                alignItems: 'stretch'
+            }}>
                 <Box sx={{
                     display: 'grid',
-                    gridTemplateColumns: {xs: '1fr', md: '2fr 1fr'},
+                    gridTemplateColumns: {md: '1fr 1fr'},
                     gap: 3,
-                    alignItems: 'stretch'
+                    alignContent: 'start'
                 }}>
-                    <Box sx={{
-                        display: 'grid',
-                        gridTemplateColumns: {md: '1fr 1fr'},
-                        gap: 3,
-                        alignContent: 'start'
-                    }}>
-                        <GridNodes {...gridNodesProps} />
-                        <GridObjects {...gridObjectsProps} />
-                        <GridHeartbeats {...gridHeartbeatsProps} />
-                        <GridPools {...gridPoolsProps} />
-                        <GridNetworks {...gridNetworksProps} />
-                    </Box>
-
-                    <Box sx={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 3,
-                        height: '100%',
-                        justifyContent: 'flex-start'
-                    }}>
-                        <GridNamespaces {...gridNamespacesProps} />
-                        <GridKinds {...gridKindsProps} />
-                    </Box>
+                    <GridNodes {...gridNodesProps} />
+                    <GridObjects {...gridObjectsProps} />
+                    <GridHeartbeats {...gridHeartbeatsProps} />
+                    <GridPools {...gridPoolsProps} />
+                    <GridNetworks {...gridNetworksProps} />
                 </Box>
-                <EventLogger eventTypes={CLUSTER_EVENT_TYPES} title="Cluster Events Logger"
-                             buttonLabel="Cluster Events"/>
+
+                <Box sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 3,
+                    height: '100%',
+                    justifyContent: 'flex-start'
+                }}>
+                    <GridNamespaces {...gridNamespacesProps} />
+                    <GridKinds {...gridKindsProps} />
+                </Box>
             </Box>
+            <EventLogger eventTypes={CLUSTER_EVENT_TYPES} title="Cluster Events Logger"
+                         buttonLabel="Cluster Events"/>
         </Box>
     );
 };
