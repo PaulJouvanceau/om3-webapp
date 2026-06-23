@@ -229,12 +229,12 @@ const WhoAmI = () => {
     if (isMobile) {
         return (
             <Box sx={{p: 3}}>
-                <Grid2 container spacing={3} direction="column">
-                    <Grid2 item>{MyInfoCard}</Grid2>
-                    <Grid2 item>{PermissionCard}</Grid2>
-                    <Grid2 item>{ServerInfoCard}</Grid2>
-                    <Grid2 item>{ActionButtons}</Grid2>
-                </Grid2>
+                <Grid container spacing={3} direction="column">
+                    <Grid item>{MyInfoCard}</Grid>
+                    <Grid item>{PermissionCard}</Grid>
+                    <Grid item>{ServerInfoCard}</Grid>
+                    <Grid item>{ActionButtons}</Grid>
+                </Grid>
             </Box>
         );
     }
