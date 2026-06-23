@@ -944,7 +944,7 @@ const Objects = () => {
 
     return (
         <Box sx={{
-            height: "100vh",
+            height: "100%",
             bgcolor: "background.default",
             display: "flex",
             flexDirection: "column",

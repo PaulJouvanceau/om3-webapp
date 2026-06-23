@@ -306,43 +306,15 @@ const App = () => {
     const location = useLocation();
     const mainRef = useRef(null);
 
-    useEffect(() => {
-        const htmlStyle = document.documentElement.style;
-        const bodyStyle = document.body.style;
-        const root = document.getElementById('root');
-        const rootStyle = root?.style;
-
-        const originalHtmlOverflow = htmlStyle['overflow'];
-        const originalBodyOverflow = bodyStyle['overflow'];
-        const originalRootOverflow = rootStyle?.['overflow'];
-
-        htmlStyle['overflow'] = 'hidden';
-        bodyStyle['overflow'] = 'hidden';
-        if (rootStyle) rootStyle['overflow'] = 'hidden';
-
-        return () => {
-            htmlStyle['overflow'] = originalHtmlOverflow;
-            bodyStyle['overflow'] = originalBodyOverflow;
-            if (rootStyle) rootStyle['overflow'] = originalRootOverflow;
-        };
-    }, []);
+    // ✅ On ne force plus overflow:hidden sur html/body/root
+    // Le conteneur principal gère lui-même la structure
 
     useEffect(() => {
-        const mainElement = mainRef.current;
-        if (!mainElement) return;
-
-        const adjustScroll = () => {
-        };
-        adjustScroll();
-        window.addEventListener('resize', adjustScroll);
-        return () => window.removeEventListener('resize', adjustScroll);
-    }, []);
-
-    useEffect(() => {
-        prepareForNavigation();
+        // Remettre le scroll en haut à chaque navigation
         if (mainRef.current) {
             mainRef.current.scrollTop = 0;
         }
+        prepareForNavigation();
     }, [location]);
 
     useEffect(() => {
@@ -354,14 +326,33 @@ const App = () => {
         return () => window.removeEventListener("storage", checkTokenChange);
     }, []);
 
+    const appContainerStyle = {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        backgroundColor: 'background.default',
+    };
+
+    const mainStyle = {
+        flex: 1,
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        width: '100%',
+    };
+
     return (
         <AuthProvider>
             <OidcProvider>
                 <OidcInitializer>
                     <DynamicThemeProvider>
-                        <div id="app-root-container">
+                        <div id="app-root-container" style={appContainerStyle}>
                             <NavBar/>
-                            <main id="app-scroll-container" ref={mainRef}>
+                            <main id="app-scroll-container" ref={mainRef} style={mainStyle}>
                                 <Suspense fallback={<Loading/>}>
                                     <Routes>
                                         <Route path="/" element={<Navigate to="/cluster" replace/>}/>
