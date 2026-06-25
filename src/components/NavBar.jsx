@@ -9,7 +9,8 @@ import {
     FaServer,
     FaDatabase,
     FaCubes,
-    FaNetworkWired
+    FaNetworkWired,
+    FaTag
 } from "react-icons/fa";
 import {useAuth} from "../context/AuthProvider.jsx";
 import {useEffect, useState, useMemo, useCallback} from "react";
@@ -44,7 +45,7 @@ const NavBar = () => {
         {path: "/pools", name: "Pools", icon: <FaDatabase/>},
         {path: "/network", name: "Networks", icon: <FaNetworkWired/>},
         {path: "/objects", name: "Objects", icon: <FaCubes/>},
-        {path: "/kinds", name: "Kinds", icon: <FaUser/>},
+        {path: "/kinds", name: "Kinds", icon: <FaTag/>},
         {path: "/whoami", name: "Who Am I", icon: <FaUser/>},
     ];
 
