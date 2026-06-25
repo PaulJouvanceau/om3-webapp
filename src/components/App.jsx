@@ -92,12 +92,11 @@ const isTokenValid = (token) => {
 };
 
 // Component to handle OIDC initialization
-const OidcInitializer = ({children}) => {
+const OidcInitializer = ({children, authInfo}) => {
     const location = useLocation();
     const {userManager, recreateUserManager, isInitialized} = useOidc();
     const authDispatch = useAuthDispatch();
     const auth = useAuth();
-    const authInfo = useAuthInfo();
     const navigate = useNavigate();
     const resumeCheckTimer = useRef(null); // debounce timer
 
@@ -306,11 +305,9 @@ const App = () => {
     const location = useLocation();
     const mainRef = useRef(null);
 
-    // ✅ On ne force plus overflow:hidden sur html/body/root
-    // Le conteneur principal gère lui-même la structure
+    const authInfo = useAuthInfo();
 
     useEffect(() => {
-        // Remettre le scroll en haut à chaque navigation
         if (mainRef.current) {
             mainRef.current.scrollTop = 0;
         }
@@ -348,7 +345,7 @@ const App = () => {
     return (
         <AuthProvider>
             <OidcProvider>
-                <OidcInitializer>
+                <OidcInitializer authInfo={authInfo}>
                     <DynamicThemeProvider>
                         <div id="app-root-container" style={appContainerStyle}>
                             <NavBar/>
@@ -375,7 +372,7 @@ const App = () => {
                                         <Route path="/whoami" element={<ProtectedRoute><WhoAmI/></ProtectedRoute>}/>
                                         <Route path="/silent-renew" element={<SilentRenew/>}/>
                                         <Route path="/auth-callback" element={<OidcCallback/>}/>
-                                        <Route path="/auth-choice" element={<AuthChoice/>}/>
+                                        <Route path="/auth-choice" element={<AuthChoice authInfo={authInfo}/>}/>
                                         <Route path="/auth/login" element={<Login/>}/>
                                         <Route path="*" element={<Navigate to="/"/>}/>
                                     </Routes>

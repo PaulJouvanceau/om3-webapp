@@ -7,7 +7,8 @@ import {
     Button,
     Box,
     Typography,
-    Stack
+    Stack,
+    CircularProgress
 } from "@mui/material";
 import {FaKey, FaUserShield} from "react-icons/fa";
 import useAuthInfo from "../hooks/AuthInfo.jsx";
@@ -16,9 +17,10 @@ import {useNavigate} from "react-router-dom";
 import {useOidc} from "../context/OidcAuthContext.tsx";
 import logger from '../utils/logger.js';
 
-function AuthChoice() {
+function AuthChoice({authInfo: authInfoProp}) {
     const {userManager, recreateUserManager} = useOidc();
-    const authInfo = useAuthInfo();
+    const localAuthInfo = useAuthInfo();
+    const authInfo = authInfoProp ?? localAuthInfo;
     const navigate = useNavigate();
 
     const handleAuthChoice = async (choice) => {
@@ -61,30 +63,37 @@ function AuthChoice() {
                 <Typography variant="body2" textAlign="center" color="textSecondary" gutterBottom>
                     Please select one of the authentication methods the cluster advertises.
                 </Typography>
-                <Stack spacing={2} mt={2}>
-                    {authInfo?.openid?.issuer && (
-                        <Button
-                            variant="contained"
-                            color="primary"
-                            startIcon={<FaKey/>}
-                            fullWidth
-                            onClick={() => handleAuthChoice("openid")}
-                        >
-                            OpenID
-                        </Button>
-                    )}
-                    {authInfo?.methods?.includes("basic") && (
-                        <Button
-                            variant="contained"
-                            color="secondary"
-                            startIcon={<FaUserShield/>}
-                            fullWidth
-                            onClick={() => handleAuthChoice("basic")}
-                        >
-                            Login
-                        </Button>
-                    )}
-                </Stack>
+
+                {!authInfo ? (
+                    <Box display="flex" justifyContent="center" mt={3}>
+                        <CircularProgress size={32}/>
+                    </Box>
+                ) : (
+                    <Stack spacing={2} mt={2}>
+                        {authInfo.openid?.issuer && (
+                            <Button
+                                variant="contained"
+                                color="primary"
+                                startIcon={<FaKey/>}
+                                fullWidth
+                                onClick={() => handleAuthChoice("openid")}
+                            >
+                                OpenID
+                            </Button>
+                        )}
+                        {authInfo.methods?.includes("basic") && (
+                            <Button
+                                variant="contained"
+                                color="secondary"
+                                startIcon={<FaUserShield/>}
+                                fullWidth
+                                onClick={() => handleAuthChoice("basic")}
+                            >
+                                Login
+                            </Button>
+                        )}
+                    </Stack>
+                )}
             </DialogContent>
             <DialogActions>
                 <Box flexGrow={1}/>
