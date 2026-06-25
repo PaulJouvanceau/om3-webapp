@@ -3,7 +3,7 @@ import {URL_AUTH_INFO} from "../config/apiPath.js";
 import logger from '../utils/logger.js';
 
 function useAuthInfo() {
-    const [authInfo, setAuthInfo] = useState();
+    const [authInfo, setAuthInfo] = useState(undefined);
 
     useEffect(() => {
         let isMounted = true;
