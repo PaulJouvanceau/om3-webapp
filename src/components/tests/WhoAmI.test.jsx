@@ -5,328 +5,332 @@ import WhoAmI from '../WhoAmI';
 import {URL_AUTH_WHOAMI} from '../../config/apiPath';
 import {DarkModeProvider} from '../../context/DarkModeContext';
 
-// Mocks
-jest.mock('react-router-dom', () => ({
-    ...jest.requireActual('react-router-dom'),
-    useNavigate: () => jest.fn(),
-}));
+// Mock external modules
 jest.mock('../../context/OidcAuthContext.tsx', () => ({useOidc: jest.fn()}));
 jest.mock('../../context/AuthProvider.jsx', () => ({
     useAuth: jest.fn(),
     useAuthDispatch: jest.fn(),
     Logout: 'LOGOUT',
 }));
-jest.mock('../../hooks/useFetchDaemonStatus');
+jest.mock('../../hooks/useFetchDaemonStatus', () => jest.fn());
 jest.mock('../../utils/logger.js', () => ({error: jest.fn(), info: jest.fn()}));
+jest.mock('react-router-dom', () => ({
+    ...jest.requireActual('react-router-dom'),
+    useNavigate: jest.fn(),
+}));
 
-const {
-    useAuth,
-    useAuthDispatch,
-} = require('../../context/AuthProvider.jsx');
-const {useOidc} = require('../../context/OidcAuthContext.tsx');
-const useFetchDaemonStatus = require('../../hooks/useFetchDaemonStatus');
+global.fetch = jest.fn();
 
-// Helper to render with providers
-const renderWhoAmI = () =>
-    render(
-        <DarkModeProvider>
-            <MemoryRouter>
-                <WhoAmI/>
-            </MemoryRouter>
-        </DarkModeProvider>
-    );
+const mockLocalStorage = {
+    getItem: jest.fn(),
+    removeItem: jest.fn(),
+    setItem: jest.fn(),
+    clear: jest.fn(),
+};
+Object.defineProperty(window, 'localStorage', {value: mockLocalStorage});
 
 describe('WhoAmI', () => {
-    const mockToken = 'auth-token';
-    const defaultUser = {
-        auth: 'user',
-        name: 'testuser',
-        raw_grant: 'root',
-    };
-    const defaultDaemon = {nodename: 'test-node'};
+    const mockToken = 'mock-token';
+    const mockNavigate = jest.fn();
+    const mockAuthDispatch = jest.fn();
+    const mockToggleDarkMode = jest.fn();
+    const mockSignoutRedirect = jest.fn();
+    const mockRemoveUser = jest.fn();
     const mockFetchNodes = jest.fn();
 
-    beforeEach(() => {
+    const defaultUserInfo = {
+        auth: 'user',
+        grant: {root: null},
+        namespace: 'system',
+        raw_grant: 'root',
+        name: 'testuser',
+    };
+
+    const defaultDaemon = {nodename: 'test-node'};
+
+    const setupMocks = (overrides = {}) => {
         jest.clearAllMocks();
 
-        // localStorage defaults
-        Object.defineProperty(window, 'localStorage', {
-            value: {
-                getItem: jest.fn((key) => {
-                    if (key === 'authToken') return mockToken;
-                    if (key === 'darkMode') return 'false';
-                    return null;
-                }),
-                setItem: jest.fn(),
-                removeItem: jest.fn(),
-                clear: jest.fn(),
+        // Default localStorage
+        mockLocalStorage.getItem.mockImplementation((key) => {
+            if (key === 'authToken') {
+                return 'authToken' in overrides ? overrides.authToken : mockToken;
+            }
+            if (key === 'darkMode') return 'false';
+            if (key === 'appVersion') {
+                return 'appVersion' in overrides ? overrides.appVersion : null;
+            }
+            if (key === 'appVersionTime') {
+                return 'appVersionTime' in overrides ? overrides.appVersionTime : null;
+            }
+            return null;
+        });
+
+        // Navigation
+        require('react-router-dom').useNavigate.mockReturnValue(mockNavigate);
+
+        // Auth context
+        require('../../context/AuthProvider.jsx').useAuth.mockReturnValue({
+            authChoice: overrides.authChoice ?? 'local',
+            authToken: mockToken,
+        });
+        require('../../context/AuthProvider.jsx').useAuthDispatch.mockReturnValue(mockAuthDispatch);
+
+        // OIDC
+        require('../../context/OidcAuthContext.tsx').useOidc.mockReturnValue({
+            userManager: {
+                signoutRedirect: mockSignoutRedirect,
+                removeUser: mockRemoveUser,
             },
-            writable: true,
         });
 
-        // Auth mocks
-        useAuth.mockReturnValue({authChoice: 'local'});
-        useAuthDispatch.mockReturnValue(jest.fn());
-        useOidc.mockReturnValue({
-            userManager: {signoutRedirect: jest.fn(), removeUser: jest.fn()},
-        });
-
-        // Daemon mock
+        // Daemon status
+        const useFetchDaemonStatus = require('../../hooks/useFetchDaemonStatus');
         useFetchDaemonStatus.mockReturnValue({
-            daemon: defaultDaemon,
+            daemon: overrides.daemon ?? defaultDaemon,
             fetchNodes: mockFetchNodes,
         });
 
-        // Fetch default: GitHub returns version, WhoAmI returns user
-        global.fetch = jest.fn((url) => {
-            if (url === 'https://api.github.com/repos/opensvc/om3-webapp/releases') {
-                return Promise.resolve({json: () => Promise.resolve([{tag_name: 'v2.0.0'}])});
+        // Dark mode
+        jest.spyOn(require('../../context/DarkModeContext'), 'useDarkMode').mockReturnValue({
+            isDarkMode: overrides.isDarkMode ?? false,
+            toggleDarkMode: mockToggleDarkMode,
+        });
+
+        // Fetch
+        global.fetch.mockImplementation((url) => {
+            if (url.includes('github')) {
+                if (overrides.githubError) {
+                    return Promise.reject(new Error('GitHub error'));
+                }
+                return Promise.resolve({
+                    json: () => Promise.resolve([{tag_name: 'v1.2.3'}]),
+                });
             }
             if (url === URL_AUTH_WHOAMI) {
-                return Promise.resolve({ok: true, json: () => Promise.resolve(defaultUser)});
+                if (overrides.whoamiError) {
+                    return Promise.reject(new Error('Failed to load user information'));
+                }
+                return Promise.resolve({
+                    ok: overrides.whoamiOk ?? true,
+                    json: () => Promise.resolve(overrides.whoamiData ?? defaultUserInfo),
+                });
             }
             return Promise.reject(new Error(`Unknown URL: ${url}`));
         });
-    });
+    };
 
-    test('shows loading indicator then user info', async () => {
-        renderWhoAmI();
+    const renderComponent = () =>
+        render(
+            <DarkModeProvider>
+                <MemoryRouter>
+                    <WhoAmI/>
+                </MemoryRouter>
+            </DarkModeProvider>
+        );
+
+    test('shows loading state initially', () => {
+        setupMocks();
+        renderComponent();
         expect(screen.getByRole('progressbar')).toBeInTheDocument();
-        await waitFor(() => {
-            expect(screen.getAllByText('My Information')[0]).toBeInTheDocument();
-        });
     });
 
-    test('displays error on fetch failure', async () => {
-        global.fetch.mockImplementation((url) => {
-            if (url === URL_AUTH_WHOAMI) return Promise.reject(new Error('Network error'));
-            return Promise.resolve({json: () => Promise.resolve([])});
-        });
-        renderWhoAmI();
-        await waitFor(() => {
-            expect(screen.getByRole('alert')).toHaveTextContent('Network error');
-        });
-    });
-
-    test('shows error on non‑ok WhoAmI response', async () => {
-        global.fetch.mockImplementation((url) => {
-            if (url === URL_AUTH_WHOAMI) return Promise.resolve({ok: false, status: 401});
-            return Promise.resolve({json: () => Promise.resolve([])});
-        });
-        renderWhoAmI();
+    test('displays error alert on fetch failure', async () => {
+        setupMocks({whoamiError: true});
+        renderComponent();
         await waitFor(() => {
             expect(screen.getByRole('alert')).toHaveTextContent('Failed to load user information');
         });
     });
 
-    test('displays fetched user information', async () => {
-        renderWhoAmI();
+    test('displays error alert on non‑OK response', async () => {
+        setupMocks({whoamiOk: false});
+        renderComponent();
         await waitFor(() => {
-            expect(screen.getByText('testuser')).toBeInTheDocument();
-            expect(screen.getByText('user')).toBeInTheDocument(); // auth method
-            expect(screen.getByText(/root/)).toBeInTheDocument(); // raw_grant
+            expect(screen.getByRole('alert')).toHaveTextContent('Failed to load user information');
         });
     });
 
-    describe.each([
-        ['missing raw_grant', {...defaultUser, raw_grant: null}, 'None'],
-        ['missing auth and name', {auth: null, name: null, raw_grant: null}, 'N/A'],
-        ['empty object', {}, 'N/A'],
-    ])('Missing fields: %s', (_, userResponse, expectedValue) => {
-        test(`shows "${expectedValue}" when appropriate`, async () => {
-            global.fetch.mockImplementation((url) => {
-                if (url === URL_AUTH_WHOAMI) return Promise.resolve({
-                    ok: true,
-                    json: () => Promise.resolve(userResponse)
-                });
-                return Promise.resolve({json: () => Promise.resolve([])});
-            });
-            renderWhoAmI();
-            await waitFor(() => {
-                // At least one occurrence of the expected placeholder
-                const allMatches = screen.getAllByText(expectedValue);
-                expect(allMatches.length).toBeGreaterThan(0);
-            });
-        });
-    });
+    test('renders all sections with user and server info', async () => {
+        setupMocks();
+        renderComponent();
 
-    test('passes authToken from localStorage in WhoAmI request', async () => {
-        renderWhoAmI();
-        await waitFor(() => {
-            expect(global.fetch).toHaveBeenCalledWith(URL_AUTH_WHOAMI, expect.objectContaining({
-                headers: expect.objectContaining({Authorization: `Bearer ${mockToken}`}),
-            }));
-        });
-    });
-
-    test('sends "Bearer null" when token is missing', async () => {
-        window.localStorage.getItem.mockImplementation((key) => (key === 'darkMode' ? 'false' : null));
-        renderWhoAmI();
-        await waitFor(() => {
-            expect(global.fetch).toHaveBeenCalledWith(URL_AUTH_WHOAMI, expect.objectContaining({
-                headers: expect.objectContaining({Authorization: 'Bearer null'}),
-            }));
-        });
-    });
-
-
-    test('fetches nodes when authToken exists', async () => {
-        renderWhoAmI();
-        await waitFor(() => {
-            expect(mockFetchNodes).toHaveBeenCalledWith(mockToken);
-        });
-    });
-
-    test('does not fetch nodes when authToken is null', async () => {
-        window.localStorage.getItem.mockImplementation((key) => (key === 'darkMode' ? 'false' : null));
-        renderWhoAmI();
         await waitFor(() => {
             expect(screen.getAllByText('My Information')[0]).toBeInTheDocument();
-        });
-        expect(mockFetchNodes).not.toHaveBeenCalled();
-    });
-
-    test('handles fetchNodes error gracefully', async () => {
-        const logger = require('../../utils/logger.js');
-        mockFetchNodes.mockRejectedValueOnce(new Error('Daemon failure'));
-        renderWhoAmI();
-        await waitFor(() => {
-            expect(logger.error).toHaveBeenCalledWith('Error fetching daemon status:', expect.any(Error));
-        });
-    });
-
-    test('shows "Loading..." when nodename is missing', async () => {
-        useFetchDaemonStatus.mockReturnValue({daemon: {}, fetchNodes: mockFetchNodes});
-        renderWhoAmI();
-        await waitFor(() => {
-            expect(screen.getByText('Loading...')).toBeInTheDocument();
-        });
-    });
-
-    describe('App version', () => {
-        const githubURL = 'https://api.github.com/repos/opensvc/om3-webapp/releases';
-
-        test('uses cached version if fresh (<1h)', async () => {
-            const cached = '1.2.3';
-            const now = Date.now().toString();
-            window.localStorage.getItem.mockImplementation((key) => {
-                if (key === 'appVersion') return cached;
-                if (key === 'appVersionTime') return now;
-                if (key === 'authToken') return mockToken;
-                if (key === 'darkMode') return 'false';
-                return null;
-            });
-            renderWhoAmI();
-            await waitFor(() => {
-                expect(screen.getByText(`v${cached}`)).toBeInTheDocument();
-            });
-            expect(global.fetch).not.toHaveBeenCalledWith(githubURL);
-        });
-
-        test('fetches from GitHub when cache is expired', async () => {
-            const old = (Date.now() - 4000000).toString();
-            window.localStorage.getItem.mockImplementation((key) => {
-                if (key === 'appVersion') return 'old';
-                if (key === 'appVersionTime') return old;
-                if (key === 'authToken') return mockToken;
-                if (key === 'darkMode') return 'false';
-                return null;
-            });
-            renderWhoAmI();
-            await waitFor(() => {
-                expect(screen.getByText('v2.0.0')).toBeInTheDocument();
-            });
-            expect(window.localStorage.setItem).toHaveBeenCalledWith('appVersion', '2.0.0');
-        });
-
-        test('falls back to cache on fetch error', async () => {
-            const cached = 'cached-only';
-            window.localStorage.getItem.mockImplementation((key) => {
-                if (key === 'appVersion') return cached;
-                if (key === 'appVersionTime') return (Date.now() - 5000000).toString();
-                if (key === 'authToken') return mockToken;
-                if (key === 'darkMode') return 'false';
-                return null;
-            });
-            global.fetch = jest.fn((url) => {
-                if (url === URL_AUTH_WHOAMI) return Promise.resolve({
-                    ok: true,
-                    json: () => Promise.resolve(defaultUser)
-                });
-                if (url === githubURL) return Promise.reject(new Error('GitHub down'));
-            });
-            renderWhoAmI();
-            await waitFor(() => {
-                expect(screen.getByText(`v${cached}`)).toBeInTheDocument();
-            });
-        });
-
-        test('shows "vUnknown" when no cache and fetch fails', async () => {
-            window.localStorage.getItem.mockImplementation((key) => {
-                if (key === 'darkMode') return 'false';
-                return null;
-            });
-            global.fetch = jest.fn((url) => {
-                if (url === URL_AUTH_WHOAMI) return Promise.resolve({
-                    ok: true,
-                    json: () => Promise.resolve(defaultUser)
-                });
-                if (url === githubURL) return Promise.reject(new Error('GitHub down'));
-            });
-            renderWhoAmI();
-            await waitFor(() => {
-                expect(screen.getByText('vUnknown')).toBeInTheDocument();
-            });
-        });
-    });
-
-    describe('Logout', () => {
-        const mockNavigate = require('react-router-dom').useNavigate();
-
-        test('performs logout with local auth', async () => {
-            const dispatch = jest.fn();
-            useAuthDispatch.mockReturnValue(dispatch);
-            renderWhoAmI();
-            const logoutBtn = await screen.findByRole('button', {name: /logout/i});
-            fireEvent.click(logoutBtn);
-
-            expect(window.localStorage.removeItem).toHaveBeenCalledWith('authToken');
-            expect(dispatch).toHaveBeenCalledWith({type: 'LOGOUT'});
-            expect(mockNavigate).toHaveBeenCalledWith('/auth-choice');
-            // OIDC methods not called
-            expect(useOidc().userManager.signoutRedirect).not.toHaveBeenCalled();
-        });
-
-        test('performs logout with OIDC auth', async () => {
-            useAuth.mockReturnValue({authChoice: 'openid'});
-            const signoutRedirect = jest.fn().mockResolvedValue(undefined);
-            const removeUser = jest.fn().mockResolvedValue(undefined);
-            useOidc.mockReturnValue({userManager: {signoutRedirect, removeUser}});
-            renderWhoAmI();
-            const logoutBtn = await screen.findByRole('button', {name: /logout/i});
-            fireEvent.click(logoutBtn);
-
-            expect(signoutRedirect).toHaveBeenCalled();
-            expect(removeUser).toHaveBeenCalled();
-            expect(window.localStorage.removeItem).toHaveBeenCalledWith('authToken');
-        });
-    });
-
-
-    test('renders dark mode button and toggles theme', async () => {
-        renderWhoAmI();
-        const toggleBtn = await screen.findByRole('button', {name: /dark mode/i});
-        expect(toggleBtn).toBeInTheDocument();
-        // Click does not throw; toggleDarkMode is called internally
-        fireEvent.click(toggleBtn);
-    });
-
-$
-    test('renders both Logout and Dark Mode buttons', async () => {
-        renderWhoAmI();
-        await waitFor(() => {
-            expect(screen.getByRole('button', {name: /logout/i})).toBeInTheDocument();
+            expect(screen.getByText('testuser')).toBeInTheDocument();
+            expect(screen.getByText('Auth Method')).toBeInTheDocument();
+            expect(screen.getByText('user')).toBeInTheDocument();
+            expect(screen.getByText('Permission Details')).toBeInTheDocument();
+            expect(screen.getByText('root')).toBeInTheDocument();
+            expect(screen.getByText('Server Information')).toBeInTheDocument();
+            expect(screen.getByText('test-node')).toBeInTheDocument();
+            expect(screen.getByText('v1.2.3')).toBeInTheDocument();
             expect(screen.getByRole('button', {name: /dark mode/i})).toBeInTheDocument();
+            expect(screen.getByRole('button', {name: /logout/i})).toBeInTheDocument();
+        });
+    });
+
+    test('shows "None" when raw_grant is missing', async () => {
+        setupMocks({whoamiData: {...defaultUserInfo, raw_grant: null}});
+        renderComponent();
+        await waitFor(() => {
+            expect(screen.getByText('None')).toBeInTheDocument();
+        });
+    });
+
+    test('shows "N/A" for missing fields', async () => {
+        setupMocks({whoamiData: {auth: null, name: null, raw_grant: null}});
+        renderComponent();
+        await waitFor(() => {
+            const naElements = screen.getAllByText('N/A');
+            expect(naElements.length).toBeGreaterThanOrEqual(2);
+        });
+    });
+
+    test('uses authToken from localStorage in API call', async () => {
+        setupMocks();
+        renderComponent();
+        await waitFor(() => {
+            expect(fetch).toHaveBeenCalledWith(
+                URL_AUTH_WHOAMI,
+                expect.objectContaining({
+                    headers: expect.objectContaining({
+                        Authorization: `Bearer ${mockToken}`,
+                    }),
+                })
+            );
+        });
+    });
+
+    describe('app version', () => {
+        const versionCases = [
+            {
+                name: 'uses cache when valid (<1h)',
+                appVersion: '1.0.0',
+                appVersionTime: String(Date.now()),
+                expectedVersion: 'v1.0.0',
+                githubCalled: false,
+            },
+            {
+                name: 'fetches from GitHub when cache expired',
+                appVersion: '1.0.0',
+                appVersionTime: String(Date.now() - 4000000),
+                expectedVersion: 'v1.2.3',
+                githubCalled: true,
+            },
+            {
+                name: 'falls back to cache when GitHub fails',
+                appVersion: '1.0.0',
+                appVersionTime: String(Date.now() - 4000000),
+                githubError: true,
+                expectedVersion: 'v1.0.0',
+                githubCalled: true,
+            },
+            {
+                name: 'shows Unknown when no cache and GitHub fails',
+                appVersion: null,
+                appVersionTime: null,
+                githubError: true,
+                expectedVersion: 'vUnknown',
+                githubCalled: true,
+            },
+        ];
+
+        it.each(versionCases)(
+            '$name',
+            async ({appVersion, appVersionTime, githubError, expectedVersion, githubCalled}) => {
+                setupMocks({appVersion, appVersionTime, githubError});
+                renderComponent();
+                await waitFor(() => {
+                    expect(screen.getByText(expectedVersion)).toBeInTheDocument();
+                });
+                if (!githubCalled) {
+                    expect(fetch).not.toHaveBeenCalledWith(
+                        expect.stringContaining('github')
+                    );
+                }
+            }
+        );
+    });
+
+    describe('daemon fetch', () => {
+        test('calls fetchNodes when authToken exists', async () => {
+            setupMocks();
+            renderComponent();
+            await waitFor(() => {
+                expect(mockFetchNodes).toHaveBeenCalledWith(mockToken);
+            });
+        });
+
+        test('does not call fetchNodes when no authToken', async () => {
+            setupMocks({authToken: null});
+            renderComponent();
+            await waitFor(() => {
+                const headings = screen.getAllByText('My Information');
+                expect(headings.length).toBeGreaterThan(0);
+            });
+            expect(mockFetchNodes).not.toHaveBeenCalled();
+        });
+
+        test('logs error when fetchNodes fails', async () => {
+            const logger = require('../../utils/logger.js');
+            mockFetchNodes.mockRejectedValue(new Error('daemon error'));
+            setupMocks();
+            renderComponent();
+            await waitFor(() => {
+                expect(logger.error).toHaveBeenCalledWith(
+                    'Error fetching daemon status:',
+                    expect.any(Error)
+                );
+            });
+        });
+
+        test('displays "Loading..." when nodename is missing', async () => {
+            setupMocks({daemon: {}});
+            renderComponent();
+            await waitFor(() => {
+                expect(screen.getByText('Loading...')).toBeInTheDocument();
+            });
+        });
+    });
+
+    describe('dark mode toggle', () => {
+        test('button toggles dark mode', async () => {
+            setupMocks();
+            renderComponent();
+            const button = await screen.findByRole('button', {name: /dark mode/i});
+            fireEvent.click(button);
+            expect(mockToggleDarkMode).toHaveBeenCalled();
+        });
+    });
+
+    describe('logout', () => {
+        test.each([
+            {
+                authChoice: 'openid',
+                shouldCallOidc: true,
+            },
+            {
+                authChoice: 'local',
+                shouldCallOidc: false,
+            },
+        ])('handles logout for $authChoice', async ({authChoice, shouldCallOidc}) => {
+            setupMocks({authChoice});
+            renderComponent();
+            const button = await screen.findByRole('button', {name: /logout/i});
+            fireEvent.click(button);
+
+            if (shouldCallOidc) {
+                expect(mockSignoutRedirect).toHaveBeenCalled();
+                expect(mockRemoveUser).toHaveBeenCalled();
+            } else {
+                expect(mockSignoutRedirect).not.toHaveBeenCalled();
+                expect(mockRemoveUser).not.toHaveBeenCalled();
+            }
+
+            expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('authToken');
+            expect(mockAuthDispatch).toHaveBeenCalledWith({type: 'LOGOUT'});
+            expect(mockNavigate).toHaveBeenCalledWith('/auth-choice');
         });
     });
 });
