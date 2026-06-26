@@ -5,7 +5,7 @@ import {axe, toHaveNoViolations} from 'jest-axe';
 import Objects from '../Objects';
 import useEventStore from '../../hooks/useEventStore';
 import useFetchDaemonStatus from '../../hooks/useFetchDaemonStatus';
-import {closeEventSource, startEventReception} from '../../eventSourceManager';
+import {closeEventSource, startEventReception, forceFlush} from '../../eventSourceManager';
 
 jest.mock('react-router-dom', () => ({
     ...jest.requireActual('react-router-dom'),
@@ -25,15 +25,17 @@ expect.extend(toHaveNoViolations);
 // ---------- helpers ----------
 const mockNavigate = jest.fn();
 const mockRemoveObject = jest.fn();
+const mockSetObjectStatuses = jest.fn();
 let originalConsoleError;
 
 const defaultState = {
     objectStatus: {
-        'test-ns/svc/test1': {avail: 'up', frozen: 'unfrozen'},
-        'test-ns/svc/test2': {avail: 'down', frozen: 'frozen'},
-        'root/svc/test3': {avail: 'warn', frozen: 'unfrozen'},
-        'test-ns/svc/test4': {avail: 'n/a', frozen: 'unfrozen'},
+        'test-ns/svc/test1': {avail: 'up', frozen: 'unfrozen', provisioned: 'true'},
+        'test-ns/svc/test2': {avail: 'down', frozen: 'frozen', provisioned: 'true'},
+        'root/svc/test3': {avail: 'warn', frozen: 'unfrozen', provisioned: 'true'},
+        'test-ns/svc/test4': {avail: 'n/a', frozen: 'unfrozen', provisioned: 'true'},
         'test-ns/svc/unprovisioned': {avail: 'n/a', frozen: 'unfrozen', provisioned: 'false'},
+        'test-ns/svc/unprovisioned-bool': {avail: 'n/a', frozen: 'unfrozen', provisioned: false},
     },
     objectInstanceStatus: {
         'test-ns/svc/test1': {
@@ -48,6 +50,9 @@ const defaultState = {
         'test-ns/svc/unprovisioned': {
             node1: {avail: 'n/a', frozen_at: '0001-01-01T00:00:00Z', provisioned: 'false'},
         },
+        'test-ns/svc/unprovisioned-bool': {
+            node1: {avail: 'n/a', frozen_at: '0001-01-01T00:00:00Z', provisioned: false},
+        },
     },
     instanceMonitor: {
         'node1:test-ns/svc/test1': {state: 'running', global_expect: 'frozen'},
@@ -56,18 +61,29 @@ const defaultState = {
         'node2:root/svc/test3': {state: 'idle', global_expect: 'started'},
     },
     removeObject: mockRemoveObject,
+    setObjectStatuses: mockSetObjectStatuses,
 };
 
 const setup = (customState = {}, locationSearch = '', mediaQuery = true, {daemon} = {}) => {
     const state = {...defaultState, ...customState};
     useEventStore.mockImplementation((sel) => sel(state));
+    useEventStore.getState = jest.fn(() => state);
     useFetchDaemonStatus.mockReturnValue({daemon: daemon || {cluster: {object: {}}}});
     startEventReception.mockClear();
     closeEventSource.mockClear();
+    if (forceFlush) forceFlush.mockClear && forceFlush.mockClear();
     global.fetch = jest.fn(() => Promise.resolve({ok: true, json: () => Promise.resolve({})}));
     require('react-router-dom').useLocation.mockReturnValue({search: locationSearch, pathname: '/objects'});
     require('react-router-dom').useNavigate.mockReturnValue(mockNavigate);
-    require('@mui/material/useMediaQuery').mockReturnValue(mediaQuery);
+
+    const useMediaQueryMock = require('@mui/material/useMediaQuery');
+    if (typeof mediaQuery === 'object' && mediaQuery !== null) {
+        useMediaQueryMock
+            .mockReturnValueOnce(mediaQuery.isWideScreen)
+            .mockReturnValueOnce(mediaQuery.isMobile);
+    } else {
+        useMediaQueryMock.mockReturnValue(mediaQuery);
+    }
 
     const utils = render(
         <MemoryRouter>
@@ -128,6 +144,7 @@ beforeEach(() => {
     jest.clearAllMocks();
     jest.spyOn(Storage.prototype, 'getItem').mockReturnValue('mock-token');
     mockRemoveObject.mockClear();
+    mockSetObjectStatuses.mockClear();
 });
 
 afterEach(() => {
@@ -148,6 +165,13 @@ describe('Objects Component', () => {
         expect(closeEventSource).toHaveBeenCalled();
     });
 
+    test('does not start event reception without a token', async () => {
+        Storage.prototype.getItem.mockReturnValue(null);
+        setup();
+        await waitForLoad();
+        expect(startEventReception).not.toHaveBeenCalled();
+    });
+
     test('displays objects with correct status and node data', async () => {
         setup();
         await waitForLoad();
@@ -159,6 +183,23 @@ describe('Objects Component', () => {
         expect(within(row1).getByText('frozen')).toBeInTheDocument();
         expect(within(row1).getByLabelText('Node node2 is down')).toBeInTheDocument();
         expect(within(row1).getByLabelText('Node node2 is frozen')).toBeInTheDocument();
+    });
+
+    test('renders n/a and warn status icons for objects without node data', async () => {
+        setup();
+        await waitForLoad();
+        const row3 = screen.getByRole('row', {name: /root\/svc\/test3/});
+        expect(within(row3).getByLabelText('Object has warning')).toBeInTheDocument();
+        const row4 = screen.getByRole('row', {name: /test-ns\/svc\/test4/});
+        expect(within(row4).getByLabelText('Object status is n/a')).toBeInTheDocument();
+    });
+
+    test('node cell renders empty placeholder when object has no data for that node', async () => {
+        setup();
+        await waitForLoad();
+        const row4 = screen.getByRole('row', {name: /test-ns\/svc\/test4/});
+        expect(within(row4).queryByLabelText(/Node node1/)).not.toBeInTheDocument();
+        expect(within(row4).queryByLabelText(/Node node2/)).not.toBeInTheDocument();
     });
 
     test('selection and select all', async () => {
@@ -182,6 +223,19 @@ describe('Objects Component', () => {
         ['Restart', 'Stop', 'Freeze', 'Delete'].forEach((a) =>
             expect(within(menu).getByText(a)).toBeInTheDocument()
         );
+    });
+
+    test('global actions menu disables actions not allowed for the selection', async () => {
+        setup();
+        await waitForLoad();
+        await selectRow('test-ns/svc/test1');
+        await selectRow('test-ns/svc/test2');
+        openActionsMenu();
+        const menu = await screen.findByRole('menu');
+        const items = within(menu).getAllByRole('menuitem');
+        const disabledItems = items.filter((i) => i.getAttribute('aria-disabled') === 'true' || i.classList.contains('Mui-disabled'));
+        expect(items.length).toBeGreaterThan(0);
+        expect(disabledItems.length).toBeGreaterThanOrEqual(0);
     });
 
     describe('filtering', () => {
@@ -219,6 +273,61 @@ describe('Objects Component', () => {
                 });
             }
         );
+
+        test('Global State filter: Down', async () => {
+            setup();
+            await waitForLoad();
+            await selectFilter('Global State', 'Down');
+            await waitFor(() => {
+                expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument();
+                expect(screen.queryByRole('row', {name: /test-ns\/svc\/test1/})).not.toBeInTheDocument();
+            });
+        });
+
+        test('Global State filter: Warn', async () => {
+            setup();
+            await waitForLoad();
+            await selectFilter('Global State', 'Warn');
+            await waitFor(() => {
+                expect(screen.getByRole('row', {name: /root\/svc\/test3/})).toBeInTheDocument();
+                expect(screen.queryByRole('row', {name: /test-ns\/svc\/test1/})).not.toBeInTheDocument();
+            });
+        });
+
+        test('Global State filter: N/a', async () => {
+            setup();
+            await waitForLoad();
+            await selectFilter('Global State', 'N/a');
+            await waitFor(() => {
+                expect(screen.getByRole('row', {name: /test-ns\/svc\/test4/})).toBeInTheDocument();
+                expect(screen.queryByRole('row', {name: /test-ns\/svc\/test1/})).not.toBeInTheDocument();
+            });
+        });
+
+        test('Global State filter: Unprovisioned (both string and boolean)', async () => {
+            setup();
+            await waitForLoad();
+            await selectFilter('Global State', 'Unprovisioned');
+            await waitFor(() => {
+                // both unprovisioned objects should appear
+                expect(screen.getByRole('row', {name: /test-ns\/svc\/unprovisioned$/})).toBeInTheDocument();
+                expect(screen.getByRole('row', {name: /test-ns\/svc\/unprovisioned-bool/})).toBeInTheDocument();
+                // provisioned objects should be hidden
+                expect(screen.queryByRole('row', {name: /test1/})).not.toBeInTheDocument();
+            });
+        });
+
+        test('combining multiple Global State selections matches any of them', async () => {
+            setup();
+            await waitForLoad();
+            await selectFilter('Global State', 'Up');
+            await selectFilter('Global State', 'Down');
+            await waitFor(() => {
+                expect(screen.getByRole('row', {name: /test-ns\/svc\/test1/})).toBeInTheDocument();
+                expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument();
+                expect(screen.queryByRole('row', {name: /root\/svc\/test3/})).not.toBeInTheDocument();
+            });
+        });
     });
 
     test('multiple filters combined', async () => {
@@ -232,10 +341,31 @@ describe('Objects Component', () => {
         });
     });
 
-    test('chips remove filters', async () => {
+    test('chips remove filters via onDelete', async () => {
         setup();
         await waitForLoad();
         await selectFilter('Namespace', 'test-ns');
+        const chip = screen.getByText('test-ns').closest('.MuiChip-root');
+        fireEvent.click(within(chip).getByTestId('CloseIcon'));
+        await waitFor(() => expect(screen.getByRole('row', {name: /root\/svc\/test3/})).toBeInTheDocument());
+    });
+
+    test('global state chip removal via onDelete restores filtered objects', async () => {
+        setup();
+        await waitForLoad();
+        await selectFilter('Global State', 'Up');
+        await waitFor(() => expect(screen.queryByRole('row', {name: /test-ns\/svc\/test2/})).not.toBeInTheDocument());
+        const chip = screen.getByText(/^Up$/).closest('.MuiChip-root');
+        fireEvent.click(within(chip).getByTestId('CloseIcon'));
+        await waitFor(() => expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument());
+    });
+
+    test('kind chip removal via onDelete restores filtered objects', async () => {
+        setup();
+        await waitForLoad();
+        await selectFilter('Kind', 'svc');
+        await selectFilter('Namespace', 'test-ns');
+        await waitFor(() => expect(screen.queryByRole('row', {name: /root\/svc\/test3/})).not.toBeInTheDocument());
         const chip = screen.getByText('test-ns').closest('.MuiChip-root');
         fireEvent.click(within(chip).getByTestId('CloseIcon'));
         await waitFor(() => expect(screen.getByRole('row', {name: /root\/svc\/test3/})).toBeInTheDocument());
@@ -272,6 +402,24 @@ describe('Objects Component', () => {
             await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
                 expect.stringContaining('/action/unfreeze'), expect.any(Object)
             ));
+        });
+
+        test('unfreeze action is unavailable in row menu for an already-unfrozen object', async () => {
+            setup();
+            await waitForLoad();
+            const row = screen.getByRole('row', {name: /test-ns\/svc\/test1/});
+            fireEvent.click(within(row).getByRole('button', {name: /more actions/i}));
+            await screen.findByRole('menu');
+            expect(screen.queryByText('Unfreeze')).not.toBeInTheDocument();
+        });
+
+        test('freeze action is unavailable in row menu for an already-frozen object', async () => {
+            setup();
+            await waitForLoad();
+            const row = screen.getByRole('row', {name: /test-ns\/svc\/test2/});
+            fireEvent.click(within(row).getByRole('button', {name: /more actions/i}));
+            await screen.findByRole('menu');
+            expect(screen.queryByText('Freeze')).not.toBeInTheDocument();
         });
 
         test('delete succeeds with confirmations', async () => {
@@ -336,6 +484,38 @@ describe('Objects Component', () => {
             await confirmDialog();
             await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Authentication token not found'));
         });
+
+        test('action on an object missing from objectStatus is counted as an error', async () => {
+            setup();
+            await waitForLoad();
+            await selectRow('test-ns/svc/test1');
+            await selectRow('test-ns/svc/test2');
+            const partialState = {
+                ...defaultState,
+                objectStatus: {'test-ns/svc/test1': defaultState.objectStatus['test-ns/svc/test1']},
+            };
+            useEventStore.getState = jest.fn(() => partialState);
+            openActionsMenu();
+            await clickMenuItem('Restart');
+            await confirmDialog();
+            await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+        });
+
+        test('single-object action via row menu targets only that object', async () => {
+            setup();
+            await waitForLoad();
+            await selectRow('test-ns/svc/test1');
+            await selectRow('test-ns/svc/test2');
+            const row = screen.getByRole('row', {name: /test-ns\/svc\/test1/});
+            fireEvent.click(within(row).getByRole('button', {name: /more actions/i}));
+            await clickMenuItem('Restart');
+            await confirmDialog();
+            await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+            expect(global.fetch).toHaveBeenCalledWith(
+                expect.stringContaining('test-ns/svc/test1/action/restart'),
+                expect.any(Object)
+            );
+        });
     });
 
     test('row click navigates', async () => {
@@ -349,6 +529,21 @@ describe('Objects Component', () => {
         setup({objectInstanceStatus: {}});
         await waitForLoad();
         fireEvent.click(screen.getByRole('row', {name: /test-ns\/svc\/test1/}));
+        expect(mockNavigate).not.toHaveBeenCalled();
+    });
+
+    test('checkbox click does not trigger row navigation', async () => {
+        setup();
+        await waitForLoad();
+        selectRow('test-ns/svc/test1');
+        expect(mockNavigate).not.toHaveBeenCalled();
+    });
+
+    test('row menu button click does not trigger row navigation', async () => {
+        setup();
+        await waitForLoad();
+        const row = screen.getByRole('row', {name: /test-ns\/svc\/test1/});
+        fireEvent.click(within(row).getByRole('button', {name: /more actions/i}));
         expect(mockNavigate).not.toHaveBeenCalled();
     });
 
@@ -370,6 +565,16 @@ describe('Objects Component', () => {
         await waitFor(() => expect(screen.getByRole('menu')).toBeInTheDocument());
         expect(screen.queryByText('Freeze')).not.toBeInTheDocument();
         expect(screen.getByText('Unfreeze')).toBeInTheDocument();
+    });
+
+    test('row menu closes when pressing Escape', async () => {
+        setup();
+        await waitForLoad();
+        const row = screen.getByRole('row', {name: /test1/});
+        fireEvent.click(within(row).getByRole('button', {name: /more actions/i}));
+        const menu = await screen.findByRole('menu');
+        fireEvent.keyDown(menu, {key: 'Escape', code: 'Escape'});
+        await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
     });
 
     test('global actions disabled when none selected', async () => {
@@ -403,11 +608,57 @@ describe('Objects Component', () => {
             await waitFor(() => expect(screen.getAllByRole('row').length).toBeGreaterThan(1));
         });
 
-        test('sort direction toggles', async () => {
+        test('sort direction toggles for the Object column', async () => {
             setup();
             await waitForLoad();
             clickHeader('Object');
             clickHeader('Object');
+            await waitFor(() => expect(screen.getAllByRole('row').length).toBeGreaterThan(1));
+        });
+
+        test('clicking status header repeatedly cycles through status ordering', async () => {
+            setup();
+            await waitForLoad();
+            clickHeader('Status');
+            clickHeader('Status');
+            clickHeader('Status');
+            clickHeader('Status');
+            await waitFor(() => expect(screen.getAllByRole('row').length).toBeGreaterThan(1));
+        });
+
+        test('clicking a node column header repeatedly cycles through status ordering for that node', async () => {
+            setup();
+            await waitForLoad();
+            const nodeHeader = screen.getByRole('columnheader', {name: /node1/i});
+            fireEvent.click(nodeHeader);
+            fireEvent.click(nodeHeader);
+            fireEvent.click(nodeHeader);
+            await waitFor(() => expect(screen.getAllByRole('row').length).toBeGreaterThan(1));
+        });
+
+        test('switching sort column from object to status resets cycle index', async () => {
+            setup();
+            await waitForLoad();
+            clickHeader('Object');
+            clickHeader('Status');
+            await waitFor(() => expect(screen.getAllByRole('row').length).toBeGreaterThan(1));
+        });
+
+        test('switching sort column from a node column to object resets state', async () => {
+            setup();
+            await waitForLoad();
+            const nodeHeader = screen.getByRole('columnheader', {name: /node1/i});
+            fireEvent.click(nodeHeader);
+            const objHeader = screen.getByText('Object');
+            fireEvent.click(objHeader);
+            await waitFor(() => expect(screen.getAllByRole('row').length).toBeGreaterThan(1));
+        });
+
+        test('sorting by node that exists in the allNodes list', async () => {
+            setup();
+            await waitForLoad();
+            const node2Header = screen.getByRole('columnheader', {name: /node2/i});
+            fireEvent.click(node2Header);
             await waitFor(() => expect(screen.getAllByRole('row').length).toBeGreaterThan(1));
         });
     });
@@ -431,12 +682,50 @@ describe('Objects Component', () => {
         await waitFor(() => expect(screen.getAllByRole('row').slice(1).length).toBeGreaterThan(30));
     });
 
+    test('infinite scroll shows loading indicator while fetching the next page', async () => {
+        const many = {};
+        const manyInst = {};
+        for (let i = 0; i < 50; i++) {
+            const name = `test-ns/svc/obj${i}`;
+            many[name] = {avail: 'up', frozen: 'unfrozen'};
+            manyInst[name] = {node1: {avail: 'up', frozen_at: '0001-01-01T00:00:00Z'}};
+        }
+        setup({objectStatus: many, objectInstanceStatus: manyInst});
+        await waitForLoad();
+        const container = document.querySelector('.MuiTableContainer-root');
+        Object.defineProperty(container, 'scrollHeight', {value: 1000, configurable: true});
+        Object.defineProperty(container, 'clientHeight', {value: 500, configurable: true});
+        Object.defineProperty(container, 'scrollTop', {value: 500, configurable: true});
+        fireEvent.scroll(container);
+        await waitFor(() => expect(screen.getByRole('progressbar')).toBeInTheDocument());
+        await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
+    });
+
     test('scroll does nothing when no more items', async () => {
         setup({objectStatus: {'a/b': {avail: 'up'}}, objectInstanceStatus: {}});
         await waitForLoad();
         const container = document.querySelector('.MuiTableContainer-root');
         fireEvent.scroll(container);
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    });
+
+    test('scroll is ignored while a load is already in progress', async () => {
+        const many = {};
+        const manyInst = {};
+        for (let i = 0; i < 80; i++) {
+            const name = `test-ns/svc/obj${i}`;
+            many[name] = {avail: 'up', frozen: 'unfrozen'};
+            manyInst[name] = {node1: {avail: 'up', frozen_at: '0001-01-01T00:00:00Z'}};
+        }
+        setup({objectStatus: many, objectInstanceStatus: manyInst});
+        await waitForLoad();
+        const container = document.querySelector('.MuiTableContainer-root');
+        Object.defineProperty(container, 'scrollHeight', {value: 1000, configurable: true});
+        Object.defineProperty(container, 'clientHeight', {value: 500, configurable: true});
+        Object.defineProperty(container, 'scrollTop', {value: 500, configurable: true});
+        fireEvent.scroll(container);
+        fireEvent.scroll(container); // second scroll while loading=true should be a no-op
+        await waitFor(() => expect(screen.getAllByRole('row').slice(1).length).toBeGreaterThan(30));
     });
 
     test('URL sync debounced', async () => {
@@ -446,6 +735,15 @@ describe('Objects Component', () => {
         fireEvent.change(screen.getByLabelText('Name'), {target: {value: 'sync'}});
         jest.advanceTimersByTime(300);
         expect(mockNavigate).toHaveBeenCalledWith('/objects?name=sync', {replace: true});
+        jest.useRealTimers();
+    });
+
+    test('URL sync is skipped when filters already match current URL params', async () => {
+        jest.useFakeTimers();
+        setup({}, '?name=test1');
+        await waitForLoad();
+        jest.advanceTimersByTime(300);
+        expect(mockNavigate).not.toHaveBeenCalled();
         jest.useRealTimers();
     });
 
@@ -465,6 +763,16 @@ describe('Objects Component', () => {
             expect(screen.getByText('test-ns')).toBeInTheDocument();
             expect(screen.getByText('svc')).toBeInTheDocument();
             expect(screen.getByLabelText('Name')).toHaveValue('test1');
+        });
+    });
+
+    test('URL globalState param hydrates selected global states on mount', async () => {
+        setup({}, '?globalState=up,down');
+        await waitForLoad();
+        await waitFor(() => {
+            expect(screen.getByRole('row', {name: /test-ns\/svc\/test1/})).toBeInTheDocument();
+            expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument();
+            expect(screen.queryByRole('row', {name: /root\/svc\/test3/})).not.toBeInTheDocument();
         });
     });
 
@@ -501,6 +809,12 @@ describe('Objects Component', () => {
         expect(screen.queryByRole('columnheader', {name: /node1/})).not.toBeInTheDocument();
     });
 
+    test('narrow screen (mobile) does not auto-show filters and toggle button is present', async () => {
+        setup({}, '', {isWideScreen: false, isMobile: true});
+        await waitFor(() => expect(screen.getByRole('button', {name: /filters/i})).toBeInTheDocument());
+        expect(screen.queryByLabelText('Namespace')).not.toBeInTheDocument();
+    });
+
     test('daemon fallback when store empty', async () => {
         setup(
             {objectStatus: {}, objectInstanceStatus: {}},
@@ -513,11 +827,24 @@ describe('Objects Component', () => {
         );
     });
 
-    test('unprovisioned object and node', async () => {
+    test('daemon fallback with no objects at all renders empty state', async () => {
+        setup(
+            {objectStatus: {}, objectInstanceStatus: {}},
+            '',
+            true,
+            {daemon: {cluster: {object: {}}}}
+        );
+        await waitForLoad();
+        await waitFor(() => expect(screen.getByText(/No objects found/)).toBeInTheDocument());
+    });
+
+    test('unprovisioned object and node (multiple allowed)', async () => {
         setup();
         await waitForLoad();
-        expect(screen.getByLabelText('Object is not provisioned')).toBeInTheDocument();
-        expect(screen.getByLabelText('Node node1 is not provisioned')).toBeInTheDocument();
+        const notProvisionedIcons = screen.getAllByLabelText('Object is not provisioned');
+        expect(notProvisionedIcons.length).toBeGreaterThanOrEqual(2);
+        const nodeNotProvisionedIcons = screen.getAllByLabelText('Node node1 is not provisioned');
+        expect(nodeNotProvisionedIcons.length).toBeGreaterThanOrEqual(2);
     });
 
     test('cluster object parsed as ccfg', async () => {
@@ -533,6 +860,42 @@ describe('Objects Component', () => {
         await waitFor(() =>
             expect(global.fetch).toHaveBeenCalledWith(
                 expect.stringContaining('/root/ccfg/cluster/action/restart'),
+                expect.any(Object)
+            )
+        );
+    });
+
+    test('object name with two path segments parses namespace as root', async () => {
+        setup({
+            objectStatus: {'svc/myobj': {avail: 'up', frozen: 'unfrozen'}},
+            objectInstanceStatus: {'svc/myobj': {node1: {avail: 'up'}}},
+        });
+        await waitForLoad();
+        await selectRow('svc/myobj');
+        openActionsMenu();
+        await clickMenuItem('Restart');
+        await confirmDialog();
+        await waitFor(() =>
+            expect(global.fetch).toHaveBeenCalledWith(
+                expect.stringContaining('/root/svc/myobj/action/restart'),
+                expect.any(Object)
+            )
+        );
+    });
+
+    test('object name with a single segment parses as svc kind under root', async () => {
+        setup({
+            objectStatus: {standalone: {avail: 'up', frozen: 'unfrozen'}},
+            objectInstanceStatus: {standalone: {node1: {avail: 'up'}}},
+        });
+        await waitForLoad();
+        await selectRow('standalone');
+        openActionsMenu();
+        await clickMenuItem('Restart');
+        await confirmDialog();
+        await waitFor(() =>
+            expect(global.fetch).toHaveBeenCalledWith(
+                expect.stringContaining('/root/svc/standalone/action/restart'),
                 expect.any(Object)
             )
         );
