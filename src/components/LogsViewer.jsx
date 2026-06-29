@@ -37,6 +37,7 @@ const LogsViewer = ({
                         instanceName,
                         maxLogs = 1000,
                         height = "500px",
+                        bottomSpacing = 30,
                     }) => {
     const theme = useTheme();
     const {isDarkMode} = useDarkMode();
@@ -624,7 +625,7 @@ const LogsViewer = ({
                         </Box>
                     ))
                 )}
-                <div ref={logsEndRef}/>
+                <Box ref={logsEndRef} sx={{height: bottomSpacing}}/>
             </Box>
             {!autoScroll && filteredLogs.length > 0 && (
                 <Button
