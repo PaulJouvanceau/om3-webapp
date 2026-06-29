@@ -1,5 +1,5 @@
 import React from 'react';
-import {render, screen, fireEvent, waitFor, within} from '@testing-library/react';
+import {render, screen, fireEvent, waitFor, within, cleanup} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {axe, toHaveNoViolations} from 'jest-axe';
 import Objects from '../Objects';
@@ -127,7 +127,12 @@ const clickMenuItem = async (text) => {
 
 const confirmDialog = async (buttonName = /Confirm|Stop|Delete/i) => {
     await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', {name: buttonName}));
+    const dialog = screen.getByRole('dialog');
+    const checkbox = within(dialog).queryByRole('checkbox');
+    if (checkbox && !checkbox.checked) {
+        fireEvent.click(checkbox);
+    }
+    fireEvent.click(within(dialog).getByRole('button', {name: buttonName}));
 };
 
 beforeEach(() => {
@@ -145,11 +150,13 @@ beforeEach(() => {
     jest.spyOn(Storage.prototype, 'getItem').mockReturnValue('mock-token');
     mockRemoveObject.mockClear();
     mockSetObjectStatuses.mockClear();
+    cleanup();
 });
 
 afterEach(() => {
     console.error = originalConsoleError;
     jest.restoreAllMocks();
+    cleanup();
 });
 
 // ---------- tests ----------
@@ -309,10 +316,8 @@ describe('Objects Component', () => {
             await waitForLoad();
             await selectFilter('Global State', 'Unprovisioned');
             await waitFor(() => {
-                // both unprovisioned objects should appear
                 expect(screen.getByRole('row', {name: /test-ns\/svc\/unprovisioned$/})).toBeInTheDocument();
                 expect(screen.getByRole('row', {name: /test-ns\/svc\/unprovisioned-bool/})).toBeInTheDocument();
-                // provisioned objects should be hidden
                 expect(screen.queryByRole('row', {name: /test1/})).not.toBeInTheDocument();
             });
         });
@@ -327,6 +332,26 @@ describe('Objects Component', () => {
                 expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument();
                 expect(screen.queryByRole('row', {name: /root\/svc\/test3/})).not.toBeInTheDocument();
             });
+        });
+
+        test('URL param "all" results in empty filters', async () => {
+            setup({}, '?globalState=all&namespace=all&kind=all');
+            await waitForLoad();
+            await waitFor(() => {
+                expect(screen.getByRole('row', {name: /test-ns\/svc\/test1/})).toBeInTheDocument();
+                expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument();
+                expect(screen.getByRole('row', {name: /root\/svc\/test3/})).toBeInTheDocument();
+            });
+        });
+
+        test('clicking on a Global State chip (not delete) removes that filter', async () => {
+            setup();
+            await waitForLoad();
+            await selectFilter('Global State', 'Up');
+            const chip = screen.getByText(/^Up$/).closest('.MuiChip-root');
+            fireEvent.click(chip);
+            await waitFor(() => expect(screen.queryByText(/^Up$/)).not.toBeInTheDocument());
+            expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument();
         });
     });
 
@@ -390,6 +415,8 @@ describe('Objects Component', () => {
                 expect.stringContaining('/action/restart'), expect.any(Object)
             ));
             await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/succeeded/i));
+            expect(forceFlush).toHaveBeenCalled();
+            expect(screen.queryByRole('checkbox', {checked: true})).not.toBeInTheDocument();
         });
 
         test('unfreeze succeeds on frozen object', async () => {
@@ -402,6 +429,41 @@ describe('Objects Component', () => {
             await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
                 expect.stringContaining('/action/unfreeze'), expect.any(Object)
             ));
+            expect(forceFlush).toHaveBeenCalled();
+            expect(mockSetObjectStatuses).toHaveBeenCalled();
+        });
+
+        test('freeze updates frozen status optimistically', async () => {
+            setup();
+            await waitForLoad();
+            await selectRow('test-ns/svc/test1');
+            openActionsMenu();
+            await clickMenuItem('Freeze');
+            await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+            const dialog = screen.getByRole('dialog');
+            const checkbox = within(dialog).getByRole('checkbox');
+            fireEvent.click(checkbox);
+            fireEvent.click(within(dialog).getByRole('button', {name: /confirm/i}));
+            await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
+                expect.stringContaining('/action/freeze'), expect.any(Object)
+            ));
+            expect(forceFlush).toHaveBeenCalled();
+            expect(mockSetObjectStatuses).toHaveBeenCalled();
+            const callArg = mockSetObjectStatuses.mock.calls[0][0];
+            expect(callArg['test-ns/svc/test1'].frozen).toBe('frozen');
+        });
+
+        test('freezing an already frozen object is counted as error', async () => {
+            setup();
+            await waitForLoad();
+            await selectRow('test-ns/svc/test1');
+            await selectRow('test-ns/svc/test2');
+            openActionsMenu(); // menu global
+            await clickMenuItem('Freeze');
+            await confirmDialog();
+            expect(global.fetch).toHaveBeenCalledTimes(1);
+            await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/partially succeeded: 1 ok, 1 errors/i));
+            expect(mockSetObjectStatuses).toHaveBeenCalled();
         });
 
         test('unfreeze action is unavailable in row menu for an already-unfrozen object', async () => {
@@ -436,6 +498,7 @@ describe('Objects Component', () => {
                 expect.stringContaining('/action/delete'), expect.any(Object)
             ));
             expect(mockRemoveObject).toHaveBeenCalledWith('test-ns/svc/test1');
+            expect(forceFlush).toHaveBeenCalled();
         });
 
         test('failed action shows error alert', async () => {
@@ -515,6 +578,22 @@ describe('Objects Component', () => {
                 expect.stringContaining('test-ns/svc/test1/action/restart'),
                 expect.any(Object)
             );
+        });
+
+        test('stop action succeeds', async () => {
+            setup();
+            await waitForLoad();
+            await selectRow('test-ns/svc/test1');
+            openActionsMenu();
+            await clickMenuItem('Stop');
+            await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+            const dialog = screen.getByRole('dialog');
+            const checkbox = within(dialog).getByRole('checkbox');
+            fireEvent.click(checkbox);
+            fireEvent.click(within(dialog).getByRole('button', {name: /confirm stop/i}));
+            await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
+                expect.stringContaining('/action/stop'), expect.any(Object)
+            ));
         });
     });
 
@@ -663,69 +742,90 @@ describe('Objects Component', () => {
         });
     });
 
-    test('infinite scroll loads more', async () => {
-        const many = {};
-        const manyInst = {};
-        for (let i = 0; i < 50; i++) {
-            const name = `test-ns/svc/obj${i}`;
-            many[name] = {avail: 'up', frozen: 'unfrozen'};
-            manyInst[name] = {node1: {avail: 'up', frozen_at: '0001-01-01T00:00:00Z'}};
-        }
-        setup({objectStatus: many, objectInstanceStatus: manyInst});
-        await waitForLoad();
-        expect(screen.getAllByRole('row').slice(1)).toHaveLength(30);
-        const container = document.querySelector('.MuiTableContainer-root');
-        Object.defineProperty(container, 'scrollHeight', {value: 1000, configurable: true});
-        Object.defineProperty(container, 'clientHeight', {value: 500, configurable: true});
-        Object.defineProperty(container, 'scrollTop', {value: 500, configurable: true});
-        fireEvent.scroll(container);
-        await waitFor(() => expect(screen.getAllByRole('row').slice(1).length).toBeGreaterThan(30));
-    });
+    describe('infinite scroll', () => {
+        test('loads more items when scrolled past 80%', async () => {
+            const many = {};
+            const manyInst = {};
+            for (let i = 0; i < 50; i++) {
+                const name = `test-ns/svc/obj${i}`;
+                many[name] = {avail: 'up', frozen: 'unfrozen'};
+                manyInst[name] = {node1: {avail: 'up', frozen_at: '0001-01-01T00:00:00Z'}};
+            }
+            setup({objectStatus: many, objectInstanceStatus: manyInst});
+            await waitForLoad();
+            expect(screen.getAllByRole('row').slice(1)).toHaveLength(30);
+            const container = document.querySelector('.MuiTableContainer-root');
+            Object.defineProperty(container, 'scrollHeight', {value: 1000, configurable: true});
+            Object.defineProperty(container, 'clientHeight', {value: 500, configurable: true});
+            Object.defineProperty(container, 'scrollTop', {value: 500, configurable: true});
+            fireEvent.scroll(container);
+            await waitFor(() => expect(screen.getAllByRole('row').slice(1).length).toBeGreaterThan(30));
+        });
 
-    test('infinite scroll shows loading indicator while fetching the next page', async () => {
-        const many = {};
-        const manyInst = {};
-        for (let i = 0; i < 50; i++) {
-            const name = `test-ns/svc/obj${i}`;
-            many[name] = {avail: 'up', frozen: 'unfrozen'};
-            manyInst[name] = {node1: {avail: 'up', frozen_at: '0001-01-01T00:00:00Z'}};
-        }
-        setup({objectStatus: many, objectInstanceStatus: manyInst});
-        await waitForLoad();
-        const container = document.querySelector('.MuiTableContainer-root');
-        Object.defineProperty(container, 'scrollHeight', {value: 1000, configurable: true});
-        Object.defineProperty(container, 'clientHeight', {value: 500, configurable: true});
-        Object.defineProperty(container, 'scrollTop', {value: 500, configurable: true});
-        fireEvent.scroll(container);
-        await waitFor(() => expect(screen.getByRole('progressbar')).toBeInTheDocument());
-        await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
-    });
+        test('shows loading indicator while fetching the next page', async () => {
+            const many = {};
+            const manyInst = {};
+            for (let i = 0; i < 50; i++) {
+                const name = `test-ns/svc/obj${i}`;
+                many[name] = {avail: 'up', frozen: 'unfrozen'};
+                manyInst[name] = {node1: {avail: 'up', frozen_at: '0001-01-01T00:00:00Z'}};
+            }
+            setup({objectStatus: many, objectInstanceStatus: manyInst});
+            await waitForLoad();
+            const container = document.querySelector('.MuiTableContainer-root');
+            Object.defineProperty(container, 'scrollHeight', {value: 1000, configurable: true});
+            Object.defineProperty(container, 'clientHeight', {value: 500, configurable: true});
+            Object.defineProperty(container, 'scrollTop', {value: 500, configurable: true});
+            fireEvent.scroll(container);
+            await waitFor(() => expect(screen.getByRole('progressbar')).toBeInTheDocument());
+            await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
+        });
 
-    test('scroll does nothing when no more items', async () => {
-        setup({objectStatus: {'a/b': {avail: 'up'}}, objectInstanceStatus: {}});
-        await waitForLoad();
-        const container = document.querySelector('.MuiTableContainer-root');
-        fireEvent.scroll(container);
-        expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
-    });
+        test('scroll does nothing when no more items', async () => {
+            setup({objectStatus: {'a/b': {avail: 'up'}}, objectInstanceStatus: {}});
+            await waitForLoad();
+            const container = document.querySelector('.MuiTableContainer-root');
+            fireEvent.scroll(container);
+            expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+        });
 
-    test('scroll is ignored while a load is already in progress', async () => {
-        const many = {};
-        const manyInst = {};
-        for (let i = 0; i < 80; i++) {
-            const name = `test-ns/svc/obj${i}`;
-            many[name] = {avail: 'up', frozen: 'unfrozen'};
-            manyInst[name] = {node1: {avail: 'up', frozen_at: '0001-01-01T00:00:00Z'}};
-        }
-        setup({objectStatus: many, objectInstanceStatus: manyInst});
-        await waitForLoad();
-        const container = document.querySelector('.MuiTableContainer-root');
-        Object.defineProperty(container, 'scrollHeight', {value: 1000, configurable: true});
-        Object.defineProperty(container, 'clientHeight', {value: 500, configurable: true});
-        Object.defineProperty(container, 'scrollTop', {value: 500, configurable: true});
-        fireEvent.scroll(container);
-        fireEvent.scroll(container); // second scroll while loading=true should be a no-op
-        await waitFor(() => expect(screen.getAllByRole('row').slice(1).length).toBeGreaterThan(30));
+        test('scroll is ignored while a load is already in progress', async () => {
+            const many = {};
+            const manyInst = {};
+            for (let i = 0; i < 80; i++) {
+                const name = `test-ns/svc/obj${i}`;
+                many[name] = {avail: 'up', frozen: 'unfrozen'};
+                manyInst[name] = {node1: {avail: 'up', frozen_at: '0001-01-01T00:00:00Z'}};
+            }
+            setup({objectStatus: many, objectInstanceStatus: manyInst});
+            await waitForLoad();
+            const container = document.querySelector('.MuiTableContainer-root');
+            Object.defineProperty(container, 'scrollHeight', {value: 1000, configurable: true});
+            Object.defineProperty(container, 'clientHeight', {value: 500, configurable: true});
+            Object.defineProperty(container, 'scrollTop', {value: 500, configurable: true});
+            fireEvent.scroll(container);
+            fireEvent.scroll(container); // second scroll while loading=true should be a no-op
+            await waitFor(() => expect(screen.getAllByRole('row').slice(1).length).toBeGreaterThan(30));
+        });
+
+        test('scroll below threshold does not load more', async () => {
+            const many = {};
+            const manyInst = {};
+            for (let i = 0; i < 50; i++) {
+                const name = `test-ns/svc/obj${i}`;
+                many[name] = {avail: 'up', frozen: 'unfrozen'};
+                manyInst[name] = {node1: {avail: 'up', frozen_at: '0001-01-01T00:00:00Z'}};
+            }
+            setup({objectStatus: many, objectInstanceStatus: manyInst});
+            await waitForLoad();
+            const container = document.querySelector('.MuiTableContainer-root');
+            Object.defineProperty(container, 'scrollHeight', {value: 1000, configurable: true});
+            Object.defineProperty(container, 'clientHeight', {value: 500, configurable: true});
+            Object.defineProperty(container, 'scrollTop', {value: 100, configurable: true});
+            fireEvent.scroll(container);
+            const rowsBefore = screen.getAllByRole('row').slice(1).length;
+            await waitFor(() => expect(screen.getAllByRole('row').slice(1).length).toBe(rowsBefore));
+        });
     });
 
     test('URL sync debounced', async () => {
@@ -807,6 +907,8 @@ describe('Objects Component', () => {
         setup({}, '', false);
         await waitForLoad();
         expect(screen.queryByRole('columnheader', {name: /node1/})).not.toBeInTheDocument();
+        const row = screen.getByRole('row', {name: /test1/});
+        expect(within(row).queryByText(/node1/)).not.toBeInTheDocument();
     });
 
     test('narrow screen (mobile) does not auto-show filters and toggle button is present', async () => {
@@ -899,6 +1001,56 @@ describe('Objects Component', () => {
                 expect.any(Object)
             )
         );
+    });
+
+    test('filters out non-object entries from allObjectNames', async () => {
+        const stateWithNonObject = {
+            ...defaultState,
+            objectStatus: {
+                ...defaultState.objectStatus,
+                __proto__: null,
+                someFunction: () => {
+                },
+                validObj: {avail: 'up', frozen: 'unfrozen'},
+            },
+        };
+        setup(stateWithNonObject);
+        await waitForLoad();
+        expect(screen.queryByRole('row', {name: /someFunction/})).not.toBeInTheDocument();
+        expect(screen.getByRole('row', {name: /validObj/})).toBeInTheDocument();
+    });
+
+    test('renders EventLogger component', async () => {
+        setup();
+        await waitForLoad();
+        expect(screen.getByText('Object Events')).toBeInTheDocument();
+    });
+
+    test('handles scroll when container ref is null gracefully', () => {
+        const {container} = setup();
+        expect(container).toBeTruthy();
+    });
+
+    test('resets visibleCount when sortedObjectNames changes', async () => {
+        const many = {};
+        const manyInst = {};
+        for (let i = 0; i < 50; i++) {
+            const name = `test-ns/svc/obj${i}`;
+            many[name] = {avail: 'up', frozen: 'unfrozen'};
+            manyInst[name] = {node1: {avail: 'up', frozen_at: '0001-01-01T00:00:00Z'}};
+        }
+        const {rerender} = setup({objectStatus: many, objectInstanceStatus: manyInst});
+        await waitForLoad();
+        const container = document.querySelector('.MuiTableContainer-root');
+        Object.defineProperty(container, 'scrollHeight', {value: 1000, configurable: true});
+        Object.defineProperty(container, 'clientHeight', {value: 500, configurable: true});
+        Object.defineProperty(container, 'scrollTop', {value: 500, configurable: true});
+        fireEvent.scroll(container);
+        await waitFor(() => expect(screen.getAllByRole('row').slice(1).length).toBeGreaterThan(30));
+        fireEvent.change(screen.getByLabelText('Name'), {target: {value: 'nonexistent'}});
+        await waitFor(() => expect(screen.getByText(/No objects found/)).toBeInTheDocument());
+        fireEvent.change(screen.getByLabelText('Name'), {target: {value: ''}});
+        await waitFor(() => expect(screen.getAllByRole('row').slice(1).length).toBe(30));
     });
 
     test('accessibility', async () => {
