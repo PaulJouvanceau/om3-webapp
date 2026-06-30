@@ -20,7 +20,6 @@ export const GridNodes = memo(({nodeCount, frozenCount, onClick}) => {
         }, 50);
     }, [onClick]);
 
-    // Correction 1 : empêcher la propagation du clic sur le chip Frozen
     const handleChipClick = useCallback((e) => {
         e.stopPropagation();
         handleClick();
