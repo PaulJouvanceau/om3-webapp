@@ -802,6 +802,14 @@ const ObjectInstanceView = () => {
     const isFrozen = instanceData.frozen_at && instanceData.frozen_at !== "0001-01-01T00:00:00Z";
     const isInstanceNotProvisioned = instanceData.provisioned !== undefined ? !instanceData.provisioned : false;
 
+    const filteredInstanceActions = useMemo(() => {
+        return INSTANCE_ACTIONS.filter(({name}) => {
+            if (name === 'freeze') return !isFrozen;
+            if (name === 'unfreeze') return isFrozen;
+            return true;
+        });
+    }, [isFrozen]);
+
     const appBarHeight = `calc(${theme.mixins.toolbar.minHeight || 64}px + env(safe-area-inset-top, 0px))`;
 
     if (initialLoading) {
@@ -958,7 +966,7 @@ const ObjectInstanceView = () => {
             >
                 <ClickAwayListener onClickAway={() => setInstanceMenuAnchor(null)}>
                     <Paper sx={{minWidth: 200, boxShadow: 3}}>
-                        {INSTANCE_ACTIONS.map(({name, icon}) => (
+                        {filteredInstanceActions.map(({name, icon}) => (
                             <MenuItem
                                 key={name}
                                 onClick={() => {

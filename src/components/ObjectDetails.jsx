@@ -500,6 +500,36 @@ const ObjectDetail = () => {
         return {avail, frozen, state};
     }, [objectInstanceStatus, instanceMonitor, decodedObjectName]);
 
+    const filterActionsForNode = useCallback((actions, node) => {
+        const {frozen} = getNodeState(node);
+        return actions.filter(({name}) => {
+            if (name === 'freeze') return frozen !== 'frozen';
+            if (name === 'unfreeze') return frozen === 'frozen';
+            return true;
+        });
+    }, [getNodeState]);
+
+    const filterActionsForMultipleNodes = useCallback((actions, nodes) => {
+        if (!nodes || nodes.length === 0) return actions;
+        const states = nodes.map(node => getNodeState(node).frozen);
+        const allFrozen = states.every(f => f === 'frozen');
+        const allUnfrozen = states.every(f => f !== 'frozen');
+        return actions.filter(({name}) => {
+            if (name === 'freeze') return !allFrozen;
+            if (name === 'unfreeze') return !allUnfrozen;
+            return true;
+        });
+    }, [getNodeState]);
+
+    const individualFilteredActions = useMemo(() => {
+        if (!currentNode) return INSTANCE_ACTIONS;
+        return filterActionsForNode(INSTANCE_ACTIONS, currentNode);
+    }, [currentNode, filterActionsForNode]);
+
+    const batchFilteredActions = useMemo(() => {
+        return filterActionsForMultipleNodes(INSTANCE_ACTIONS, selectedNodes);
+    }, [selectedNodes, filterActionsForMultipleNodes]);
+
     // Resize handlers (EventLogger style)
     const handleResizeStart = useCallback((e) => {
         e.preventDefault();
@@ -786,7 +816,7 @@ const ObjectDetail = () => {
                                   onClose={() => setActionsMenuAnchor(null)}
                                   anchorOrigin={{vertical: 'bottom', horizontal: 'right'}}
                                   transformOrigin={{vertical: 'top', horizontal: 'right'}} sx={{zIndex: 10000}}>
-                                {INSTANCE_ACTIONS.map(({name, icon}) => (
+                                {batchFilteredActions.map(({name, icon}) => (
                                     <MenuItem key={name} onClick={() => handleBatchNodeActionClick(name)}>
                                         <ListItemIcon>{icon}</ListItemIcon>
                                         <ListItemText>{name.charAt(0).toUpperCase() + name.slice(1)}</ListItemText>
@@ -820,7 +850,7 @@ const ObjectDetail = () => {
                                   onClose={() => setIndividualNodeMenuAnchor(null)}
                                   anchorOrigin={{vertical: 'bottom', horizontal: 'right'}}
                                   transformOrigin={{vertical: 'top', horizontal: 'right'}} sx={{zIndex: 10000}}>
-                                {INSTANCE_ACTIONS.map(({name, icon}) => (
+                                {individualFilteredActions.map(({name, icon}) => (
                                     <MenuItem key={name} onClick={() => handleIndividualNodeActionClick(name)}>
                                         <ListItemIcon>{icon}</ListItemIcon>
                                         <ListItemText>{name.charAt(0).toUpperCase() + name.slice(1)}</ListItemText>
