@@ -835,12 +835,6 @@ const ObjectInstanceView = () => {
                     </Box>
 
                     <Box sx={{display: 'flex', alignItems: 'center', gap: 2}}>
-                        {isFrozen && (
-                            <Tooltip title="frozen">
-                                <AcUnitIcon sx={{color: blue[300]}}/>
-                            </Tooltip>
-                        )}
-
                         {isInstanceNotProvisioned && (
                             <Tooltip title="Not Provisioned">
                                 <PriorityHighIcon sx={{color: red[500]}}/>
@@ -853,6 +847,23 @@ const ObjectInstanceView = () => {
                             </Typography>
                         )}
 
+                        <Tooltip title={instanceStatus}>
+                            <FiberManualRecordIcon sx={{color: getColor(instanceStatus), fontSize: "1.5rem"}}/>
+                        </Tooltip>
+
+                        {isFrozen && (
+                            <Tooltip title="frozen">
+                                <AcUnitIcon sx={{color: blue[300]}}/>
+                            </Tooltip>
+                        )}
+
+                        <IconButton
+                            onClick={(e) => setInstanceMenuAnchor(e.currentTarget)}
+                            disabled={actionInProgress}
+                        >
+                            <MoreVertIcon/>
+                        </IconButton>
+
                         <Tooltip title="View instance logs">
                             <IconButton
                                 onClick={handleOpenLogs}
@@ -862,17 +873,6 @@ const ObjectInstanceView = () => {
                                 <ArticleIcon/>
                             </IconButton>
                         </Tooltip>
-
-                        <Tooltip title={instanceStatus}>
-                            <FiberManualRecordIcon sx={{color: getColor(instanceStatus), fontSize: "1.5rem"}}/>
-                        </Tooltip>
-
-                        <IconButton
-                            onClick={(e) => setInstanceMenuAnchor(e.currentTarget)}
-                            disabled={actionInProgress}
-                        >
-                            <MoreVertIcon/>
-                        </IconButton>
                     </Box>
                 </Box>
             </Box>

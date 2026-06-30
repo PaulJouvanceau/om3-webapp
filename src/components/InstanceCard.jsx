@@ -102,11 +102,6 @@ const InstanceCard = ({
                 </Box>
 
                 <Box sx={{display: "flex", alignItems: "center", gap: 1, ml: "auto"}} className="no-click">
-                    {frozen === "frozen" && (
-                        <Tooltip title="frozen">
-                            <AcUnitIcon sx={{fontSize: "medium", color: blue[300]}}/>
-                        </Tooltip>
-                    )}
                     {isInstanceNotProvisioned && (
                         <Tooltip title="Not Provisioned">
                             <PriorityHighIcon
@@ -119,6 +114,31 @@ const InstanceCard = ({
                 </Box>
 
                 <Box sx={{display: "flex", alignItems: "center", gap: 2}} className="no-click">
+                    <Tooltip title={avail || "unknown"}>
+                        <FiberManualRecordIcon
+                            sx={{
+                                fontSize: "1.2rem",
+                                color: typeof getColor === "function" ? getColor(avail) : grey[500]
+                            }}
+                        />
+                    </Tooltip>
+
+                    {frozen === "frozen" && (
+                        <Tooltip title="frozen">
+                            <AcUnitIcon sx={{fontSize: "medium", color: blue[300]}}/>
+                        </Tooltip>
+                    )}
+
+                    <IconButton
+                        onClick={handleMenuOpen}
+                        disabled={actionInProgress}
+                        aria-label={`Node ${node} actions`}
+                    >
+                        <Tooltip title="Actions">
+                            <MoreVertIcon/>
+                        </Tooltip>
+                    </IconButton>
+
                     <Tooltip title="View instance logs">
                         <IconButton
                             onClick={(e) => {
@@ -131,25 +151,6 @@ const InstanceCard = ({
                             <ArticleIcon/>
                         </IconButton>
                     </Tooltip>
-
-                    <Tooltip title={avail || "unknown"}>
-                        <FiberManualRecordIcon
-                            sx={{
-                                fontSize: "1.2rem",
-                                color: typeof getColor === "function" ? getColor(avail) : grey[500]
-                            }}
-                        />
-                    </Tooltip>
-
-                    <IconButton
-                        onClick={handleMenuOpen}
-                        disabled={actionInProgress}
-                        aria-label={`Node ${node} actions`}
-                    >
-                        <Tooltip title="Actions">
-                            <MoreVertIcon/>
-                        </Tooltip>
-                    </IconButton>
                 </Box>
             </Box>
         </Box>
