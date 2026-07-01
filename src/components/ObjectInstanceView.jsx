@@ -48,6 +48,8 @@ const DEFAULT_STOP_CHECKBOX = false;
 const DEFAULT_UNPROVISION_CHECKBOXES = {dataLoss: false, serviceInterruption: false};
 const DEFAULT_PURGE_CHECKBOXES = {dataLoss: false, configLoss: false, serviceInterruption: false};
 
+const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
 const ResourceRow = React.memo(({
                                     rid,
                                     resource,
@@ -812,6 +814,27 @@ const ObjectInstanceView = () => {
 
     const appBarHeight = `calc(${theme.mixins.toolbar.minHeight || 64}px + env(safe-area-inset-top, 0px))`;
 
+    const getZoomLevel = useCallback(() => window.devicePixelRatio || 1, []);
+    const popperProps = useMemo(() => ({
+        placement: "bottom-end",
+        disablePortal: isSafari,
+        modifiers: [
+            {
+                name: "offset",
+                options: {offset: [0, 8 / getZoomLevel()]},
+            },
+            {name: "preventOverflow", options: {boundariesElement: "viewport"}},
+            {name: "flip", options: {enabled: true}},
+        ],
+        sx: {
+            zIndex: 10000,
+            "& .MuiPaper-root": {
+                minWidth: 200,
+                boxShadow: "0px 5px 15px rgba(0,0,0,0.2)",
+            },
+        },
+    }), [getZoomLevel]);
+
     if (initialLoading) {
         return (
             <Box sx={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh'}}>
@@ -958,53 +981,85 @@ const ObjectInstanceView = () => {
                 )}
             </Box>
 
-            <Popper
-                open={Boolean(instanceMenuAnchor)}
-                anchorEl={instanceMenuAnchor}
-                placement="bottom-end"
-                sx={{zIndex: 10000}}
-            >
+            <Popper open={Boolean(instanceMenuAnchor)} anchorEl={instanceMenuAnchor} {...popperProps}>
                 <ClickAwayListener onClickAway={() => setInstanceMenuAnchor(null)}>
-                    <Paper sx={{minWidth: 200, boxShadow: 3}}>
-                        {filteredInstanceActions.map(({name, icon}) => (
-                            <MenuItem
-                                key={name}
-                                onClick={() => {
-                                    handleInstanceAction(name);
-                                    setInstanceMenuAnchor(null);
-                                }}
-                            >
-                                <ListItemIcon>{icon}</ListItemIcon>
-                                <ListItemText>{name.charAt(0).toUpperCase() + name.slice(1)}</ListItemText>
-                            </MenuItem>
-                        ))}
+                    <Paper elevation={3} role="menu">
+                        {filteredInstanceActions.map(({name, icon, color}) => {
+                            const isAllowed = true;
+                            return (
+                                <MenuItem
+                                    key={name}
+                                    onClick={() => {
+                                        handleInstanceAction(name);
+                                        setInstanceMenuAnchor(null);
+                                    }}
+                                    disabled={actionInProgress}
+                                    sx={{
+                                        color: isAllowed
+                                            ? (color === "red" ? "error.main" : "inherit")
+                                            : "text.disabled",
+                                        '&.Mui-disabled': {opacity: 0.5},
+                                    }}
+                                >
+                                    <ListItemIcon
+                                        sx={{
+                                            minWidth: 40,
+                                            color: isAllowed
+                                                ? (color === "red" ? "error.main" : "inherit")
+                                                : "text.disabled"
+                                        }}
+                                    >
+                                        {icon}
+                                    </ListItemIcon>
+                                    <ListItemText>
+                                        {name.charAt(0).toUpperCase() + name.slice(1)}
+                                    </ListItemText>
+                                </MenuItem>
+                            );
+                        })}
                     </Paper>
                 </ClickAwayListener>
             </Popper>
 
-            <Popper
-                open={Boolean(resourceMenuAnchor)}
-                anchorEl={resourceMenuAnchor}
-                placement="bottom-end"
-                sx={{zIndex: 10000}}
-            >
+            <Popper open={Boolean(resourceMenuAnchor)} anchorEl={resourceMenuAnchor} {...popperProps}>
                 <ClickAwayListener onClickAway={() => setResourceMenuAnchor(null)}>
-                    <Paper sx={{minWidth: 200, boxShadow: 3}}>
+                    <Paper elevation={3} role="menu">
                         {currentResourceId && (() => {
                             const resourceType = getResourceType(currentResourceId);
                             const filteredActions = getFilteredResourceActions(resourceType);
-                            return filteredActions.map(({name, icon}) => (
-                                <MenuItem
-                                    key={name}
-                                    onClick={() => {
-                                        handleResourceAction(name, currentResourceId);
-                                        setResourceMenuAnchor(null);
-                                    }}
-                                >
-                                    <ListItemIcon>{icon}</ListItemIcon>
-                                    <ListItemText>{name.charAt(0).toUpperCase() + name.slice(1)}</ListItemText>
-                                </MenuItem>
-                            ));
+                            return filteredActions.map(({name, icon, color}) => {
+                                const isAllowed = true;
+                                return (
+                                    <MenuItem
+                                        key={name}
+                                        onClick={() => {
+                                            handleResourceAction(name, currentResourceId);
+                                            setResourceMenuAnchor(null);
+                                        }}
+                                        disabled={actionInProgress}
+                                        sx={{
+                                            color: isAllowed
+                                                ? (color === "red" ? "error.main" : "inherit")
+                                                : "text.disabled",
+                                            '&.Mui-disabled': {opacity: 0.5},
+                                        }}
+                                    >
+                                        <ListItemIcon
+                                            sx={{
+                                                minWidth: 40,
+                                                color: isAllowed
+                                                    ? (color === "red" ? "error.main" : "inherit")
+                                                    : "text.disabled"
+                                            }}
+                                        >
+                                            {icon}
+                                        </ListItemIcon>
+                                        <ListItemText>
+                                            {name.charAt(0).toUpperCase() + name.slice(1)}
+                                        </ListItemText>
+                                    </MenuItem>
+                                );
+                            });
                         })()}
                     </Paper>
                 </ClickAwayListener>
