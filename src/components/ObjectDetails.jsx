@@ -19,6 +19,9 @@ import {
     Snackbar,
     ListItemIcon,
     ListItemText,
+    Paper,
+    Popper,
+    ClickAwayListener,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import {green, grey, orange, red} from "@mui/material/colors";
@@ -58,6 +61,8 @@ export const parseProvisionedState = (state) => {
     if (typeof state === "string") return state.toLowerCase() === "true";
     return !!state;
 };
+
+const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
 const ObjectDetail = () => {
     const {objectName} = useParams();
@@ -530,6 +535,24 @@ const ObjectDetail = () => {
         return filterActionsForMultipleNodes(INSTANCE_ACTIONS, selectedNodes);
     }, [selectedNodes, filterActionsForMultipleNodes]);
 
+    const getZoomLevel = useCallback(() => window.devicePixelRatio || 1, []);
+    const popperProps = useMemo(() => ({
+        placement: "bottom-end",
+        disablePortal: isSafari,
+        modifiers: [
+            {
+                name: "offset",
+                options: {offset: [0, 8 / getZoomLevel()]},
+            },
+            {name: "preventOverflow", options: {boundariesElement: "viewport"}},
+            {name: "flip", options: {enabled: true}},
+        ],
+        sx: {
+            zIndex: 10000,
+            "& .MuiPaper-root": {minWidth: 200, boxShadow: "0px 5px 15px rgba(0,0,0,0.2)"},
+        },
+    }), [getZoomLevel]);
+
     // Resize handlers (EventLogger style)
     const handleResizeStart = useCallback((e) => {
         e.preventDefault();
@@ -712,7 +735,11 @@ const ObjectDetail = () => {
                             pendingAction={pendingAction}
                             handleConfirm={handleDialogConfirm}
                             target={`object ${decodedObjectName}`}
-                            supportedActions={pendingAction?.batch === "nodes" ? INSTANCE_ACTIONS.map(a => a.name) : OBJECT_ACTIONS.map(a => a.name)}
+                            supportedActions={
+                                pendingAction?.batch === "nodes" || pendingAction?.node
+                                    ? INSTANCE_ACTIONS.map(a => a.name)
+                                    : OBJECT_ACTIONS.map(a => a.name)
+                            }
                             onClose={() => {
                                 setPendingAction(null);
                                 setConfirmDialogOpen(false);
@@ -812,17 +839,36 @@ const ObjectDetail = () => {
                                     Actions on Selected Nodes ({selectedNodes.length})
                                 </Button>
                             </Box>
-                            <Menu anchorEl={actionsMenuAnchor} open={Boolean(actionsMenuAnchor)}
-                                  onClose={() => setActionsMenuAnchor(null)}
-                                  anchorOrigin={{vertical: 'bottom', horizontal: 'right'}}
-                                  transformOrigin={{vertical: 'top', horizontal: 'right'}} sx={{zIndex: 10000}}>
-                                {batchFilteredActions.map(({name, icon}) => (
-                                    <MenuItem key={name} onClick={() => handleBatchNodeActionClick(name)}>
-                                        <ListItemIcon>{icon}</ListItemIcon>
-                                        <ListItemText>{name.charAt(0).toUpperCase() + name.slice(1)}</ListItemText>
-                                    </MenuItem>
-                                ))}
-                            </Menu>
+
+                            <Popper open={Boolean(actionsMenuAnchor)} anchorEl={actionsMenuAnchor} {...popperProps}>
+                                <ClickAwayListener onClickAway={() => setActionsMenuAnchor(null)}>
+                                    <Paper elevation={3} role="menu">
+                                        {batchFilteredActions.map(({name, icon, color}) => (
+                                            <MenuItem
+                                                key={name}
+                                                onClick={() => handleBatchNodeActionClick(name)}
+                                                disabled={actionInProgress}
+                                                sx={{
+                                                    color: color === "red" ? "error.main" : "inherit",
+                                                    '&.Mui-disabled': {opacity: 0.5},
+                                                }}
+                                            >
+                                                <ListItemIcon
+                                                    sx={{
+                                                        minWidth: 40,
+                                                        color: color === "red" ? "error.main" : "inherit"
+                                                    }}>
+                                                    {icon}
+                                                </ListItemIcon>
+                                                <ListItemText>
+                                                    {name.charAt(0).toUpperCase() + name.slice(1)}
+                                                </ListItemText>
+                                            </MenuItem>
+                                        ))}
+                                    </Paper>
+                                </ClickAwayListener>
+                            </Popper>
+
                             {nodesList.map(node => (
                                 <InstanceCard
                                     key={node}
@@ -833,7 +879,6 @@ const ObjectDetail = () => {
                                     actionInProgress={actionInProgress}
                                     setIndividualNodeMenuAnchor={setIndividualNodeMenuAnchor}
                                     setCurrentNode={setCurrentNode}
-                                    handleIndividualNodeActionClick={handleIndividualNodeActionClick}
                                     getColor={getColor}
                                     getNodeState={getNodeState}
                                     parseProvisionedState={parseProvisionedState}
@@ -846,17 +891,36 @@ const ObjectDetail = () => {
                                     onViewInstance={handleViewInstance}
                                 />
                             ))}
-                            <Menu anchorEl={individualNodeMenuAnchor} open={Boolean(individualNodeMenuAnchor)}
-                                  onClose={() => setIndividualNodeMenuAnchor(null)}
-                                  anchorOrigin={{vertical: 'bottom', horizontal: 'right'}}
-                                  transformOrigin={{vertical: 'top', horizontal: 'right'}} sx={{zIndex: 10000}}>
-                                {individualFilteredActions.map(({name, icon}) => (
-                                    <MenuItem key={name} onClick={() => handleIndividualNodeActionClick(name)}>
-                                        <ListItemIcon>{icon}</ListItemIcon>
-                                        <ListItemText>{name.charAt(0).toUpperCase() + name.slice(1)}</ListItemText>
-                                    </MenuItem>
-                                ))}
-                            </Menu>
+
+                            <Popper open={Boolean(individualNodeMenuAnchor)}
+                                    anchorEl={individualNodeMenuAnchor} {...popperProps}>
+                                <ClickAwayListener onClickAway={() => setIndividualNodeMenuAnchor(null)}>
+                                    <Paper elevation={3} role="menu">
+                                        {individualFilteredActions.map(({name, icon, color}) => (
+                                            <MenuItem
+                                                key={name}
+                                                onClick={() => handleIndividualNodeActionClick(name)}
+                                                disabled={actionInProgress}
+                                                sx={{
+                                                    color: color === "red" ? "error.main" : "inherit",
+                                                    '&.Mui-disabled': {opacity: 0.5},
+                                                }}
+                                            >
+                                                <ListItemIcon
+                                                    sx={{
+                                                        minWidth: 40,
+                                                        color: color === "red" ? "error.main" : "inherit"
+                                                    }}>
+                                                    {icon}
+                                                </ListItemIcon>
+                                                <ListItemText>
+                                                    {name.charAt(0).toUpperCase() + name.slice(1)}
+                                                </ListItemText>
+                                            </MenuItem>
+                                        ))}
+                                    </Paper>
+                                </ClickAwayListener>
+                            </Popper>
                         </>
                     )}
 
@@ -892,7 +956,6 @@ const ObjectDetail = () => {
                         }),
                     }}
                 >
-                    {/* Resize handle */}
                     <Box
                         ref={resizeHandleRef}
                         onMouseDown={handleResizeStart}
@@ -918,8 +981,6 @@ const ObjectDetail = () => {
                         }}
                         aria-label="Resize drawer"
                     />
-
-                    {/* Header */}
                     <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, pb: 1}}>
                         <Typography variant="h6">
                             {selectedInstanceForLogs ? `Instance Logs - ${selectedInstanceForLogs}` : `Node Logs - ${selectedNodeForLogs}`}
@@ -928,8 +989,6 @@ const ObjectDetail = () => {
                             <CloseIcon/>
                         </IconButton>
                     </Box>
-
-                    {/* LogsViewer container */}
                     <Box sx={{flexGrow: 1, overflow: "hidden", position: "relative"}}>
                         <LogsViewer
                             nodename={selectedNodeForLogs}
