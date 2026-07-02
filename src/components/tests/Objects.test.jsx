@@ -1,5 +1,5 @@
 import React from 'react';
-import {render, screen, fireEvent, waitFor, within, cleanup} from '@testing-library/react';
+import {render, screen, fireEvent, waitFor, within, cleanup, act} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {axe, toHaveNoViolations} from 'jest-axe';
 import Objects from '../Objects';
@@ -353,6 +353,25 @@ describe('Objects Component', () => {
             await waitFor(() => expect(screen.queryByText(/^Up$/)).not.toBeInTheDocument());
             expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument();
         });
+
+        test('Kind filter excludes objects whose kind does not match the selection', async () => {
+            setup({
+                objectStatus: {
+                    ...defaultState.objectStatus,
+                    'test-ns/vol/test5': {avail: 'up', frozen: 'unfrozen', provisioned: 'true'},
+                },
+                objectInstanceStatus: {
+                    ...defaultState.objectInstanceStatus,
+                    'test-ns/vol/test5': {},
+                },
+            });
+            await waitForLoad();
+            await selectFilter('Kind', 'svc');
+            await waitFor(() => {
+                expect(screen.getByRole('row', {name: /test-ns\/svc\/test1/})).toBeInTheDocument();
+                expect(screen.queryByRole('row', {name: /test-ns\/vol\/test5/})).not.toBeInTheDocument();
+            });
+        });
     });
 
     test('multiple filters combined', async () => {
@@ -564,6 +583,33 @@ describe('Objects Component', () => {
             await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
         });
 
+        test('object removed from objectStatus after selection is treated as an error (rawObj missing)', async () => {
+            const {rerender} = setup();
+            await waitForLoad();
+            await selectRow('test-ns/svc/test1');
+            await selectRow('test-ns/svc/test2');
+
+            const stateWithoutTest2 = {
+                ...defaultState,
+                objectStatus: {
+                    'test-ns/svc/test1': defaultState.objectStatus['test-ns/svc/test1'],
+                },
+            };
+            useEventStore.mockImplementation((sel) => sel(stateWithoutTest2));
+            useEventStore.getState = jest.fn(() => stateWithoutTest2);
+            rerender(
+                <MemoryRouter>
+                    <Objects/>
+                </MemoryRouter>
+            );
+
+            openActionsMenu();
+            await clickMenuItem('Restart');
+            await confirmDialog();
+            await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+            await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/partially succeeded: 1 ok, 1 errors/i));
+        });
+
         test('single-object action via row menu targets only that object', async () => {
             setup();
             await waitForLoad();
@@ -656,6 +702,16 @@ describe('Objects Component', () => {
         await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
     });
 
+    test('clicking inside the row actions menu does not propagate a click to the row', async () => {
+        setup();
+        await waitForLoad();
+        const row = screen.getByRole('row', {name: /test1/});
+        fireEvent.click(within(row).getByRole('button', {name: /more actions/i}));
+        const menu = await screen.findByRole('menu');
+        fireEvent.click(menu);
+        expect(mockNavigate).not.toHaveBeenCalled();
+    });
+
     test('global actions disabled when none selected', async () => {
         setup();
         await waitForLoad();
@@ -739,6 +795,38 @@ describe('Objects Component', () => {
             const node2Header = screen.getByRole('columnheader', {name: /node2/i});
             fireEvent.click(node2Header);
             await waitFor(() => expect(screen.getAllByRole('row').length).toBeGreaterThan(1));
+        });
+
+        test('sortedObjectNames falls back to filteredObjectNames when the active sort column disappears', async () => {
+            const {rerender} = setup();
+            await waitForLoad();
+            const node1Header = screen.getByRole('columnheader', {name: /node1/i});
+            fireEvent.click(node1Header);
+            await waitFor(() => expect(screen.getAllByRole('row').length).toBeGreaterThan(1));
+
+            const stateWithoutNode1 = {
+                ...defaultState,
+                objectInstanceStatus: {
+                    'test-ns/svc/test1': {node2: {avail: 'up', frozen_at: '0001-01-01T00:00:00Z'}},
+                    'test-ns/svc/test2': {},
+                    'root/svc/test3': {node2: {avail: 'warn', frozen_at: '0001-01-01T00:00:00Z'}},
+                    'test-ns/svc/test4': {},
+                    'test-ns/svc/unprovisioned': {},
+                    'test-ns/svc/unprovisioned-bool': {},
+                },
+            };
+            useEventStore.mockImplementation((sel) => sel(stateWithoutNode1));
+            useEventStore.getState = jest.fn(() => stateWithoutNode1);
+            rerender(
+                <MemoryRouter>
+                    <Objects/>
+                </MemoryRouter>
+            );
+
+            await waitFor(() => {
+                expect(screen.getAllByRole('row').length).toBeGreaterThan(1);
+                expect(screen.getByRole('row', {name: /test-ns\/svc\/test1/})).toBeInTheDocument();
+            });
         });
     });
 
@@ -874,6 +962,12 @@ describe('Objects Component', () => {
             expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument();
             expect(screen.queryByRole('row', {name: /root\/svc\/test3/})).not.toBeInTheDocument();
         });
+    });
+
+    test('unknown globalState URL value renders without a status icon (getStateIcon default case)', async () => {
+        setup({}, '?globalState=bogus');
+        await waitForLoad();
+        await waitFor(() => expect(screen.getByText(/^Bogus$/)).toBeInTheDocument());
     });
 
     test('snackbar closes on alert close', async () => {
@@ -1051,6 +1145,49 @@ describe('Objects Component', () => {
         await waitFor(() => expect(screen.getByText(/No objects found/)).toBeInTheDocument());
         fireEvent.change(screen.getByLabelText('Name'), {target: {value: ''}});
         await waitFor(() => expect(screen.getAllByRole('row').slice(1).length).toBe(30));
+    });
+
+    describe('chip toggle handlers (add branch coverage)', () => {
+        test('rapidly toggling a Global State chip twice re-adds the state', async () => {
+            setup();
+            await waitForLoad();
+            await selectFilter('Global State', 'Up');
+            const chip = screen.getByText(/^Up$/).closest('.MuiChip-root');
+            fireEvent.mouseDown(chip);
+            await act(async () => {
+                fireEvent.click(chip);
+                fireEvent.click(chip);
+            });
+            await waitFor(() => expect(screen.getByText(/^Up$/)).toBeInTheDocument());
+        });
+
+        test('rapidly deleting a Namespace chip twice re-adds the namespace', async () => {
+            setup();
+            await waitForLoad();
+            await selectFilter('Namespace', 'test-ns');
+            const chip = screen.getByText('test-ns').closest('.MuiChip-root');
+            fireEvent.mouseDown(chip);
+            const deleteIcon = within(chip).getByTestId('CloseIcon');
+            await act(async () => {
+                fireEvent.click(deleteIcon);
+                fireEvent.click(deleteIcon);
+            });
+            await waitFor(() => expect(screen.getByText('test-ns')).toBeInTheDocument());
+        });
+
+        test('rapidly deleting a Kind chip twice re-adds the kind', async () => {
+            setup();
+            await waitForLoad();
+            await selectFilter('Kind', 'svc');
+            const chip = screen.getByText('svc').closest('.MuiChip-root');
+            fireEvent.mouseDown(chip);
+            const deleteIcon = within(chip).getByTestId('CloseIcon');
+            await act(async () => {
+                fireEvent.click(deleteIcon);
+                fireEvent.click(deleteIcon);
+            });
+            await waitFor(() => expect(screen.getByText('svc')).toBeInTheDocument());
+        });
     });
 
     test('accessibility', async () => {
