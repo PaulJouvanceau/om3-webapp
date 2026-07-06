@@ -136,7 +136,7 @@ describe('EventLogger Component', () => {
         });
 
         test.each([
-            [['id1'], 'id1', ['id1', 'id1']],   // noop duplicate guard
+            [['id1'], 'id1', ['id1', 'id1']],
         ])('toggleExpand adds and removes ids', () => {
             const toggle = (prev, id) =>
                 prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
@@ -237,6 +237,37 @@ describe('EventLogger Component', () => {
             openDrawer();
             await waitFor(() => expect(screen.getByLabelText(/Resize handle/i)).toBeInTheDocument());
         });
+
+        test('dark mode renders all JSON types with correct classes', async () => {
+            jest.useFakeTimers();
+            useEventLogStore.mockReturnValue(mockStore({
+                eventLogs: [makeLog({
+                    eventType: 'ALL_TYPES_DARK',
+                    data: {
+                        str: 'hello',
+                        num: 123,
+                        boolTrue: true,
+                        boolFalse: false,
+                        nothing: null,
+                    },
+                })],
+                setPaused: mockSetPaused,
+                clearLogs: mockClearLogs,
+            }));
+            renderWithTheme(<EventLogger/>, darkTheme);
+            openDrawer();
+            act(() => jest.advanceTimersByTime(200));
+
+            const logChip = screen.getByText('ALL_TYPES_DARK', {exact: true});
+            fireEvent.click(logChip);
+
+            await waitFor(() => {
+                expect(document.querySelector('.json-null')).toBeInTheDocument();
+                expect(document.querySelector('.json-boolean')).toBeInTheDocument();
+            });
+
+            jest.useRealTimers();
+        });
     });
 
     // ─── Drawer open / close ──────────────────────────────────────────────
@@ -261,6 +292,17 @@ describe('EventLogger Component', () => {
             await waitFor(() =>
                 expect(screen.getByRole('button', {name: /Events|Event Logger/i})).toBeInTheDocument()
             );
+        });
+
+        test('unmounting while drawer open calls closeLoggerEventSource', async () => {
+            jest.spyOn(Storage.prototype, 'getItem').mockReturnValue('test-token');
+            const {closeLoggerEventSource} = require('../../eventSourceManager');
+            closeLoggerEventSource.mockClear();
+
+            const {unmount} = renderWithTheme(<EventLogger/>);
+            openDrawer();
+            unmount();
+            expect(closeLoggerEventSource).toHaveBeenCalled();
         });
     });
 
@@ -368,6 +410,27 @@ describe('EventLogger Component', () => {
             renderWithTheme(<EventLogger/>);
             openDrawer();
             await waitFor(() => expect(screen.getByText(/ALL_TYPES/i)).toBeInTheDocument());
+        });
+
+        test('renders "INVALID_DATE" when timestamp throws', async () => {
+            setupLogs([makeLog({eventType: 'SYMBOL_TS', timestamp: Symbol('bad')})]);
+            renderWithTheme(<EventLogger/>);
+            openDrawer();
+            await waitFor(() => expect(screen.getByText('INVALID_DATE')).toBeInTheDocument());
+        });
+
+        test('initially renders only first 20 logs (visibleCount = 20)', async () => {
+            jest.useFakeTimers();
+            const manyLogs = Array.from({length: 25}, (_, i) =>
+                makeLog({id: `${i}`, eventType: `EVENT_${i}`})
+            );
+            setupLogs(manyLogs);
+            renderWithTheme(<EventLogger/>);
+            openDrawer();
+            act(() => jest.advanceTimersByTime(200));
+
+            await waitFor(() => expect(screen.getByText(/20\/25 events/i)).toBeInTheDocument());
+            jest.useRealTimers();
         });
     });
 
@@ -576,6 +639,16 @@ describe('EventLogger Component', () => {
             await waitFor(() => expect(screen.getByText(/ObjectDeleted/i)).toBeInTheDocument());
         });
 
+        test('ObjectDeleted with invalid _rawEvent but matching path still shows', async () => {
+            setLogs([makeLog({
+                eventType: 'ObjectDeleted',
+                data: {_rawEvent: 'invalid', path: '/test/path'},
+            })]);
+            renderWithTheme(<EventLogger objectName="/test/path"/>);
+            openDrawer();
+            await waitFor(() => expect(screen.getByText(/ObjectDeleted/i)).toBeInTheDocument());
+        });
+
         test('ObjectDeleted without _rawEvent is excluded when objectName set', async () => {
             setLogs([makeLog({eventType: 'ObjectDeleted', data: {otherField: 'test'}})]);
             renderWithTheme(<EventLogger objectName="/test/path"/>);
@@ -588,7 +661,7 @@ describe('EventLogger Component', () => {
         test('CONNECTION_* events always pass objectName filter', async () => {
             setLogs([
                 makeLog({id: '1', eventType: 'CONNECTION_OPENED', data: {}}),
-                makeLog({id: '2', eventType: 'CONNECTION_ERROR', data: {}}), // Changé ici
+                makeLog({id: '2', eventType: 'CONNECTION_ERROR', data: {}}),
             ]);
             renderWithTheme(<EventLogger eventTypes={['CONNECTION_OPENED', 'CONNECTION_ERROR']} objectName="/any"/>);
             openDrawer();
@@ -675,6 +748,14 @@ describe('EventLogger Component', () => {
             expect(screen.getByRole('button', {name: /Apply Subscriptions \(2\)/i})).toBeInTheDocument();
         });
 
+        test('"Subscribe to Page Events" is disabled when no page events', async () => {
+            renderWithTheme(<EventLogger eventTypes={[]}/>);
+            openDrawer();
+            await openSettings();
+            const pageBtn = screen.getByRole('button', {name: /Subscribe to Page Events/i});
+            expect(pageBtn).toBeDisabled();
+        });
+
         test('"Additional Events" section renders for non-page event types', async () => {
             renderWithTheme(<EventLogger eventTypes={['PAGE_EVENT']}/>);
             openDrawer();
@@ -736,8 +817,25 @@ describe('EventLogger Component', () => {
             await openSettings();
             act(() => fireEvent.click(screen.getByRole('button', {name: /Unsubscribe from All/i})));
             act(() => fireEvent.click(screen.getByRole('button', {name: /Subscribe to All/i})));
-            // All ALL_EVENT_TYPES (9 items) should now be subscribed
             expect(screen.getByRole('button', {name: /Apply Subscriptions \(9\)/i})).toBeInTheDocument();
+        });
+
+        test('filtering still works after unsubscribing all with page events', async () => {
+            useEventLogStore.mockReturnValue(mockStore({
+                eventLogs: [makeLog({eventType: 'EVENT1'}), makeLog({eventType: 'OTHER'})],
+                setPaused: mockSetPaused,
+                clearLogs: mockClearLogs,
+            }));
+            renderWithTheme(<EventLogger eventTypes={['EVENT1']}/>);
+            openDrawer();
+            await waitFor(() => expect(screen.getByText(/Event Logger/i)).toBeInTheDocument());
+            await openSettings();
+            act(() => fireEvent.click(screen.getByRole('button', {name: /Unsubscribe from All/i})));
+            act(() => fireEvent.click(screen.getByRole('button', {name: /Apply Subscriptions/i})));
+            await waitFor(() => {
+                expect(screen.getByText('EVENT1')).toBeInTheDocument();
+                expect(screen.queryByText('OTHER')).not.toBeInTheDocument();
+            });
         });
     });
 
@@ -845,7 +943,7 @@ describe('EventLogger Component', () => {
 
             act(() => fireEvent.mouseDown(handle, {clientY: 100}));
             act(() => fireEvent.mouseMove(document, {clientY: 80}));
-            act(() => fireEvent.mouseDown(handle, {clientY: 90}));  // second down clears timeout
+            act(() => fireEvent.mouseDown(handle, {clientY: 90}));
             act(() => jest.advanceTimersByTime(100));
             act(() => fireEvent.mouseUp(document));
             jest.useRealTimers();
@@ -879,6 +977,69 @@ describe('EventLogger Component', () => {
             expect(screen.getByRole('progressbar')).toBeInTheDocument();
             act(() => jest.advanceTimersByTime(200));
             await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
+        });
+    });
+
+    // ─── Infinite scroll (handleScroll) ────────────────────────────────────
+
+    describe('Infinite scroll', () => {
+        beforeEach(() => jest.useFakeTimers());
+        afterEach(() => jest.useRealTimers());
+
+        const setupManyLogs = () => {
+            const manyLogs = Array.from({length: 25}, (_, i) =>
+                makeLog({id: `${i}`, eventType: `EVENT_${i}`})
+            );
+            useEventLogStore.mockReturnValue(mockStore({
+                eventLogs: manyLogs,
+                setPaused: mockSetPaused,
+                clearLogs: mockClearLogs,
+            }));
+        };
+
+        test('successive scroll triggers load more and early return works', async () => {
+            setupManyLogs();
+            renderWithTheme(<EventLogger/>);
+            openDrawer();
+            act(() => jest.advanceTimersByTime(200)); // finish initial loading
+
+            await waitFor(() => expect(screen.getByText(/20\/25 events/i)).toBeInTheDocument());
+
+            // Find the scrollable container by starting from a log text and going up
+            const logTextEl = screen.getByText('EVENT_0');
+            let el = logTextEl.parentElement;
+            let logContainer = null;
+            while (el) {
+                const style = window.getComputedStyle(el);
+                if (style.overflow === 'auto' || style.overflowY === 'auto') {
+                    logContainer = el;
+                    break;
+                }
+                el = el.parentElement;
+            }
+            expect(logContainer).not.toBeNull();
+
+            // Force container dimensions to enable scrolling
+            logContainer.style.height = '200px';
+            // Mock scroll position to be at the bottom
+            Object.defineProperty(logContainer, 'scrollTop', {value: 800, writable: true, configurable: true});
+            Object.defineProperty(logContainer, 'scrollHeight', {get: () => 1000, configurable: true});
+            Object.defineProperty(logContainer, 'clientHeight', {get: () => 200, configurable: true});
+
+            // First scroll: loadingMore becomes true, a 100ms timeout is set
+            act(() => {
+                fireEvent.scroll(logContainer);
+            });
+            // Second scroll immediately: should be ignored because loadingMore is true
+            act(() => {
+                fireEvent.scroll(logContainer);
+            });
+
+            // Advance time to execute the timeout
+            act(() => jest.advanceTimersByTime(150));
+
+            // visibleCount should now be 25, so 25/25 events
+            await waitFor(() => expect(screen.getByText(/25\/25 events/i)).toBeInTheDocument());
         });
     });
 
