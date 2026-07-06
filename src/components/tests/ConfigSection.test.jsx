@@ -1,5 +1,5 @@
 import React from 'react';
-import {render, screen, waitFor, act, within} from '@testing-library/react';
+import {render, screen, waitFor, act, within, fireEvent} from '@testing-library/react';
 import ConfigSection from '../ConfigSection';
 import userEvent from '@testing-library/user-event';
 import {URL_OBJECT} from '../../config/apiPath.js';
@@ -15,7 +15,17 @@ jest.mock('@mui/material', () => {
     const {useState} = jest.requireActual('react');
     const mocks = {
         ...actual,
-        Dialog: ({children, open, ...props}) => open ? <div role="dialog" {...props}>{children}</div> : null,
+        Dialog: ({children, open, onClose, ...props}) => open ? (
+            <div
+                role="dialog"
+                onKeyDown={(e) => {
+                    if (e.key === 'Escape' && onClose) onClose(e, 'escapeKeyDown');
+                }}
+                {...props}
+            >
+                {children}
+            </div>
+        ) : null,
         DialogTitle: ({children, ...props}) => <div {...props}><h2>{children}</h2></div>,
         DialogContent: ({children, ...props}) => <div {...props}>{children}</div>,
         DialogActions: ({children, ...props}) => <div {...props}>{children}</div>,
@@ -248,6 +258,14 @@ describe('ConfigSection Component', () => {
         expect(setConfigDialogOpen).toHaveBeenCalledWith(false);
     });
 
+    test('pressing Escape on the configuration dialog triggers onClose', async () => {
+        const setConfigDialogOpen = jest.fn();
+        renderConfig({setConfigDialogOpen});
+        const dialog = await screen.findByRole('dialog');
+        fireEvent.keyDown(dialog, {key: 'Escape', code: 'Escape'});
+        expect(setConfigDialogOpen).toHaveBeenCalledWith(false);
+    });
+
     test('shows no configuration available when configNode is missing', async () => {
         renderConfig({configNode: ''});
         await waitFor(() => expect(screen.getByText(/No instance selected to view configuration/i)).toBeInTheDocument());
@@ -439,6 +457,14 @@ describe('ConfigSection Component', () => {
         await act(() => user.click(screen.getByRole('button', {name: /Apply/i})));
         await waitFor(() => expect(openSnackbar).toHaveBeenCalledWith('No selection made', 'error'));
         expect(screen.getByText(/Manage Configuration Parameters/i)).toBeInTheDocument();
+    });
+
+    test('manage params dialog: cancel button closes it', async () => {
+        renderConfig();
+        await openManageDialog(user);
+        const dlg = getDialogByTitle('Manage Configuration Parameters');
+        await act(() => user.click(within(dlg).getByRole('button', {name: /Cancel/i})));
+        await waitFor(() => expect(screen.queryByText(/Manage Configuration Parameters/i)).not.toBeInTheDocument());
     });
 
     test('manage params: add invalid parameter shows error', async () => {
@@ -644,6 +670,56 @@ describe('ConfigSection Component', () => {
         }
         await act(() => user.click(screen.getByRole('button', {name: /Apply/i})));
         await waitFor(() => expect(openSnackbar).toHaveBeenCalledWith('Auth token not found.', 'error'));
+    });
+
+    test('manage params: unset parses free-text string with a dot when no existing params match', async () => {
+        global.fetch.mockImplementation((url, options) => {
+            if (url.includes('/config') && !url.includes('file') && !url.includes('keywords')
+                && !url.includes('set') && !url.includes('unset') && !url.includes('delete')) {
+                return Promise.resolve({
+                    ok: true, status: 200,
+                    json: () => Promise.resolve({items: []}),
+                    headers: new Headers(),
+                });
+            }
+            return defaultFetchMock(url, options);
+        });
+        const openSnackbar = jest.fn();
+        renderConfig({openSnackbar});
+        await openManageDialog(user);
+        await act(() => user.type(getComboboxes()[1], 'standalone.param{Enter}'));
+        await waitFor(() => expect(getComboboxes()[1]).toHaveValue('standalone.param'));
+        await act(() => user.click(screen.getByRole('button', {name: /Apply/i})));
+        await waitFor(() => expect(openSnackbar).toHaveBeenCalledWith('Successfully unset 1 parameter(s)', 'success'));
+        expect(global.fetch).toHaveBeenCalledWith(
+            expect.stringContaining(`${URL_OBJECT}/root/cfg/cfg1/config?unset=standalone.param`),
+            expect.objectContaining({method: 'PATCH'})
+        );
+    });
+
+    test('manage params: unset parses free-text string without a dot when no existing params match', async () => {
+        global.fetch.mockImplementation((url, options) => {
+            if (url.includes('/config') && !url.includes('file') && !url.includes('keywords')
+                && !url.includes('set') && !url.includes('unset') && !url.includes('delete')) {
+                return Promise.resolve({
+                    ok: true, status: 200,
+                    json: () => Promise.resolve({items: []}),
+                    headers: new Headers(),
+                });
+            }
+            return defaultFetchMock(url, options);
+        });
+        const openSnackbar = jest.fn();
+        renderConfig({openSnackbar});
+        await openManageDialog(user);
+        await act(() => user.type(getComboboxes()[1], 'lonelyoption{Enter}'));
+        await waitFor(() => expect(getComboboxes()[1]).toHaveValue('lonelyoption'));
+        await act(() => user.click(screen.getByRole('button', {name: /Apply/i})));
+        await waitFor(() => expect(openSnackbar).toHaveBeenCalledWith('Successfully unset 1 parameter(s)', 'success'));
+        expect(global.fetch).toHaveBeenCalledWith(
+            expect.stringContaining(`${URL_OBJECT}/root/cfg/cfg1/config?unset=lonelyoption`),
+            expect.objectContaining({method: 'PATCH'})
+        );
     });
 
     // ── Fetch existing params edge cases ───────────────────────────────────────
