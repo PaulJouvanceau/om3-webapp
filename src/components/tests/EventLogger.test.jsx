@@ -135,9 +135,7 @@ describe('EventLogger Component', () => {
             expect(getEventColor(eventType)).toBe(expected);
         });
 
-        test.each([
-            [['id1'], 'id1', ['id1', 'id1']],
-        ])('toggleExpand adds and removes ids', () => {
+        test('toggleExpand adds and removes ids', () => {
             const toggle = (prev, id) =>
                 prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
             expect(toggle([], 'id1')).toEqual(['id1']);
@@ -192,27 +190,22 @@ describe('EventLogger Component', () => {
     // ─── Rendering ────────────────────────────────────────────────────────
 
     describe('Rendering', () => {
-        test('renders floating button by default', () => {
-            renderWithTheme(<EventLogger/>);
-            expect(screen.getByRole('button', {name: /Events|Event Logger/i})).toBeInTheDocument();
-        });
-
-        test('renders with custom title and buttonLabel', () => {
-            renderWithTheme(<EventLogger title="Custom Logger" buttonLabel="Custom Button"/>);
-            expect(screen.getByText('Custom Button')).toBeInTheDocument();
-        });
-
-        test('renders without crashing with all props', () => {
-            const {container} = renderWithTheme(
-                <EventLogger title="T" buttonLabel="B" eventTypes={['A', 'B']} objectName="/p"/>
-            );
+        test.each([
+            ['default props', {}, {}],
+            ['custom title and buttonLabel', {title: 'Custom Logger', buttonLabel: 'Custom Button'}, {}],
+            ['all props (eventTypes, objectName)', {title: 'T', buttonLabel: 'B', eventTypes: ['A', 'B'], objectName: '/p'}, {}],
+            ['non-array eventLogs', {}, {eventLogs: {}}],
+        ])('renders without crashing: %s', (_, props, storeOverrides) => {
+            if (Object.keys(storeOverrides).length) {
+                useEventLogStore.mockReturnValue(mockStore(storeOverrides));
+            }
+            const {container} = renderWithTheme(<EventLogger {...props}/>);
             expect(container).toBeInTheDocument();
-        });
-
-        test('handles non-array eventLogs gracefully', () => {
-            useEventLogStore.mockReturnValue(mockStore({eventLogs: {}}));
-            const {container} = renderWithTheme(<EventLogger/>);
-            expect(container).toBeInTheDocument();
+            if (props.buttonLabel) {
+                expect(screen.getByText(props.buttonLabel)).toBeInTheDocument();
+            } else {
+                expect(screen.getByRole('button', {name: /Events|Event Logger/i})).toBeInTheDocument();
+            }
         });
 
         test('button hidden when drawer open, reappears on close', async () => {
@@ -227,18 +220,7 @@ describe('EventLogger Component', () => {
             );
         });
 
-        test('dark mode renders without error', async () => {
-            useEventLogStore.mockReturnValue(mockStore({
-                eventLogs: [makeLog({eventType: 'DARK_PAPER'})],
-                setPaused: mockSetPaused,
-                clearLogs: mockClearLogs,
-            }));
-            renderWithTheme(<EventLogger/>, darkTheme);
-            openDrawer();
-            await waitFor(() => expect(screen.getByLabelText(/Resize handle/i)).toBeInTheDocument());
-        });
-
-        test('dark mode renders all JSON types with correct classes', async () => {
+        test('dark mode renders correctly and displays all JSON value types with syntax highlighting', async () => {
             jest.useFakeTimers();
             useEventLogStore.mockReturnValue(mockStore({
                 eventLogs: [makeLog({
@@ -257,6 +239,7 @@ describe('EventLogger Component', () => {
             renderWithTheme(<EventLogger/>, darkTheme);
             openDrawer();
             act(() => jest.advanceTimersByTime(200));
+            await waitFor(() => expect(screen.getByLabelText(/Resize handle/i)).toBeInTheDocument());
 
             const logChip = screen.getByText('ALL_TYPES_DARK', {exact: true});
             fireEvent.click(logChip);
@@ -273,12 +256,7 @@ describe('EventLogger Component', () => {
     // ─── Drawer open / close ──────────────────────────────────────────────
 
     describe('Drawer open / close', () => {
-        test('opens and shows title', async () => {
-            renderWithTheme(<EventLogger/>);
-            await openDrawerAndWait();
-        });
-
-        test('shows "No events logged" when empty', async () => {
+        test('opens, shows title, and shows "No events logged" when empty', async () => {
             renderWithTheme(<EventLogger/>);
             await openDrawerAndWait();
             await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
@@ -317,11 +295,26 @@ describe('EventLogger Component', () => {
             }));
         };
 
-        test('displays log rows', async () => {
-            setupLogs([makeLog({eventType: 'TEST_EVENT'})]);
+        test.each([
+            ['basic log', makeLog({eventType: 'TEST_EVENT'})],
+            ['log without id', {eventType: 'NO_ID', timestamp: new Date().toISOString(), data: {}}],
+            ['circular reference in data', (() => {
+                const c = {};
+                c.self = c;
+                return makeLog({eventType: 'CIRCULAR_TEST', data: c});
+            })()],
+            ['XSS-like content', makeLog({eventType: 'HTML_TEST', data: {message: '<script>alert("xss")</script>'}})],
+            ['all JSON value types', makeLog({
+                eventType: 'ALL_TYPES',
+                data: {str: 'a & <b>', num: 42, t: true, f: false, n: null, obj: {k: 'v'}},
+            })],
+            ['non-object (string) data', makeLog({eventType: 'STRING_EVENT', data: 'string data'})],
+            ['non-object (null) data', makeLog({eventType: 'NULL_EVENT', data: null})],
+        ])('renders log with %s', async (_, log) => {
+            setupLogs([log]);
             renderWithTheme(<EventLogger/>);
-            await openDrawerAndWait();
-            await waitFor(() => expect(screen.getByText(/TEST_EVENT/i)).toBeInTheDocument());
+            openDrawer();
+            await waitFor(() => expect(screen.getByText(new RegExp(log.eventType, 'i'))).toBeInTheDocument());
         });
 
         test('shows event count chip', async () => {
@@ -350,23 +343,17 @@ describe('EventLogger Component', () => {
         });
 
         test.each([
-            ['string data', 'STRING_EVENT'],
-            [null, 'NULL_EVENT'],
-        ])('handles non-object log data: %s', async (data, eventType) => {
-            setupLogs([makeLog({id: '1', eventType, data})]);
+            ['object timestamp', {}, 'INVALID_TS'],
+            ['non-date string', 'not-a-date', 'BAD_DATE'],
+            ['symbol timestamp (throws → INVALID_DATE)', Symbol('bad'), 'SYMBOL_TS'],
+        ])('handles invalid timestamp: %s', async (_, timestamp, eventType) => {
+            setupLogs([makeLog({eventType, timestamp})]);
             renderWithTheme(<EventLogger/>);
             openDrawer();
             await waitFor(() => expect(screen.getByText(new RegExp(eventType, 'i'))).toBeInTheDocument());
-        });
-
-        test('handles invalid/non-standard timestamps', async () => {
-            setupLogs([
-                makeLog({eventType: 'INVALID_TS', timestamp: {}}),
-                makeLog({id: '2', eventType: 'BAD_DATE', timestamp: 'not-a-date'}),
-            ]);
-            renderWithTheme(<EventLogger/>);
-            openDrawer();
-            await waitFor(() => expect(screen.getByText(/INVALID_TS/i)).toBeInTheDocument());
+            if (typeof timestamp === 'symbol') {
+                await waitFor(() => expect(screen.getByText('INVALID_DATE')).toBeInTheDocument());
+            }
         });
 
         test('displays valid timestamps', async () => {
@@ -377,46 +364,6 @@ describe('EventLogger Component', () => {
                 const timeEls = screen.getAllByText(/\d{1,2}:\d{2}:\d{2}/);
                 expect(timeEls.length).toBeGreaterThan(0);
             });
-        });
-
-        test('generates safe id when log.id is missing', async () => {
-            setupLogs([{eventType: 'NO_ID', timestamp: new Date().toISOString(), data: {}}]);
-            renderWithTheme(<EventLogger/>);
-            openDrawer();
-            await waitFor(() => expect(screen.getByText('NO_ID')).toBeInTheDocument());
-        });
-
-        test('handles circular reference in data', async () => {
-            const circular = {};
-            circular.self = circular;
-            setupLogs([makeLog({eventType: 'CIRCULAR_TEST', data: circular})]);
-            renderWithTheme(<EventLogger/>);
-            openDrawer();
-            await waitFor(() => expect(screen.getByText(/CIRCULAR_TEST/i)).toBeInTheDocument());
-        });
-
-        test('handles XSS-like content in JSON safely', async () => {
-            setupLogs([makeLog({eventType: 'HTML_TEST', data: {message: '<script>alert("xss")</script>'}})]);
-            renderWithTheme(<EventLogger/>);
-            openDrawer();
-            await waitFor(() => expect(screen.getByText(/HTML_TEST/i)).toBeInTheDocument());
-        });
-
-        test('displays all JSON value types', async () => {
-            setupLogs([makeLog({
-                eventType: 'ALL_TYPES',
-                data: {str: 'a & <b>', num: 42, t: true, f: false, n: null, obj: {k: 'v'}},
-            })]);
-            renderWithTheme(<EventLogger/>);
-            openDrawer();
-            await waitFor(() => expect(screen.getByText(/ALL_TYPES/i)).toBeInTheDocument());
-        });
-
-        test('renders "INVALID_DATE" when timestamp throws', async () => {
-            setupLogs([makeLog({eventType: 'SYMBOL_TS', timestamp: Symbol('bad')})]);
-            renderWithTheme(<EventLogger/>);
-            openDrawer();
-            await waitFor(() => expect(screen.getByText('INVALID_DATE')).toBeInTheDocument());
         });
 
         test('initially renders only first 20 logs (visibleCount = 20)', async () => {
@@ -612,50 +559,23 @@ describe('EventLogger Component', () => {
             );
         });
 
-        test('ObjectDeleted matched by _rawEvent.path', async () => {
-            setLogs([makeLog({
-                eventType: 'ObjectDeleted',
-                data: {_rawEvent: JSON.stringify({path: '/test/path'})},
-            })]);
-            renderWithTheme(<EventLogger objectName="/test/path"/>);
+        test.each([
+            ['matched by _rawEvent.path', {_rawEvent: JSON.stringify({path: '/test/path'})}, '/test/path', true],
+            ['matched by _rawEvent.labels.path', {_rawEvent: JSON.stringify({labels: {path: '/test/path'}})}, '/test/path', true],
+            ['invalid _rawEvent JSON falls through gracefully', {_rawEvent: 'invalid json {'}, undefined, true],
+            ['invalid _rawEvent but matching path field still shows', {_rawEvent: 'invalid', path: '/test/path'}, '/test/path', true],
+            ['without _rawEvent is excluded when objectName set', {otherField: 'test'}, '/test/path', false],
+        ])('ObjectDeleted: %s', async (_, data, objectName, shouldShow) => {
+            setLogs([makeLog({eventType: 'ObjectDeleted', data})]);
+            renderWithTheme(<EventLogger objectName={objectName}/>);
             openDrawer();
-            await waitFor(() => expect(screen.getByText(/ObjectDeleted/i)).toBeInTheDocument());
-        });
-
-        test('ObjectDeleted matched by _rawEvent.labels.path', async () => {
-            setLogs([makeLog({
-                eventType: 'ObjectDeleted',
-                data: {_rawEvent: JSON.stringify({labels: {path: '/test/path'}})},
-            })]);
-            renderWithTheme(<EventLogger objectName="/test/path"/>);
-            openDrawer();
-            await waitFor(() => expect(screen.getByText(/ObjectDeleted/i)).toBeInTheDocument());
-        });
-
-        test('ObjectDeleted with invalid _rawEvent JSON falls through gracefully', async () => {
-            setLogs([makeLog({eventType: 'ObjectDeleted', data: {_rawEvent: 'invalid json {'}})]);
-            renderWithTheme(<EventLogger/>);
-            openDrawer();
-            await waitFor(() => expect(screen.getByText(/ObjectDeleted/i)).toBeInTheDocument());
-        });
-
-        test('ObjectDeleted with invalid _rawEvent but matching path still shows', async () => {
-            setLogs([makeLog({
-                eventType: 'ObjectDeleted',
-                data: {_rawEvent: 'invalid', path: '/test/path'},
-            })]);
-            renderWithTheme(<EventLogger objectName="/test/path"/>);
-            openDrawer();
-            await waitFor(() => expect(screen.getByText(/ObjectDeleted/i)).toBeInTheDocument());
-        });
-
-        test('ObjectDeleted without _rawEvent is excluded when objectName set', async () => {
-            setLogs([makeLog({eventType: 'ObjectDeleted', data: {otherField: 'test'}})]);
-            renderWithTheme(<EventLogger objectName="/test/path"/>);
-            openDrawer();
-            await waitFor(() =>
-                expect(screen.getByText(/No events match current filters/i)).toBeInTheDocument()
-            );
+            if (shouldShow) {
+                await waitFor(() => expect(screen.getByText(/ObjectDeleted/i)).toBeInTheDocument());
+            } else {
+                await waitFor(() =>
+                    expect(screen.getByText(/No events match current filters/i)).toBeInTheDocument()
+                );
+            }
         });
 
         test('CONNECTION_* events always pass objectName filter', async () => {
@@ -729,11 +649,17 @@ describe('EventLogger Component', () => {
             );
         });
 
-        test('Unsubscribe All shows "No event types selected" message', async () => {
-            renderWithTheme(<EventLogger eventTypes={['EVENT1']}/>);
+        test.each([
+            ['via Unsubscribe All button', ['EVENT1'], () => {
+                fireEvent.click(screen.getByRole('button', {name: /Unsubscribe from All/i}));
+            }],
+            ['via empty eventTypes prop', [], () => {
+            }],
+        ])('shows "No event types selected" message: %s', async (_, eventTypes, action) => {
+            renderWithTheme(<EventLogger eventTypes={eventTypes}/>);
             openDrawer();
             await openSettings();
-            act(() => fireEvent.click(screen.getByRole('button', {name: /Unsubscribe from All/i})));
+            action();
             expect(screen.getByText(/No event types selected. You won't receive any events./i)).toBeInTheDocument();
         });
 
@@ -761,13 +687,6 @@ describe('EventLogger Component', () => {
             openDrawer();
             await openSettings();
             expect(screen.getByText(/Additional Events/)).toBeInTheDocument();
-        });
-
-        test('empty eventTypes shows "No event types selected" initially', async () => {
-            renderWithTheme(<EventLogger eventTypes={[]}/>);
-            openDrawer();
-            await openSettings();
-            expect(screen.getByText(/No event types selected. You won't receive any events./i)).toBeInTheDocument();
         });
 
         test('checkbox toggle changes subscription count', async () => {
