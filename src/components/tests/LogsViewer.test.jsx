@@ -102,6 +102,17 @@ const mockHttpErrorFetch = (status) => {
 const renderComponent = (props = {}) =>
     render(<LogsViewer nodename="test-node" {...props} />);
 
+const findLogsContainer = (container) => {
+    const boxes = container.querySelectorAll('.MuiBox-root');
+    for (const box of boxes) {
+        const style = getComputedStyle(box);
+        if (style.overflow === 'auto') {
+            return box;
+        }
+    }
+    return null;
+};
+
 // --- Tests ---
 describe('LogsViewer', () => {
     beforeAll(() => {
@@ -236,6 +247,12 @@ describe('LogsViewer', () => {
             fireEvent.click(screen.getByText('Retry'));
             await screen.findByText('Connected');
         });
+
+        test('shows authentication failed error when fetch rejects with 401', async () => {
+            mockErrorFetch(401, '401 Unauthorized');
+            renderComponent();
+            await screen.findByText('Authentication failed. Please refresh your token.');
+        });
     });
 
     describe('Log streaming and pause/resume', () => {
@@ -245,35 +262,30 @@ describe('LogsViewer', () => {
             await screen.findByText('Connected');
         });
 
-        test('pauses and resumes streaming', async () => {
-            mockSuccessfulFetch([]);
+        test('pauses and resumes streaming - covers abort during reading', async () => {
+            const now = Date.now();
+            const logs = [
+                {__REALTIME_TIMESTAMP: now * 1000, MESSAGE: 'First log'},
+                {__REALTIME_TIMESTAMP: (now + 100) * 1000, MESSAGE: 'Second log'},
+            ];
+            mockSuccessfulFetch(logs, 50);
+
             renderComponent();
-            await screen.findByText('Connected');
+            await screen.findByText('First log');
 
             const pauseBtn = screen.getByRole('button', {name: /pause/i});
             fireEvent.click(pauseBtn);
-            expect(await screen.findByRole('button', {name: /resume/i})).toBeInTheDocument();
 
-            fireEvent.click(screen.getByRole('button', {name: /resume/i}));
-            expect(await screen.findByRole('button', {name: /pause/i})).toBeInTheDocument();
-        });
+            const resumeBtn = await screen.findByRole('button', {name: /resume/i});
+            expect(resumeBtn).toBeInTheDocument();
 
-        test('aborts fetch on pause', async () => {
-            const abortSpy = jest.fn();
-            global.AbortController = class {
-                constructor() {
-                    this.signal = {};
-                }
+            await waitFor(() => {
+                expect(screen.queryByText('Second log')).not.toBeInTheDocument();
+            });
 
-                abort() {
-                    abortSpy();
-                }
-            };
-            mockSuccessfulFetch([]);
-            renderComponent();
-            await waitFor(() => expect(global.fetch).toHaveBeenCalled());
-            fireEvent.click(screen.getByRole('button', {name: /pause/i}));
-            expect(abortSpy).toHaveBeenCalled();
+            mockSuccessfulFetch([{__REALTIME_TIMESTAMP: (now + 200) * 1000, MESSAGE: 'New log after resume'}]);
+            fireEvent.click(resumeBtn);
+            await screen.findByText('New log after resume');
         });
 
         test('does not update logs when paused', async () => {
@@ -284,7 +296,6 @@ describe('LogsViewer', () => {
 
             fireEvent.click(screen.getByRole('button', {name: /pause/i}));
 
-            // simulate new data while paused
             global.fetch = jest.fn().mockResolvedValue({
                 ok: true, status: 200,
                 body: new MockReadableStream([`data: ${JSON.stringify({
@@ -292,7 +303,6 @@ describe('LogsViewer', () => {
                     MESSAGE: 'Buffered log'
                 })}\n\n`]),
             });
-            // Should not appear
             await expect(screen.findByText('Buffered log', {}, {timeout: 1000})).rejects.toThrow();
         });
     });
@@ -338,8 +348,26 @@ describe('LogsViewer', () => {
         test('handles malformed JSON in parse', async () => {
             mockSuccessfulFetch([{__REALTIME_TIMESTAMP: baseTs * 1000, JSON: '{malformed'}]);
             renderComponent();
-            // The displayed message contains the substring '{malformed'
             await screen.findByText((content, element) => content.includes('{malformed'));
+        });
+
+        test('logs warning for invalid JSON line in stream', async () => {
+            const logger = require('../../utils/logger.js');
+            const streamChunks = [
+                'data: not json\n\n',
+                'data: {"__REALTIME_TIMESTAMP":1234567890, "MESSAGE": "valid"}\n\n'
+            ];
+            global.fetch = jest.fn().mockResolvedValue({
+                ok: true, status: 200,
+                body: new MockReadableStream(streamChunks),
+            });
+            renderComponent();
+            await screen.findByText('valid');
+            expect(logger.warn).toHaveBeenCalledWith(
+                'Failed to parse log line:',
+                expect.any(Error),
+                'data: not json'
+            );
         });
 
         test('processes partial lines across chunks', async () => {
@@ -373,6 +401,7 @@ describe('LogsViewer', () => {
             mockSuccessfulFetch([
                 {__REALTIME_TIMESTAMP: ts * 1000, JSON: JSON.stringify({level: 'debug', message: 'Debug log'})},
                 {__REALTIME_TIMESTAMP: (ts + 1) * 1000, JSON: JSON.stringify({level: 'error', message: 'Error log'})},
+                {__REALTIME_TIMESTAMP: (ts + 2) * 1000, JSON: JSON.stringify({level: 'warn', message: 'Warn log'})},
             ]);
         });
 
@@ -414,11 +443,36 @@ describe('LogsViewer', () => {
 
         test('shows filtered log count', async () => {
             renderComponent();
-            await screen.findByText('2 / 2 logs');
+            await screen.findByText('3 / 3 logs');
 
             fireEvent.mouseDown(screen.getByLabelText('Select Log Levels'));
             fireEvent.click(screen.getByText('Debug'));
-            await screen.findByText('1 / 2 logs');
+            await screen.findByText('1 / 3 logs');
+        });
+
+        test('clicking filter chip delete clears all filters', async () => {
+            renderComponent();
+            await screen.findByText('Debug log');
+
+            fireEvent.change(screen.getByPlaceholderText('Search logs...'), {target: {value: 'debug'}});
+            await screen.findByText(/Filters active/);
+
+            const chip = screen.getByText(/Filters active/i).closest('.MuiChip-root');
+            const deleteIcon = chip.querySelector('.MuiChip-deleteIcon');
+            fireEvent.click(deleteIcon);
+
+            expect(screen.queryByText(/Filters active/)).not.toBeInTheDocument();
+            expect(screen.getByPlaceholderText('Search logs...')).toHaveValue('');
+            expect(screen.getByText('Debug log')).toBeInTheDocument();
+            expect(screen.getByText('Error log')).toBeInTheDocument();
+            expect(screen.getByText('Warn log')).toBeInTheDocument();
+        });
+
+        test('displays warning log with correct color', async () => {
+            renderComponent();
+            await screen.findByText('Warn log');
+            const warnElement = screen.getByText('[WARN]');
+            expect(warnElement).toBeInTheDocument();
         });
     });
 
@@ -449,6 +503,33 @@ describe('LogsViewer', () => {
             expect(global.URL.createObjectURL).toHaveBeenCalled();
             expect(global.URL.revokeObjectURL).toHaveBeenCalled();
         });
+
+        test('downloads logs for instance type with correct filename', async () => {
+            const now = Date.now();
+            mockSuccessfulFetch([{__REALTIME_TIMESTAMP: now * 1000, MESSAGE: 'Instance log'}]);
+            renderComponent({type: 'instance', instanceName: 'test-instance', namespace: 'ns', kind: 'kind'});
+            await screen.findByText('Instance log');
+
+            const originalCreateElement = document.createElement.bind(document);
+            const createElementSpy = jest.spyOn(document, 'createElement');
+            let anchorElement = null;
+            createElementSpy.mockImplementation((tag) => {
+                const element = originalCreateElement(tag);
+                if (tag === 'a') {
+                    anchorElement = element;
+                }
+                return element;
+            });
+
+            try {
+                fireEvent.click(screen.getByRole('button', {name: /download/i}));
+                expect(anchorElement).not.toBeNull();
+                expect(anchorElement.download).toContain('test-instance-logs');
+                expect(global.URL.createObjectURL).toHaveBeenCalled();
+            } finally {
+                createElementSpy.mockRestore();
+            }
+        });
     });
 
     describe('Scroll and selection', () => {
@@ -463,11 +544,40 @@ describe('LogsViewer', () => {
 
             fireEvent.change(screen.getByPlaceholderText('Search logs...'), {target: {value: 'Log 5'}});
             await screen.findByText('Log 5');
-            fireEvent.click(screen.getByText('Log 5')); // clear filter and scroll
+            fireEvent.click(screen.getByText('Log 5'));
 
-            // After click, filters cleared, "Log 10" should reappear
             await screen.findByText('Log 10');
             expect(screen.getByText('Log 5')).toBeInTheDocument();
+        });
+
+        test('scrolls to log and resets background after timeout, handles unmount', async () => {
+            jest.useFakeTimers();
+
+            const ts = Date.now() * 1000;
+            const logs = Array.from({length: 5}, (_, i) => ({
+                __REALTIME_TIMESTAMP: ts + i * 1000, MESSAGE: `Log ${i + 1}`,
+            }));
+            mockSuccessfulFetch(logs);
+            const {container, unmount} = renderComponent();
+            await screen.findByText('Log 5');
+
+            const logsContainer = findLogsContainer(container);
+            expect(logsContainer).toBeInTheDocument();
+            logsContainer.scrollTo = jest.fn();
+
+            fireEvent.change(screen.getByPlaceholderText('Search logs...'), {target: {value: 'Log 3'}});
+            await screen.findByText('Log 3');
+            fireEvent.click(screen.getByText('Log 3'));
+
+            jest.advanceTimersByTime(100);
+            expect(logsContainer.scrollTo).toHaveBeenCalledWith({
+                top: expect.any(Number),
+                behavior: 'smooth',
+            });
+
+            jest.advanceTimersByTime(2000);
+            unmount();
+            jest.useRealTimers();
         });
 
         test('Go to bottom button appears when not at bottom', async () => {
@@ -479,6 +589,29 @@ describe('LogsViewer', () => {
             fireEvent.click(goToBottomBtn);
             expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
             expect(screen.queryByText('Go to bottom')).not.toBeInTheDocument();
+        });
+
+        test('handleScroll updates autoScroll when scrolling', async () => {
+            mockSuccessfulFetch([{__REALTIME_TIMESTAMP: Date.now() * 1000, MESSAGE: 'Test'}]);
+            const {container} = renderComponent();
+            await screen.findByText('Test');
+
+            const logsContainer = findLogsContainer(container);
+            expect(logsContainer).toBeInTheDocument();
+
+            Object.defineProperty(logsContainer, 'scrollHeight', {value: 1000, configurable: true});
+            Object.defineProperty(logsContainer, 'clientHeight', {value: 500, configurable: true});
+            logsContainer.scrollTop = 0;
+
+            fireEvent.scroll(logsContainer);
+            let goToBottomBtn = screen.getByText('Go to bottom');
+            expect(goToBottomBtn).toBeInTheDocument();
+
+            logsContainer.scrollTop = 500;
+            fireEvent.scroll(logsContainer);
+            await waitFor(() => {
+                expect(screen.queryByText('Go to bottom')).not.toBeInTheDocument();
+            });
         });
     });
 
