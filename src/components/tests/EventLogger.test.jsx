@@ -193,7 +193,12 @@ describe('EventLogger Component', () => {
         test.each([
             ['default props', {}, {}],
             ['custom title and buttonLabel', {title: 'Custom Logger', buttonLabel: 'Custom Button'}, {}],
-            ['all props (eventTypes, objectName)', {title: 'T', buttonLabel: 'B', eventTypes: ['A', 'B'], objectName: '/p'}, {}],
+            ['all props (eventTypes, objectName)', {
+                title: 'T',
+                buttonLabel: 'B',
+                eventTypes: ['A', 'B'],
+                objectName: '/p'
+            }, {}],
             ['non-array eventLogs', {}, {eventLogs: {}}],
         ])('renders without crashing: %s', (_, props, storeOverrides) => {
             if (Object.keys(storeOverrides).length) {
@@ -409,7 +414,7 @@ describe('EventLogger Component', () => {
             }
         });
 
-        test('expands circular data without throwing', async () => {
+        test('expands circular data without throwing and shows fallback text', async () => {
             const circular = {};
             circular.self = circular;
             useEventLogStore.mockReturnValue(mockStore({
@@ -417,16 +422,42 @@ describe('EventLogger Component', () => {
                 setPaused: mockSetPaused,
                 clearLogs: mockClearLogs,
             }));
-            renderWithTheme(<EventLogger/>);
+            const {container} = renderWithTheme(<EventLogger/>);
             openDrawer();
             act(() => jest.advanceTimersByTime(200));
 
             await waitFor(() => expect(screen.getAllByText(/CIRCULAR_EXPAND/i).length).toBeGreaterThan(0));
             const chip = screen.getAllByText(/CIRCULAR_EXPAND/i).find(el => !el.textContent.includes('('));
-            const container = chip?.closest('[style*="cursor: pointer"]') || chip?.closest('div');
-            if (container) {
-                act(() => fireEvent.click(container));
-                await waitFor(() => expect(screen.getAllByText(/CIRCULAR_EXPAND/i).length).toBeGreaterThan(0));
+            const rowContainer = chip?.closest('[style*="cursor: pointer"]') || chip?.closest('div');
+            if (rowContainer) {
+                act(() => fireEvent.click(rowContainer));
+                await waitFor(() => {
+                    expect(container.textContent).toContain('[object Object]');
+                });
+            }
+        });
+
+        test('expanded log shows json-key and json-string classes', async () => {
+            jest.useRealTimers();
+
+            useEventLogStore.mockReturnValue(mockStore({
+                eventLogs: [makeLog({eventType: 'CLASS_TEST', data: {key: 'value'}})],
+                setPaused: mockSetPaused,
+                clearLogs: mockClearLogs,
+            }));
+            const {container} = renderWithTheme(<EventLogger/>);
+            openDrawer();
+
+            await waitFor(() => expect(screen.getAllByText(/CLASS_TEST/i).length).toBeGreaterThan(0));
+
+            const chip = screen.getAllByText(/CLASS_TEST/i).find(el => !el.textContent.includes('('));
+            const row = chip?.closest('[style*="cursor: pointer"]') || chip?.closest('div');
+            if (row) {
+                act(() => fireEvent.click(row));
+                await waitFor(() => {
+                    expect(container.querySelector('.json-key')).toBeInTheDocument();
+                    expect(container.querySelector('.json-string')).toBeInTheDocument();
+                });
             }
         });
     });
@@ -563,7 +594,10 @@ describe('EventLogger Component', () => {
             ['matched by _rawEvent.path', {_rawEvent: JSON.stringify({path: '/test/path'})}, '/test/path', true],
             ['matched by _rawEvent.labels.path', {_rawEvent: JSON.stringify({labels: {path: '/test/path'}})}, '/test/path', true],
             ['invalid _rawEvent JSON falls through gracefully', {_rawEvent: 'invalid json {'}, undefined, true],
-            ['invalid _rawEvent but matching path field still shows', {_rawEvent: 'invalid', path: '/test/path'}, '/test/path', true],
+            ['invalid _rawEvent but matching path field still shows', {
+                _rawEvent: 'invalid',
+                path: '/test/path'
+            }, '/test/path', true],
             ['without _rawEvent is excluded when objectName set', {otherField: 'test'}, '/test/path', false],
         ])('ObjectDeleted: %s', async (_, data, objectName, shouldShow) => {
             setLogs([makeLog({eventType: 'ObjectDeleted', data})]);
@@ -756,6 +790,15 @@ describe('EventLogger Component', () => {
                 expect(screen.queryByText('OTHER')).not.toBeInTheDocument();
             });
         });
+
+        test('otherEventTypes filter branch coverage: includes and excludes types', async () => {
+            renderWithTheme(<EventLogger eventTypes={['NodeStatusUpdated']}/>);
+            openDrawer();
+            await openSettings();
+            expect(screen.getByText(/Additional Events/)).toBeInTheDocument();
+            const pageSection = screen.getByRole('heading', {name: /Page Events/}).closest('div');
+            expect(pageSection.textContent).toContain('NodeStatusUpdated');
+        });
     });
 
     // ─── EventSource / SSE integration ───────────────────────────────────
@@ -870,16 +913,38 @@ describe('EventLogger Component', () => {
 
         test('mouseUp clears pending resize timeout', async () => {
             jest.useFakeTimers();
-            renderWithTheme(<EventLogger/>);
+            const {container} = renderWithTheme(<EventLogger/>);
             openDrawer();
             const handle = screen.getByLabelText(/Resize handle/i);
+
+            const paper = container.querySelector('.MuiDrawer-paper');
+            const initialHeight = paper.style.height;
 
             act(() => fireEvent.mouseDown(handle, {clientY: 100}));
             act(() => fireEvent.mouseMove(document, {clientY: 50}));
             act(() => fireEvent.mouseUp(document));
             act(() => jest.advanceTimersByTime(100));
 
-            expect(handle).toBeInTheDocument();
+            expect(paper.style.height).toBe(initialHeight);
+
+            jest.useRealTimers();
+        });
+
+        test('timeout execution calls setDrawerHeight and updates height', async () => {
+            jest.useFakeTimers();
+            const {container} = renderWithTheme(<EventLogger/>);
+            openDrawer();
+            const handle = screen.getByLabelText(/Resize handle/i);
+            const paper = container.querySelector('.MuiDrawer-paper');
+            const initialHeight = parseInt(paper.style.height, 10);
+
+            act(() => fireEvent.mouseDown(handle, {clientY: 100}));
+            act(() => fireEvent.mouseMove(document, {clientY: 40}));
+            act(() => jest.advanceTimersByTime(20));
+
+            const newHeight = parseInt(paper.style.height, 10);
+            expect(newHeight).toBeGreaterThan(initialHeight);
+
             jest.useRealTimers();
         });
     });
@@ -920,11 +985,10 @@ describe('EventLogger Component', () => {
             setupManyLogs();
             renderWithTheme(<EventLogger/>);
             openDrawer();
-            act(() => jest.advanceTimersByTime(200)); // finish initial loading
+            act(() => jest.advanceTimersByTime(200));
 
             await waitFor(() => expect(screen.getByText(/20\/25 events/i)).toBeInTheDocument());
 
-            // Find the scrollable container by starting from a log text and going up
             const logTextEl = screen.getByText('EVENT_0');
             let el = logTextEl.parentElement;
             let logContainer = null;
@@ -954,10 +1018,8 @@ describe('EventLogger Component', () => {
                 fireEvent.scroll(logContainer);
             });
 
-            // Advance time to execute the timeout
             act(() => jest.advanceTimersByTime(150));
 
-            // visibleCount should now be 25, so 25/25 events
             await waitFor(() => expect(screen.getByText(/25\/25 events/i)).toBeInTheDocument());
         });
     });
