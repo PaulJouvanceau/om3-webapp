@@ -5,6 +5,7 @@ import * as useFetchDaemonStatusModule from '../../hooks/useFetchDaemonStatus.js
 import * as useEventStoreModule from '../../hooks/useEventStore.js';
 import * as eventSourceManager from '../../eventSourceManager';
 import {BrowserRouter} from 'react-router-dom';
+import logger from '../../utils/logger';
 
 // --- Mocks ---
 jest.mock('@mui/icons-material/KeyboardArrowUp', () => () => <div data-testid="KeyboardArrowUpIcon"/>);
@@ -59,6 +60,14 @@ jest.mock('../../components/LogsViewer.jsx', () => ({nodename, type, height}) =>
     <div data-testid="logs-viewer">Logs for {nodename} ({type}), height: {height}</div>
 ));
 
+// Mock logger
+jest.mock('../../utils/logger', () => ({
+    error: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+}));
+
 describe('NodesTable', () => {
     const createDefaultStore = () => ({
         nodeStatus: {
@@ -69,14 +78,15 @@ describe('NodesTable', () => {
         nodeStats: {
             'node-1': {score: 42, load_15m: 1.5, mem_avail: 1000, swap_avail: 500},
             'node-2': {score: 18, load_15m: 2.0, mem_avail: 2000, swap_avail: 1000},
-            // node-3 missing to test default values
         },
         nodeMonitor: {
             'node-1': {state: 'idle', updated_at: '2023-01-03T00:00:00Z'},
             'node-2': {state: 'busy', updated_at: '2023-01-01T00:00:00Z'},
-            // node-3 missing
         },
     });
+
+    const originalUserAgent = navigator.userAgent;
+    const originalDevicePixelRatio = window.devicePixelRatio;
 
     beforeEach(() => {
         const fetchNodesMock = jest.fn().mockResolvedValue(undefined);
@@ -97,6 +107,10 @@ describe('NodesTable', () => {
         jest.spyOn(eventSourceManager, 'closeLoggerEventSource').mockImplementation(() => {
         });
         localStorage.setItem('authToken', 'test-token');
+
+        // Reset logger mock
+        logger.error.mockClear();
+        logger.info.mockClear();
     });
 
     afterEach(() => {
@@ -105,6 +119,16 @@ describe('NodesTable', () => {
         jest.resetAllMocks();
         delete global.fetch;
         jest.useRealTimers();
+
+        // Restore userAgent and devicePixelRatio
+        Object.defineProperty(navigator, 'userAgent', {
+            value: originalUserAgent,
+            configurable: true,
+        });
+        Object.defineProperty(window, 'devicePixelRatio', {
+            value: originalDevicePixelRatio,
+            configurable: true,
+        });
     });
 
     const renderWithRouter = (ui) => render(<BrowserRouter>{ui}</BrowserRouter>);
@@ -201,7 +225,7 @@ describe('NodesTable', () => {
             expect(await screen.findByText(/❌ 'Freeze' failed on all 1 node\(s\)\./i)).toBeInTheDocument();
         });
 
-        test('skips freeze/unfreeze when already in target state', async () => {
+        test('skips freeze when node already frozen', async () => {
             setStore({
                 nodeStatus: {
                     ...createDefaultStore().nodeStatus,
@@ -210,10 +234,38 @@ describe('NodesTable', () => {
             });
             global.fetch = jest.fn().mockResolvedValue({ok: true});
             renderWithRouter(<NodesTable/>);
-            fireEvent.click((await screen.findAllByText('Freeze'))[0]);
+            fireEvent.click((await screen.findAllByText('Freeze'))[0]); // node-1 is frozen
             fireEvent.click(screen.getByRole('button', {name: 'Confirm'}));
             expect(await screen.findByText(/❌ 'Freeze' failed on all 1 node\(s\)\./i)).toBeInTheDocument();
             expect(global.fetch).not.toHaveBeenCalled();
+        });
+
+        test('skips unfreeze when node not frozen', async () => {
+            setStore({
+                nodeStatus: {
+                    ...createDefaultStore().nodeStatus,
+                    'node-1': {...createDefaultStore().nodeStatus['node-1'], frozen_at: null},
+                },
+            });
+            global.fetch = jest.fn().mockResolvedValue({ok: true});
+            renderWithRouter(<NodesTable/>);
+            fireEvent.click((await screen.findAllByText('Unfreeze'))[0]); // node-1 not frozen
+            fireEvent.click(screen.getByRole('button', {name: 'Confirm'}));
+            expect(await screen.findByText(/❌ 'Unfreeze' failed on all 1 node\(s\)\./i)).toBeInTheDocument();
+            expect(global.fetch).not.toHaveBeenCalled();
+        });
+
+        test('handles HTTP error response', async () => {
+            global.fetch = jest.fn().mockResolvedValue({ok: false, status: 500});
+            renderWithRouter(<NodesTable/>);
+            fireEvent.click((await screen.findAllByText('Freeze'))[0]);
+            fireEvent.click(await screen.findByRole('button', {name: 'Confirm'}));
+            await waitFor(() => {
+                expect(logger.error).toHaveBeenCalledWith(
+                    expect.stringContaining('Failed to execute freeze on node-1: HTTP error! status: 500')
+                );
+            });
+            expect(await screen.findByText(/❌ 'Freeze' failed on all 1 node\(s\)\./i)).toBeInTheDocument();
         });
 
         test('correct URL for restart daemon', async () => {
@@ -253,6 +305,44 @@ describe('NodesTable', () => {
             fireEvent.click((await screen.findAllByText('Freeze'))[0]);
             fireEvent.click(screen.getByText('Cancel')); // cancellation
             expect(global.fetch).not.toHaveBeenCalled();
+        });
+
+        test('snackbar onClose triggered by user click', async () => {
+            global.fetch = jest.fn().mockResolvedValue({ok: true});
+            renderWithRouter(<NodesTable/>);
+            fireEvent.click((await screen.findAllByText('Freeze'))[0]);
+            fireEvent.click(await screen.findByRole('button', {name: 'Confirm'}));
+
+            const successMsg = await screen.findByText(/✅ 'Freeze' succeeded on 1 node\(s\)\./i);
+            expect(successMsg).toBeInTheDocument();
+
+            const closeButtons = screen.getAllByRole('button', {name: 'Close'});
+            const alertCloseButton = closeButtons.find(btn => btn.closest('[role="alert"]'));
+            expect(alertCloseButton).toBeDefined();
+            fireEvent.click(alertCloseButton);
+
+            await waitFor(() => {
+                expect(screen.queryByText(/✅ 'Freeze' succeeded on 1 node\(s\)\./i)).not.toBeInTheDocument();
+            });
+        });
+
+        test('snackbar autoHide triggers onClose', async () => {
+            jest.useFakeTimers();
+            global.fetch = jest.fn().mockResolvedValue({ok: true});
+            renderWithRouter(<NodesTable/>);
+            fireEvent.click((await screen.findAllByText('Freeze'))[0]);
+            fireEvent.click(await screen.findByRole('button', {name: 'Confirm'}));
+
+            await screen.findByText(/✅ 'Freeze' succeeded on 1 node\(s\)\./i);
+
+            act(() => {
+                jest.advanceTimersByTime(5000);
+            });
+
+            await waitFor(() => {
+                expect(screen.queryByText(/✅ 'Freeze' succeeded on 1 node\(s\)\./i)).not.toBeInTheDocument();
+            });
+            jest.useRealTimers();
         });
     });
 
@@ -444,30 +534,18 @@ describe('NodesTable', () => {
         });
     });
 
-    describe('Safari and zoom', () => {
-        test('Safari menu positioning', async () => {
-            const ua = navigator.userAgent;
-            Object.defineProperty(navigator, 'userAgent', {
-                value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Safari/605.1.15',
-                configurable: true,
+    describe('fetch nodes failure', () => {
+        test('logs error when fetchNodes rejects', async () => {
+            const error = new Error('Network error');
+            const fetchNodesMock = jest.fn().mockRejectedValue(error);
+            jest.spyOn(useFetchDaemonStatusModule, 'default').mockReturnValue({
+                daemon: {nodename: 'node-1'},
+                fetchNodes: fetchNodesMock,
             });
-            jest.useFakeTimers();
             renderWithRouter(<NodesTable/>);
-            const checkboxes = await screen.findAllByRole('checkbox');
-            fireEvent.click(checkboxes[1]);
-            fireEvent.click(screen.getByRole('button', {name: /actions on selected nodes/i}));
-            await act(() => jest.advanceTimersByTime(100));
-            expect(screen.getByRole('menu')).toBeInTheDocument();
-            jest.useRealTimers();
-            Object.defineProperty(navigator, 'userAgent', {value: ua, configurable: true});
-        });
-
-        test('devicePixelRatio undefined -> getZoomLevel = 1', () => {
-            const dpr = window.devicePixelRatio;
-            Object.defineProperty(window, 'devicePixelRatio', {writable: true, configurable: true, value: undefined});
-            renderWithRouter(<NodesTable/>);
-            expect(screen.getByText('node-1')).toBeInTheDocument();
-            Object.defineProperty(window, 'devicePixelRatio', {writable: true, configurable: true, value: dpr});
+            await waitFor(() => {
+                expect(logger.error).toHaveBeenCalledWith("Failed to fetch nodes:", error);
+            });
         });
     });
 
