@@ -536,10 +536,7 @@ describe('eventSourceManager', () => {
             mockStore.pendingDeletes = {'obj1:node1': true};
             const handler = getHandler(es, 'InstanceConfigUpdated');
             handler({data: JSON.stringify({path: 'obj1', node: 'node1', instance_config: {c: 1}})});
-            // This should cause a configUpdated update for 'obj1/node1'
             jest.runAllTimers();
-            // The configUpdated should be filtered out because it matches the pending delete
-            // setConfigUpdated should be called with empty array or not called
             expect(mockStore.setConfigUpdated).not.toHaveBeenCalled();
         });
 
@@ -549,7 +546,6 @@ describe('eventSourceManager', () => {
             const handler = getHandler(es, 'InstanceConfigUpdated');
             handler({data: JSON.stringify({path: 'obj1', node: 'node1', instance_config: {c: 1}})});
             jest.runAllTimers();
-            // The configUpdated should be kept because pending delete is for a different key
             expect(mockStore.setConfigUpdated).toHaveBeenCalled();
             const updates = mockStore.setConfigUpdated.mock.calls[0][0];
             expect(updates.length).toBe(1);
@@ -739,10 +735,8 @@ describe('eventSourceManager', () => {
             handler({data: JSON.stringify({path: 'obj1', node: 'node1', instance_status: {status: 'running'}})});
             mockStore.pendingDeletes = {'obj1:node1': true};
             jest.runAllTimers();
-            // Buffer is cleaned, but the path key remains as empty object
             expect(mockStore.setInstanceStatuses).toHaveBeenCalled();
             const calledWith = mockStore.setInstanceStatuses.mock.calls[0][0];
-            // obj1 should be an empty object (no nodes)
             expect(calledWith.obj1).toEqual({});
         });
 
@@ -760,16 +754,51 @@ describe('eventSourceManager', () => {
             const handler = getHandler(es, 'InstanceConfigUpdated');
             handler({data: JSON.stringify({instance_config: {cfg: 1}})});
             jest.runAllTimers();
-            // No configUpdated should be buffered because name and node are missing
             expect(mockStore.setConfigUpdated).not.toHaveBeenCalled();
             expect(console.warn).toHaveBeenCalledWith('⚠️ InstanceConfigUpdated event missing name or node:', expect.any(Object));
         });
 
         test('should not flush when eventCount is zero', () => {
             const es = eventSourceManager.createEventSource(URL_NODE_EVENT, 'fake-token');
-            // No events, force flush
             eventSourceManager.forceFlush();
             expect(mockStore.setNodeStatuses).not.toHaveBeenCalled();
+        });
+
+        test('should handle JSON parse error in configUpdated during flush', () => {
+            const es = eventSourceManager.createEventSource(URL_NODE_EVENT, 'fake-token');
+            const handler = getHandler(es, 'InstanceConfigUpdated');
+            handler({data: JSON.stringify({path: 'obj1', node: 'node1', instance_config: {x: 1}})});
+
+            const originalParse = JSON.parse;
+            JSON.parse = jest.fn((str) => {
+                if (str.includes('"node":"node1"')) throw new Error('parse error');
+                return originalParse(str);
+            });
+
+            eventSourceManager.forceFlush();
+            JSON.parse = originalParse;
+
+            expect(mockStore.setConfigUpdated).toHaveBeenCalled();
+            const updates = mockStore.setConfigUpdated.mock.calls[0][0];
+            expect(updates.length).toBeGreaterThanOrEqual(1);
+        });
+
+        test('should flush in setTimeout callback when eventCount > 0', () => {
+            const es = eventSourceManager.createEventSource(URL_NODE_EVENT, 'fake-token');
+            const handler = getHandler(es, 'NodeStatusUpdated');
+
+            handler({data: JSON.stringify({node: 'node1', node_status: {status: 'up'}})});
+            jest.advanceTimersByTime(5);
+
+            handler({data: JSON.stringify({node: 'node2', node_status: {status: 'down'}})});
+            jest.advanceTimersByTime(10);
+
+            expect(mockStore.setNodeStatuses).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    node1: {status: 'up'},
+                    node2: {status: 'down'},
+                })
+            );
         });
     });
 
@@ -865,13 +894,6 @@ describe('eventSourceManager', () => {
             eventSourceManager.clearEventBuffers();
             eventSourceManager.forceFlush();
             expect(mockStore.setNodeStatuses).not.toHaveBeenCalled();
-        });
-
-        test('should handle JSON parse error in configUpdated during flush', () => {
-            const es = eventSourceManager.createEventSource(URL_NODE_EVENT, 'fake-token');
-            const handler = getHandler(es, 'InstanceConfigUpdated');
-            handler({data: JSON.stringify({path: 'obj1', node: 'node1', instance_config: {x: 1}})});
-            const originalSet = eventSourceManager._getBuffers?.(); // no access, skip this direct approach
         });
     });
 
@@ -1029,6 +1051,19 @@ describe('eventSourceManager', () => {
             eventSourceManager.startLoggerReception('fake-token', eventSourceManager.DEFAULT_FILTERS, 'my-service/svc1');
             expect(EventSourcePolyfill.mock.calls[0][0]).toContain('path');
         });
+
+        test('should call createLoggerEventSource on logger reconnect timeout', () => {
+            const spy = jest.spyOn(eventSourceManager, 'createLoggerEventSource');
+            eventSourceManager.createLoggerEventSource(URL_NODE_EVENT, 'fake-token', ['ObjectStatusUpdated']);
+            mockLoggerEventSource.onerror({status: 500});
+            jest.advanceTimersByTime(1100);
+            expect(spy).toHaveBeenCalledWith(
+                URL_NODE_EVENT,
+                expect.any(String),
+                expect.arrayContaining(['ObjectStatusUpdated'])
+            );
+            spy.mockRestore();
+        });
     });
 
     // Safari-specific branch coverage using isolated module loading
@@ -1122,9 +1157,7 @@ describe('eventSourceManager', () => {
         });
     });
 
-    describe('isEqual (internal, if exported)', () => {
-        // isEqual is not publicly exported in the current source; if it becomes exported
-        // these tests will ensure full branch coverage.
+    describe('isEqual function', () => {
         const isEqual = eventSourceManager.isEqual;
         if (isEqual) {
             test('returns true for identical primitives', () => {
@@ -1173,8 +1206,8 @@ describe('eventSourceManager', () => {
                 expect(isEqual({a: {b: 1}}, {a: {b: '1'}})).toBe(false);
             });
         } else {
-            test('isEqual is not exported - skipping deep equality tests', () => {
-                // If the function becomes exportable, the above tests can be activated.
+            test('isEqual is not exported - export it in eventSourceManager.js', () => {
+                // placeholder
             });
         }
     });

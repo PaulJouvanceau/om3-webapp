@@ -89,7 +89,7 @@ let buffers = {
 };
 
 // Deep equality check to detect actual changes
-const isEqual = (a, b) => {
+export const isEqual = (a, b) => {
     if (a === b) return true;
     if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
 
