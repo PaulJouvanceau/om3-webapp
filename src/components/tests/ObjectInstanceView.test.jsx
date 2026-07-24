@@ -4,7 +4,7 @@ import {MemoryRouter, Routes, Route} from 'react-router-dom';
 import '@testing-library/jest-dom';
 import ObjectInstanceView from '../ObjectInstanceView';
 import useEventStore from '../../hooks/useEventStore';
-import {startEventReception, closeEventSource} from '../../eventSourceManager';
+import {closeEventSource} from '../../eventSourceManager';
 
 jest.mock('../../hooks/useEventStore');
 jest.mock('../../eventSourceManager');
@@ -17,6 +17,7 @@ jest.mock('../EventLogger', () => () => <div data-testid="event-logger"/>);
 jest.mock('../LogsViewer', () => () => <div data-testid="logs-viewer"/>);
 jest.mock('../../constants/actions', () => ({
     INSTANCE_ACTIONS: [
+        {name: '', icon: () => <span>EmptyIcon</span>},
         {name: 'start', icon: () => <span>StartIcon</span>},
         {name: 'stop', icon: () => <span>StopIcon</span>},
         {name: 'freeze', icon: () => <span>FreezeIcon</span>},
@@ -133,9 +134,13 @@ beforeEach(() => {
     };
     Object.defineProperty(window, 'localStorage', {value: localStorageMock, writable: true});
     document.body.innerHTML = '';
+    delete window.matchMedia;
 });
 
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => {
+    jest.restoreAllMocks();
+    delete window.matchMedia;
+});
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
@@ -800,5 +805,104 @@ describe('ObjectInstanceView', () => {
         const {unmount} = setup();
         unmount();
         expect(closeEventSource).toHaveBeenCalled();
+    });
+
+
+    test('displays logs for encapsulated resource', async () => {
+        setupWithStatus({
+            avail: 'up',
+            resources: {container1: {type: 'container', running: true, label: 'C1', status: 'up'}},
+            encap: {
+                container1: {
+                    resources: {
+                        encap1: {
+                            type: 'fs', running: true, label: 'Enc FS',
+                            log: [{level: 'info', message: 'Encap log message'}],
+                        },
+                    },
+                },
+            },
+        });
+        await waitFor(() => expect(screen.getByText('encap1')).toBeInTheDocument());
+        expect(screen.getByText('info: Encap log message')).toBeInTheDocument();
+    });
+
+    test('resource action button in mobile view propagates click to stopPropagation Box', async () => {
+        window.matchMedia = jest.fn().mockImplementation(query => ({
+            matches: query === '(max-width:599.95px)',
+            addEventListener: jest.fn(),
+            removeEventListener: jest.fn(),
+        }));
+        window.innerWidth = 400;
+        window.dispatchEvent(new Event('resize'));
+
+        setupWithStatus({avail: 'up', resources: {'res1': {type: 'container', running: true, label: 'Resource 1'}}});
+        await waitFor(() => expect(screen.getByText('res1')).toBeInTheDocument());
+
+        const resourceActionBtns = screen.getAllByRole('button', {name: 'Resource res1 actions'});
+        expect(resourceActionBtns.length).toBeGreaterThanOrEqual(1);
+        fireEvent.click(resourceActionBtns[0]);
+
+        await waitFor(() => expect(screen.getByText('Console')).toBeInTheDocument());
+    });
+
+    test('confirming an empty action triggers fallback warn and resets dialogs', async () => {
+        setupWithStatus({avail: 'up', resources: {}});
+        const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {
+        });
+
+        await waitLoaded();
+        const instanceMenuButton = screen.getAllByTestId('more-vert-icon').pop().closest('button');
+        fireEvent.click(instanceMenuButton);
+        await waitFor(() => expect(screen.getByRole('menu')).toBeInTheDocument());
+
+        const menuItems = within(screen.getByRole('menu')).getAllByRole('menuitem');
+        expect(menuItems.length).toBeGreaterThan(0);
+        fireEvent.click(menuItems[0]);
+
+        await waitFor(() => expect(screen.getByText(/Confirm\s*Action/)).toBeInTheDocument());
+        fireEvent.click(screen.getByRole('button', {name: /confirm/i}));
+
+        await waitFor(() => {
+            expect(consoleWarnSpy).toHaveBeenCalledWith(
+                'No valid pendingAction or action provided:',
+                expect.objectContaining({action: ''})
+            );
+        });
+
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+        consoleWarnSpy.mockRestore();
+    });
+
+    test('resource menu handles missing resource after data change', async () => {
+        const {rerender} = setupWithStatus({
+            avail: 'up',
+            resources: {'res1': {type: 'container', running: true, label: 'Resource 1'}},
+        });
+        await waitFor(() => expect(screen.getByText('res1')).toBeInTheDocument());
+        await openResourceMenu('res1');
+        await waitFor(() => expect(screen.getByText('Console')).toBeInTheDocument());
+
+        const updatedStore = {
+            objectInstanceStatus: {[mockObjectName]: {[mockNodeName]: {avail: 'up', resources: {}}}},
+            instanceMonitor: {},
+            instanceConfig: {},
+        };
+        useEventStore.mockImplementation((selector) =>
+            typeof selector === 'function' ? selector(updatedStore) : updatedStore
+        );
+        rerender(
+            <MemoryRouter initialEntries={[`/node/${mockNodeName}/instance/${encodeURIComponent(mockObjectName)}`]}>
+                <Routes>
+                    <Route path="/node/:node/instance/:objectName" element={<ObjectInstanceView/>}/>
+                </Routes>
+            </MemoryRouter>
+        );
+
+        await waitFor(() => {
+            expect(screen.getByText('Console')).toBeInTheDocument();
+            expect(screen.getByText('Run')).toBeInTheDocument();
+        });
     });
 });
