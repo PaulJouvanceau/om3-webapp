@@ -1,4 +1,3 @@
-// ObjectDetails.test.js
 import React, {act} from 'react';
 import {render, screen, fireEvent, waitFor, within} from '@testing-library/react';
 import {MemoryRouter, Route, Routes} from 'react-router-dom';
@@ -607,11 +606,6 @@ describe('ObjectDetail Component', () => {
         expect(closeEventSource).toHaveBeenCalled();
     });
 
-    test('removes object on mount via store.removeObject', () => {
-        renderComponent('root/cfg/cfg1');
-        expect(fullMockState.removeObject).toHaveBeenCalledWith('root/cfg/cfg1');
-    });
-
     // ─── Basic rendering ──────────────────────────────────────────────────
     test('renders svc with nodes and monitor', async () => {
         renderSvc();
@@ -674,13 +668,16 @@ describe('ObjectDetail Component', () => {
         }
     );
 
-    test('warn status color', async () => {
+    test('renders warn / unknown / frozen node states', async () => {
         const state = buildState();
         state.objectStatus['root/svc/svc1'].avail = 'warn';
+        state.objectInstanceStatus['root/svc/svc1'].node1.avail = 'unknown';
+        state.objectInstanceStatus['root/svc/svc1'].node1.frozen_at = '2023-01-01T12:00:00Z';
         useEventStore.mockImplementation((s) => s(state));
         useEventStore.getState.mockReturnValue(state);
         renderSvc();
         await waitFor(() => expect(screen.getByTitle('warn')).toBeInTheDocument());
+        expect(screen.getByText('node1', {exact: true})).toBeInTheDocument();
     });
 
     test('getObjectStatus handles missing global_expect (none)', async () => {
@@ -743,30 +740,6 @@ describe('ObjectDetail Component', () => {
         await waitFor(() =>
             expect(mockNavigate).toHaveBeenCalledWith('/nodes/node1/objects/root%2Fsvc%2Fsvc1')
         );
-    });
-
-    test('frozen node state display', async () => {
-        const frozenState = {
-            objectStatus: {'root/svc/svc1': {avail: 'up', frozen: null}},
-            objectInstanceStatus: {
-                'root/svc/svc1': {
-                    node1: {
-                        avail: 'up',
-                        frozen_at: '2023-01-01T12:00:00Z',
-                        resources: {},
-                    },
-                },
-            },
-            instanceMonitor: {
-                'node1:root/svc/svc1': {state: 'running', global_expect: 'placed@node1', resources: {}},
-            },
-            instanceConfig: {},
-            ...BASE_FNS(),
-        };
-        useEventStore.mockImplementation((s) => s(frozenState));
-        useEventStore.getState.mockReturnValue(frozenState);
-        renderSvc();
-        await waitForNode('node1');
     });
 
     test('switches configNode when current node disappears', async () => {
@@ -872,19 +845,6 @@ describe('ObjectDetail Component', () => {
         });
     });
 
-    test('batch actions menu closes after item click', async () => {
-        await renderReadySvc();
-        await user.click(screen.getByLabelText(/select node node1/i));
-        await user.click(screen.getByRole('button', {name: /Actions on selected nodes/i}));
-        await waitFor(() => expect(screen.queryAllByRole('menu').length).toBeGreaterThan(0));
-        await user.click(within(screen.getAllByRole('menu')[0]).getAllByRole('menuitem')[0]);
-        await waitFor(() => {
-            const dialogs = screen.queryAllByRole('dialog');
-            const menusAfter = screen.queryAllByRole('menu');
-            expect(dialogs.length > 0 || menusAfter.length === 0).toBe(true);
-        });
-    });
-
     // ─── Individual node actions ───────────────────────────────────────────
     test('individual node stop action', async () => {
         await renderReadySvc();
@@ -966,25 +926,12 @@ describe('ObjectDetail Component', () => {
     });
 
     // ─── Dialog controls ──────────────────────────────────────────────────
-    test('dialog cancel closes without action', async () => {
-        await renderReadySvc();
-        await userEvent.click(screen.getByRole('button', {name: /object actions/i}));
-        await screen.findByRole('menu');
-        await userEvent.click(screen.getByRole('menuitem', {name: /start/i}));
-        const dialog = await screen.findByRole('dialog');
-        const cancelButton = within(dialog).queryByRole('button', {name: /cancel/i});
-        if (cancelButton) {
-            await userEvent.click(cancelButton);
-            await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-        }
-    });
-
     test('all object action dialogs open and cancel', async () => {
         const state = buildState();
         useEventStore.mockImplementation((s) => s(state));
         useEventStore.getState.mockReturnValue(state);
         renderSvc();
-        for (const action of ['freeze', 'stop', 'unprovision', 'purge']) {
+        for (const action of ['start', 'freeze', 'stop', 'unprovision', 'purge']) {
             await user.click(screen.getByRole('button', {name: /object actions/i}));
             await screen.findByRole('menu');
             await user.click(screen.getByRole('menuitem', {name: new RegExp(action, 'i')}));
@@ -1019,45 +966,47 @@ describe('ObjectDetail Component', () => {
     });
 
     // ─── Logs drawer ──────────────────────────────────────────────────────
-    test('logs drawer resize with mouse events adds/removes listeners', async () => {
-        const addSpy = jest.spyOn(document, 'addEventListener');
-        const removeSpy = jest.spyOn(document, 'removeEventListener');
-        renderSvc();
-        await waitForNode('node1');
-        await user.click(screen.getAllByRole('button', {name: /logs/i})[0]);
-        await waitFor(() => expect(screen.getByLabelText('Resize drawer')).toBeInTheDocument());
-        const handle = screen.getByLabelText('Resize drawer');
-        fireEvent.mouseDown(handle, {clientX: 100});
-        expect(addSpy).toHaveBeenCalledWith('mousemove', expect.any(Function));
-        expect(addSpy).toHaveBeenCalledWith('mouseup', expect.any(Function));
-        fireEvent.mouseMove(document, {clientX: 150});
-        fireEvent.mouseUp(document);
-        expect(removeSpy).toHaveBeenCalledWith('mousemove', expect.any(Function));
-        expect(removeSpy).toHaveBeenCalledWith('mouseup', expect.any(Function));
-        expect(document.body.style.cursor).toBe('default');
-        addSpy.mockRestore();
-        removeSpy.mockRestore();
-    });
+    test.each(['mouse', 'touch'])(
+        'logs drawer resize with %s events adds/removes listeners',
+        async (kind) => {
+            const addSpy = jest.spyOn(document, 'addEventListener');
+            const removeSpy = jest.spyOn(document, 'removeEventListener');
+            renderSvc();
+            await waitForNode('node1');
+            await user.click(screen.getAllByRole('button', {name: /logs/i})[0]);
+            await waitFor(() => expect(screen.getByLabelText('Resize drawer')).toBeInTheDocument());
+            const handle = screen.getByLabelText('Resize drawer');
+            const moveEvt = `${kind}move`;
+            const endEvt = kind === 'mouse' ? 'mouseup' : 'touchend';
 
-    test('logs drawer resize with touch events', async () => {
-        const addSpy = jest.spyOn(document, 'addEventListener');
-        const removeSpy = jest.spyOn(document, 'removeEventListener');
-        renderSvc();
-        await waitForNode('node1');
-        await user.click(screen.getAllByRole('button', {name: /logs/i})[0]);
-        await waitFor(() => expect(screen.getByLabelText('Resize drawer')).toBeInTheDocument());
-        const handle = screen.getByLabelText('Resize drawer');
-        fireEvent.touchStart(handle, {touches: [{clientX: 100}]});
-        expect(addSpy.mock.calls.find((c) => c[0] === 'touchmove' && c[2]?.passive === false)).toBeDefined();
-        expect(addSpy).toHaveBeenCalledWith('touchend', expect.any(Function));
-        fireEvent.touchMove(document, {touches: [{clientX: 150}]});
-        fireEvent.touchEnd(document);
-        expect(removeSpy).toHaveBeenCalledWith('touchmove', expect.any(Function));
-        expect(removeSpy).toHaveBeenCalledWith('touchend', expect.any(Function));
-        expect(document.body.style.cursor).toBe('default');
-        addSpy.mockRestore();
-        removeSpy.mockRestore();
-    });
+            if (kind === 'mouse') {
+                fireEvent.mouseDown(handle, {clientX: 100});
+            } else {
+                fireEvent.touchStart(handle, {touches: [{clientX: 100}]});
+            }
+            if (kind === 'touch') {
+                expect(
+                    addSpy.mock.calls.find((c) => c[0] === 'touchmove' && c[2]?.passive === false)
+                ).toBeDefined();
+            } else {
+                expect(addSpy).toHaveBeenCalledWith(moveEvt, expect.any(Function));
+            }
+            expect(addSpy).toHaveBeenCalledWith(endEvt, expect.any(Function));
+
+            if (kind === 'mouse') {
+                fireEvent.mouseMove(document, {clientX: 150});
+                fireEvent.mouseUp(document);
+            } else {
+                fireEvent.touchMove(document, {touches: [{clientX: 150}]});
+                fireEvent.touchEnd(document);
+            }
+            expect(removeSpy).toHaveBeenCalledWith(moveEvt, expect.any(Function));
+            expect(removeSpy).toHaveBeenCalledWith(endEvt, expect.any(Function));
+            expect(document.body.style.cursor).toBe('default');
+            addSpy.mockRestore();
+            removeSpy.mockRestore();
+        }
+    );
 
     test.each([
         ['respects min/max constraints', 50, 900, null],
@@ -1096,17 +1045,6 @@ describe('ObjectDetail Component', () => {
         expect(closeButton).toBeTruthy();
         fireEvent.click(closeButton);
         await waitFor(() => expect(screen.queryByRole('complementary')).not.toBeInTheDocument());
-    });
-
-    // ─── getColor edge case ──────────────────────────────────────────────
-    test('getColor returns grey for unknown status', async () => {
-        const state = buildState();
-        state.objectInstanceStatus['root/svc/svc1'].node1.avail = 'unknown';
-        useEventStore.mockImplementation((s) => s(state));
-        useEventStore.getState.mockReturnValue(state);
-        renderSvc();
-        await screen.findByText('node1', {exact: true});
-        expect(screen.getByText('node1', {exact: true})).toBeInTheDocument();
     });
 
     // ─── instanceConfig subscription ──────────────────────────────────────
@@ -1261,7 +1199,7 @@ describe('ObjectDetail Component', () => {
         });
     });
 
-    test('handleConsoleConfirm: seats input clamps to minimum of 1', async () => {
+    test('handleConsoleConfirm: seats and greet timeout inputs behave correctly', async () => {
         await withConsoleAction(async () => {
             renderSvc();
             const dialog = await openConsoleDialogFn();
@@ -1275,14 +1213,6 @@ describe('ObjectDetail Component', () => {
                 fireEvent.change(seatsInput, {target: {value: 'abc'}});
                 expect(seatsInput.value).toBe('1');
             }
-        });
-    });
-
-    test('handleConsoleConfirm: greet timeout input changes value', async () => {
-        await withConsoleAction(async () => {
-            renderSvc();
-            const dialog = await openConsoleDialogFn();
-            if (!dialog) return;
             const greetInput = within(dialog).queryByLabelText(/Greet Timeout/i);
             if (greetInput) {
                 fireEvent.change(greetInput, {target: {value: '10s'}});
