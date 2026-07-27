@@ -135,6 +135,27 @@ const confirmDialog = async (buttonName = /Confirm|Stop|Delete/i) => {
     fireEvent.click(within(dialog).getByRole('button', {name: buttonName}));
 };
 
+const clickHeader = (text) => fireEvent.click(screen.getByText(text));
+
+const makeMany = (n) => {
+    const objectStatus = {};
+    const objectInstanceStatus = {};
+    for (let i = 0; i < n; i++) {
+        const name = `test-ns/svc/obj${i}`;
+        objectStatus[name] = {avail: 'up', frozen: 'unfrozen'};
+        objectInstanceStatus[name] = {node1: {avail: 'up', frozen_at: '0001-01-01T00:00:00Z'}};
+    }
+    return {objectStatus, objectInstanceStatus};
+};
+
+const setScroll = (container, scrollTop) => {
+    Object.defineProperty(container, 'scrollHeight', {value: 1000, configurable: true});
+    Object.defineProperty(container, 'clientHeight', {value: 500, configurable: true});
+    Object.defineProperty(container, 'scrollTop', {value: scrollTop, configurable: true});
+};
+
+const getScrollContainer = () => document.querySelector('.MuiTableContainer-root');
+
 beforeEach(() => {
     originalConsoleError = console.error;
     console.error = jest.fn((msg, ...args) => {
@@ -179,7 +200,7 @@ describe('Objects Component', () => {
         expect(startEventReception).not.toHaveBeenCalled();
     });
 
-    test('displays objects with correct status and node data', async () => {
+    test('renders object and node status data correctly (up/down/warn/n-a/frozen/empty)', async () => {
         setup();
         await waitForLoad();
         ['test-ns/svc/test1', 'test-ns/svc/test2', 'root/svc/test3'].forEach((name) =>
@@ -190,21 +211,12 @@ describe('Objects Component', () => {
         expect(within(row1).getByText('frozen')).toBeInTheDocument();
         expect(within(row1).getByLabelText('Node node2 is down')).toBeInTheDocument();
         expect(within(row1).getByLabelText('Node node2 is frozen')).toBeInTheDocument();
-    });
 
-    test('renders n/a and warn status icons for objects without node data', async () => {
-        setup();
-        await waitForLoad();
         const row3 = screen.getByRole('row', {name: /root\/svc\/test3/});
         expect(within(row3).getByLabelText('Object has warning')).toBeInTheDocument();
+
         const row4 = screen.getByRole('row', {name: /test-ns\/svc\/test4/});
         expect(within(row4).getByLabelText('Object status is n/a')).toBeInTheDocument();
-    });
-
-    test('node cell renders empty placeholder when object has no data for that node', async () => {
-        setup();
-        await waitForLoad();
-        const row4 = screen.getByRole('row', {name: /test-ns\/svc\/test4/});
         expect(within(row4).queryByLabelText(/Node node1/)).not.toBeInTheDocument();
         expect(within(row4).queryByLabelText(/Node node2/)).not.toBeInTheDocument();
     });
@@ -281,44 +293,24 @@ describe('Objects Component', () => {
             }
         );
 
-        test('Global State filter: Down', async () => {
-            setup();
-            await waitForLoad();
-            await selectFilter('Global State', 'Down');
-            await waitFor(() => {
-                expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument();
-                expect(screen.queryByRole('row', {name: /test-ns\/svc\/test1/})).not.toBeInTheDocument();
-            });
-        });
+        const globalStateTests = [
+            {option: 'Down', visible: ['test-ns/svc/test2'], hidden: ['test-ns/svc/test1']},
+            {option: 'Warn', visible: ['root/svc/test3'], hidden: ['test-ns/svc/test1']},
+            {option: 'N/a', visible: ['test-ns/svc/test4'], hidden: ['test-ns/svc/test1']},
+            {
+                option: 'Unprovisioned',
+                visible: ['test-ns/svc/unprovisioned$', 'test-ns/svc/unprovisioned-bool'],
+                hidden: ['test1']
+            },
+        ];
 
-        test('Global State filter: Warn', async () => {
+        test.each(globalStateTests)('Global State filter: $option', async ({option, visible, hidden}) => {
             setup();
             await waitForLoad();
-            await selectFilter('Global State', 'Warn');
+            await selectFilter('Global State', option);
             await waitFor(() => {
-                expect(screen.getByRole('row', {name: /root\/svc\/test3/})).toBeInTheDocument();
-                expect(screen.queryByRole('row', {name: /test-ns\/svc\/test1/})).not.toBeInTheDocument();
-            });
-        });
-
-        test('Global State filter: N/a', async () => {
-            setup();
-            await waitForLoad();
-            await selectFilter('Global State', 'N/a');
-            await waitFor(() => {
-                expect(screen.getByRole('row', {name: /test-ns\/svc\/test4/})).toBeInTheDocument();
-                expect(screen.queryByRole('row', {name: /test-ns\/svc\/test1/})).not.toBeInTheDocument();
-            });
-        });
-
-        test('Global State filter: Unprovisioned (both string and boolean)', async () => {
-            setup();
-            await waitForLoad();
-            await selectFilter('Global State', 'Unprovisioned');
-            await waitFor(() => {
-                expect(screen.getByRole('row', {name: /test-ns\/svc\/unprovisioned$/})).toBeInTheDocument();
-                expect(screen.getByRole('row', {name: /test-ns\/svc\/unprovisioned-bool/})).toBeInTheDocument();
-                expect(screen.queryByRole('row', {name: /test1/})).not.toBeInTheDocument();
+                visible.forEach((v) => expect(screen.getByRole('row', {name: new RegExp(v)})).toBeInTheDocument());
+                hidden.forEach((h) => expect(screen.queryByRole('row', {name: new RegExp(h)})).not.toBeInTheDocument());
             });
         });
 
@@ -385,7 +377,7 @@ describe('Objects Component', () => {
         });
     });
 
-    test('chips remove filters via onDelete', async () => {
+    test('chips remove filters via onDelete (Namespace)', async () => {
         setup();
         await waitForLoad();
         await selectFilter('Namespace', 'test-ns');
@@ -477,7 +469,7 @@ describe('Objects Component', () => {
             await waitForLoad();
             await selectRow('test-ns/svc/test1');
             await selectRow('test-ns/svc/test2');
-            openActionsMenu(); // menu global
+            openActionsMenu();
             await clickMenuItem('Freeze');
             await confirmDialog();
             expect(global.fetch).toHaveBeenCalledTimes(1);
@@ -485,22 +477,16 @@ describe('Objects Component', () => {
             expect(mockSetObjectStatuses).toHaveBeenCalled();
         });
 
-        test('unfreeze action is unavailable in row menu for an already-unfrozen object', async () => {
+        test.each([
+            ['test1', 'Unfreeze'],
+            ['test2', 'Freeze'],
+        ])('%s row menu does not offer "%s" (already in that state)', async (rowName, missingAction) => {
             setup();
             await waitForLoad();
-            const row = screen.getByRole('row', {name: /test-ns\/svc\/test1/});
+            const row = screen.getByRole('row', {name: new RegExp(rowName)});
             fireEvent.click(within(row).getByRole('button', {name: /more actions/i}));
             await screen.findByRole('menu');
-            expect(screen.queryByText('Unfreeze')).not.toBeInTheDocument();
-        });
-
-        test('freeze action is unavailable in row menu for an already-frozen object', async () => {
-            setup();
-            await waitForLoad();
-            const row = screen.getByRole('row', {name: /test-ns\/svc\/test2/});
-            fireEvent.click(within(row).getByRole('button', {name: /more actions/i}));
-            await screen.findByRole('menu');
-            expect(screen.queryByText('Freeze')).not.toBeInTheDocument();
+            expect(screen.queryByText(missingAction)).not.toBeInTheDocument();
         });
 
         test('delete succeeds with confirmations', async () => {
@@ -672,7 +658,7 @@ describe('Objects Component', () => {
         expect(mockNavigate).not.toHaveBeenCalled();
     });
 
-    test('row context menu shows correct actions', async () => {
+    test('row context menu shows correct actions (unfrozen object)', async () => {
         setup();
         await waitForLoad();
         const row = screen.getByRole('row', {name: /test1/});
@@ -731,7 +717,6 @@ describe('Objects Component', () => {
     });
 
     describe('sorting', () => {
-        const clickHeader = (text) => fireEvent.click(screen.getByText(text));
         test.each(['Status', 'Object', 'node1'])('%s sorting works', async (col) => {
             setup();
             await waitForLoad();
@@ -743,57 +728,40 @@ describe('Objects Component', () => {
             await waitFor(() => expect(screen.getAllByRole('row').length).toBeGreaterThan(1));
         });
 
-        test('sort direction toggles for the Object column', async () => {
-            setup();
-            await waitForLoad();
-            clickHeader('Object');
-            clickHeader('Object');
-            await waitFor(() => expect(screen.getAllByRole('row').length).toBeGreaterThan(1));
-        });
+        const sortSequences = [
+            ['toggling the Object column twice flips direction back', () => {
+                clickHeader('Object');
+                clickHeader('Object');
+            }],
+            ['clicking Status repeatedly cycles through status ordering', () => {
+                clickHeader('Status');
+                clickHeader('Status');
+                clickHeader('Status');
+                clickHeader('Status');
+            }],
+            ['clicking a node column repeatedly cycles through status ordering for that node', () => {
+                const h = screen.getByRole('columnheader', {name: /node1/i});
+                fireEvent.click(h);
+                fireEvent.click(h);
+                fireEvent.click(h);
+            }],
+            ['switching sort column from Object to Status resets the cycle index', () => {
+                clickHeader('Object');
+                clickHeader('Status');
+            }],
+            ['switching sort column from a node column to Object resets state', () => {
+                fireEvent.click(screen.getByRole('columnheader', {name: /node1/i}));
+                fireEvent.click(screen.getByText('Object'));
+            }],
+            ['sorting by a node that exists in the allNodes list (node2)', () => {
+                fireEvent.click(screen.getByRole('columnheader', {name: /node2/i}));
+            }],
+        ];
 
-        test('clicking status header repeatedly cycles through status ordering', async () => {
+        test.each(sortSequences)('%s', async (_label, interact) => {
             setup();
             await waitForLoad();
-            clickHeader('Status');
-            clickHeader('Status');
-            clickHeader('Status');
-            clickHeader('Status');
-            await waitFor(() => expect(screen.getAllByRole('row').length).toBeGreaterThan(1));
-        });
-
-        test('clicking a node column header repeatedly cycles through status ordering for that node', async () => {
-            setup();
-            await waitForLoad();
-            const nodeHeader = screen.getByRole('columnheader', {name: /node1/i});
-            fireEvent.click(nodeHeader);
-            fireEvent.click(nodeHeader);
-            fireEvent.click(nodeHeader);
-            await waitFor(() => expect(screen.getAllByRole('row').length).toBeGreaterThan(1));
-        });
-
-        test('switching sort column from object to status resets cycle index', async () => {
-            setup();
-            await waitForLoad();
-            clickHeader('Object');
-            clickHeader('Status');
-            await waitFor(() => expect(screen.getAllByRole('row').length).toBeGreaterThan(1));
-        });
-
-        test('switching sort column from a node column to object resets state', async () => {
-            setup();
-            await waitForLoad();
-            const nodeHeader = screen.getByRole('columnheader', {name: /node1/i});
-            fireEvent.click(nodeHeader);
-            const objHeader = screen.getByText('Object');
-            fireEvent.click(objHeader);
-            await waitFor(() => expect(screen.getAllByRole('row').length).toBeGreaterThan(1));
-        });
-
-        test('sorting by node that exists in the allNodes list', async () => {
-            setup();
-            await waitForLoad();
-            const node2Header = screen.getByRole('columnheader', {name: /node2/i});
-            fireEvent.click(node2Header);
+            interact();
             await waitFor(() => expect(screen.getAllByRole('row').length).toBeGreaterThan(1));
         });
 
@@ -832,38 +800,20 @@ describe('Objects Component', () => {
 
     describe('infinite scroll', () => {
         test('loads more items when scrolled past 80%', async () => {
-            const many = {};
-            const manyInst = {};
-            for (let i = 0; i < 50; i++) {
-                const name = `test-ns/svc/obj${i}`;
-                many[name] = {avail: 'up', frozen: 'unfrozen'};
-                manyInst[name] = {node1: {avail: 'up', frozen_at: '0001-01-01T00:00:00Z'}};
-            }
-            setup({objectStatus: many, objectInstanceStatus: manyInst});
+            setup(makeMany(50));
             await waitForLoad();
             expect(screen.getAllByRole('row').slice(1)).toHaveLength(30);
-            const container = document.querySelector('.MuiTableContainer-root');
-            Object.defineProperty(container, 'scrollHeight', {value: 1000, configurable: true});
-            Object.defineProperty(container, 'clientHeight', {value: 500, configurable: true});
-            Object.defineProperty(container, 'scrollTop', {value: 500, configurable: true});
+            const container = getScrollContainer();
+            setScroll(container, 500);
             fireEvent.scroll(container);
             await waitFor(() => expect(screen.getAllByRole('row').slice(1).length).toBeGreaterThan(30));
         });
 
         test('shows loading indicator while fetching the next page', async () => {
-            const many = {};
-            const manyInst = {};
-            for (let i = 0; i < 50; i++) {
-                const name = `test-ns/svc/obj${i}`;
-                many[name] = {avail: 'up', frozen: 'unfrozen'};
-                manyInst[name] = {node1: {avail: 'up', frozen_at: '0001-01-01T00:00:00Z'}};
-            }
-            setup({objectStatus: many, objectInstanceStatus: manyInst});
+            setup(makeMany(50));
             await waitForLoad();
-            const container = document.querySelector('.MuiTableContainer-root');
-            Object.defineProperty(container, 'scrollHeight', {value: 1000, configurable: true});
-            Object.defineProperty(container, 'clientHeight', {value: 500, configurable: true});
-            Object.defineProperty(container, 'scrollTop', {value: 500, configurable: true});
+            const container = getScrollContainer();
+            setScroll(container, 500);
             fireEvent.scroll(container);
             await waitFor(() => expect(screen.getByRole('progressbar')).toBeInTheDocument());
             await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
@@ -872,44 +822,26 @@ describe('Objects Component', () => {
         test('scroll does nothing when no more items', async () => {
             setup({objectStatus: {'a/b': {avail: 'up'}}, objectInstanceStatus: {}});
             await waitForLoad();
-            const container = document.querySelector('.MuiTableContainer-root');
+            const container = getScrollContainer();
             fireEvent.scroll(container);
             expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
         });
 
         test('scroll is ignored while a load is already in progress', async () => {
-            const many = {};
-            const manyInst = {};
-            for (let i = 0; i < 80; i++) {
-                const name = `test-ns/svc/obj${i}`;
-                many[name] = {avail: 'up', frozen: 'unfrozen'};
-                manyInst[name] = {node1: {avail: 'up', frozen_at: '0001-01-01T00:00:00Z'}};
-            }
-            setup({objectStatus: many, objectInstanceStatus: manyInst});
+            setup(makeMany(80));
             await waitForLoad();
-            const container = document.querySelector('.MuiTableContainer-root');
-            Object.defineProperty(container, 'scrollHeight', {value: 1000, configurable: true});
-            Object.defineProperty(container, 'clientHeight', {value: 500, configurable: true});
-            Object.defineProperty(container, 'scrollTop', {value: 500, configurable: true});
+            const container = getScrollContainer();
+            setScroll(container, 500);
             fireEvent.scroll(container);
             fireEvent.scroll(container); // second scroll while loading=true should be a no-op
             await waitFor(() => expect(screen.getAllByRole('row').slice(1).length).toBeGreaterThan(30));
         });
 
         test('scroll below threshold does not load more', async () => {
-            const many = {};
-            const manyInst = {};
-            for (let i = 0; i < 50; i++) {
-                const name = `test-ns/svc/obj${i}`;
-                many[name] = {avail: 'up', frozen: 'unfrozen'};
-                manyInst[name] = {node1: {avail: 'up', frozen_at: '0001-01-01T00:00:00Z'}};
-            }
-            setup({objectStatus: many, objectInstanceStatus: manyInst});
+            setup(makeMany(50));
             await waitForLoad();
-            const container = document.querySelector('.MuiTableContainer-root');
-            Object.defineProperty(container, 'scrollHeight', {value: 1000, configurable: true});
-            Object.defineProperty(container, 'clientHeight', {value: 500, configurable: true});
-            Object.defineProperty(container, 'scrollTop', {value: 100, configurable: true});
+            const container = getScrollContainer();
+            setScroll(container, 100);
             fireEvent.scroll(container);
             const rowsBefore = screen.getAllByRole('row').slice(1).length;
             await waitFor(() => expect(screen.getAllByRole('row').slice(1).length).toBe(rowsBefore));
@@ -1043,55 +975,29 @@ describe('Objects Component', () => {
         expect(nodeNotProvisionedIcons.length).toBeGreaterThanOrEqual(2);
     });
 
-    test('cluster object parsed as ccfg', async () => {
-        setup({
+    test.each([
+        ['cluster', {
             objectStatus: {cluster: {avail: 'up', frozen: 'unfrozen'}},
             objectInstanceStatus: {cluster: {node1: {avail: 'up'}}},
-        });
-        await waitForLoad();
-        await selectRow('cluster');
-        openActionsMenu();
-        await clickMenuItem('Restart');
-        await confirmDialog();
-        await waitFor(() =>
-            expect(global.fetch).toHaveBeenCalledWith(
-                expect.stringContaining('/root/ccfg/cluster/action/restart'),
-                expect.any(Object)
-            )
-        );
-    });
-
-    test('object name with two path segments parses namespace as root', async () => {
-        setup({
+        }, '/root/ccfg/cluster/action/restart'],
+        ['svc/myobj', {
             objectStatus: {'svc/myobj': {avail: 'up', frozen: 'unfrozen'}},
             objectInstanceStatus: {'svc/myobj': {node1: {avail: 'up'}}},
-        });
-        await waitForLoad();
-        await selectRow('svc/myobj');
-        openActionsMenu();
-        await clickMenuItem('Restart');
-        await confirmDialog();
-        await waitFor(() =>
-            expect(global.fetch).toHaveBeenCalledWith(
-                expect.stringContaining('/root/svc/myobj/action/restart'),
-                expect.any(Object)
-            )
-        );
-    });
-
-    test('object name with a single segment parses as svc kind under root', async () => {
-        setup({
+        }, '/root/svc/myobj/action/restart'],
+        ['standalone', {
             objectStatus: {standalone: {avail: 'up', frozen: 'unfrozen'}},
             objectInstanceStatus: {standalone: {node1: {avail: 'up'}}},
-        });
+        }, '/root/svc/standalone/action/restart'],
+    ])('object name "%s" resolves to the expected action URL', async (rowName, customState, expectedUrl) => {
+        setup(customState);
         await waitForLoad();
-        await selectRow('standalone');
+        await selectRow(rowName);
         openActionsMenu();
         await clickMenuItem('Restart');
         await confirmDialog();
         await waitFor(() =>
             expect(global.fetch).toHaveBeenCalledWith(
-                expect.stringContaining('/root/svc/standalone/action/restart'),
+                expect.stringContaining(expectedUrl),
                 expect.any(Object)
             )
         );
@@ -1103,8 +1009,6 @@ describe('Objects Component', () => {
             objectStatus: {
                 ...defaultState.objectStatus,
                 __proto__: null,
-                someFunction: () => {
-                },
                 validObj: {avail: 'up', frozen: 'unfrozen'},
             },
         };
@@ -1126,19 +1030,10 @@ describe('Objects Component', () => {
     });
 
     test('resets visibleCount when sortedObjectNames changes', async () => {
-        const many = {};
-        const manyInst = {};
-        for (let i = 0; i < 50; i++) {
-            const name = `test-ns/svc/obj${i}`;
-            many[name] = {avail: 'up', frozen: 'unfrozen'};
-            manyInst[name] = {node1: {avail: 'up', frozen_at: '0001-01-01T00:00:00Z'}};
-        }
-        const {rerender} = setup({objectStatus: many, objectInstanceStatus: manyInst});
+        setup(makeMany(50));
         await waitForLoad();
-        const container = document.querySelector('.MuiTableContainer-root');
-        Object.defineProperty(container, 'scrollHeight', {value: 1000, configurable: true});
-        Object.defineProperty(container, 'clientHeight', {value: 500, configurable: true});
-        Object.defineProperty(container, 'scrollTop', {value: 500, configurable: true});
+        const container = getScrollContainer();
+        setScroll(container, 500);
         fireEvent.scroll(container);
         await waitFor(() => expect(screen.getAllByRole('row').slice(1).length).toBeGreaterThan(30));
         fireEvent.change(screen.getByLabelText('Name'), {target: {value: 'nonexistent'}});
@@ -1148,45 +1043,22 @@ describe('Objects Component', () => {
     });
 
     describe('chip toggle handlers (add branch coverage)', () => {
-        test('rapidly toggling a Global State chip twice re-adds the state', async () => {
+        test.each([
+            ['Global State', 'Up', () => screen.getByText(/^Up$/).closest('.MuiChip-root'), false],
+            ['Namespace', 'test-ns', () => screen.getByText('test-ns').closest('.MuiChip-root'), true],
+            ['Kind', 'svc', () => screen.getByText('svc').closest('.MuiChip-root'), true],
+        ])('rapidly toggling a %s chip twice re-adds it', async (label, option, getChip, useDeleteIcon) => {
             setup();
             await waitForLoad();
-            await selectFilter('Global State', 'Up');
-            const chip = screen.getByText(/^Up$/).closest('.MuiChip-root');
+            await selectFilter(label, option);
+            const chip = getChip();
             fireEvent.mouseDown(chip);
+            const target = useDeleteIcon ? within(chip).getByTestId('CloseIcon') : chip;
             await act(async () => {
-                fireEvent.click(chip);
-                fireEvent.click(chip);
+                fireEvent.click(target);
+                fireEvent.click(target);
             });
-            await waitFor(() => expect(screen.getByText(/^Up$/)).toBeInTheDocument());
-        });
-
-        test('rapidly deleting a Namespace chip twice re-adds the namespace', async () => {
-            setup();
-            await waitForLoad();
-            await selectFilter('Namespace', 'test-ns');
-            const chip = screen.getByText('test-ns').closest('.MuiChip-root');
-            fireEvent.mouseDown(chip);
-            const deleteIcon = within(chip).getByTestId('CloseIcon');
-            await act(async () => {
-                fireEvent.click(deleteIcon);
-                fireEvent.click(deleteIcon);
-            });
-            await waitFor(() => expect(screen.getByText('test-ns')).toBeInTheDocument());
-        });
-
-        test('rapidly deleting a Kind chip twice re-adds the kind', async () => {
-            setup();
-            await waitForLoad();
-            await selectFilter('Kind', 'svc');
-            const chip = screen.getByText('svc').closest('.MuiChip-root');
-            fireEvent.mouseDown(chip);
-            const deleteIcon = within(chip).getByTestId('CloseIcon');
-            await act(async () => {
-                fireEvent.click(deleteIcon);
-                fireEvent.click(deleteIcon);
-            });
-            await waitFor(() => expect(screen.getByText('svc')).toBeInTheDocument());
+            await waitFor(() => expect(getChip()).toBeInTheDocument());
         });
     });
 
