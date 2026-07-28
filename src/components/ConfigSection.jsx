@@ -84,20 +84,18 @@ const useConfig = (decodedObjectName, configNode, setConfigNode, refreshTrigger)
 
     useEffect(() => {
         if (configNode) {
-            fetchConfig(configNode);
+            void fetchConfig(configNode);
         } else {
             dispatch({type: "RESET"});
         }
     }, [configNode, decodedObjectName, fetchConfig]);
 
-    // Force re-fetch when refreshTrigger bumps (external config change via SSE)
     const prevRefreshTrigger = useRef(refreshTrigger);
     useEffect(() => {
         if (refreshTrigger === prevRefreshTrigger.current) return;
         prevRefreshTrigger.current = refreshTrigger;
         if (configNode) {
-            // Bypass throttle so the fresh content is fetched immediately
-            fetchConfig(configNode, true);
+            void fetchConfig(configNode, true);
         }
     }, [refreshTrigger, configNode, fetchConfig]);
 
@@ -407,10 +405,13 @@ const ManageParamsDialog = ({
 
                 <Typography variant="subtitle1" gutterBottom>Add parameters</Typography>
                 <Autocomplete
-                    freeSolo={true}
+                    freeSolo
                     options={keywordsData || []}
                     value={selectedKeyword}
-                    getOptionLabel={(option) => typeof option === 'string' ? option : `${option.section ? `${option.section}.` : ""}${option.option}`}
+                    getOptionLabel={(option) => {
+                        if (typeof option === 'string') return option;
+                        return option && option.option ? `${option.section ? `${option.section}.` : ""}${option.option}` : '';
+                    }}
                     renderInput={(params) => (
                         <TextField
                             {...params}
@@ -420,7 +421,7 @@ const ManageParamsDialog = ({
                             slotProps={{inputLabel: {"aria-label": "Select parameter to add"}}}
                         />
                     )}
-                    onChange={(event, newValue) => setSelectedKeyword(newValue)}
+                    onChange={(_event, newValue) => setSelectedKeyword(newValue)}
                     disabled={actionLoading || keywordsLoading}
                     sx={{mb: 2}}
                 />
@@ -547,8 +548,9 @@ const ManageParamsDialog = ({
                             slotProps={{inputLabel: {"aria-label": "Select parameters to unset"}}}
                         />
                     )}
-                    onChange={(event, newValue) => {
-                        const formattedParams = newValue.map((item, index) => {
+                    onChange={(_event, newValue) => {
+                        // newValue is guaranteed to be an array because multiple is true
+                        const formattedParams = (newValue || []).map((item, index) => {
                             if (typeof item === "string") {
                                 const parts = item.split(".");
                                 return {
@@ -580,7 +582,7 @@ const ManageParamsDialog = ({
                             slotProps={{inputLabel: {"aria-label": "Select sections to delete"}}}
                         />
                     )}
-                    onChange={(event, newValue) => setParamsToDelete(newValue)}
+                    onChange={(_event, newValue) => setParamsToDelete(newValue)}
                     disabled={actionLoading || existingParamsLoading}
                 />
             </DialogContent>
@@ -641,13 +643,13 @@ const ConfigSection = ({
 
     const handleOpenKeywordsDialog = () => {
         setKeywordsDialogOpen(true);
-        fetchKeywords();
+        void fetchKeywords();
     };
 
     const handleOpenManageParamsDialog = () => {
         setManageParamsDialogOpen(true);
-        fetchKeywords();
-        fetchExistingParams();
+        void fetchKeywords();
+        void fetchExistingParams();
     };
 
     const handleUpdateConfig = async () => {
