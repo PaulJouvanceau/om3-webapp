@@ -9,7 +9,6 @@ import {
     DialogActions,
     DialogContent,
     DialogTitle,
-    Menu,
     MenuItem,
     Typography,
     IconButton,
@@ -75,19 +74,18 @@ const ObjectDetail = () => {
     const objectInstanceStatus = useEventStore((s) => s.objectInstanceStatus[decodedObjectName]);
     const instanceMonitor = useEventStore((s) => s.instanceMonitor);
     const instanceConfig = useEventStore((s) => s.instanceConfig[decodedObjectName]);
-    const clearConfigUpdate = useEventStore((s) => s.clearConfigUpdate);
 
-    const [configNode, setConfigNode] = useState(null);
+    const [configNode, setConfigNode] = useState(/** @type {string | null} */ (null));
     const [configDialogOpen, setConfigDialogOpen] = useState(false);
     const [configRefreshTrigger, setConfigRefreshTrigger] = useState(0);
 
-    const [selectedNodes, setSelectedNodes] = useState([]);
-    const [actionsMenuAnchor, setActionsMenuAnchor] = useState(null);
-    const [individualNodeMenuAnchor, setIndividualNodeMenuAnchor] = useState(null);
-    const [currentNode, setCurrentNode] = useState(null);
+    const [selectedNodes, setSelectedNodes] = useState(/** @type {string[]} */ ([]));
+    const [actionsMenuAnchor, setActionsMenuAnchor] = useState(/** @type {HTMLElement | null} */ (null));
+    const [individualNodeMenuAnchor, setIndividualNodeMenuAnchor] = useState(/** @type {HTMLElement | null} */ (null));
+    const [currentNode, setCurrentNode] = useState(/** @type {string | null} */ (null));
 
-    const [objectMenuAnchor, setObjectMenuAnchor] = useState(null);
-    const [pendingAction, setPendingAction] = useState(null);
+    const [objectMenuAnchor, setObjectMenuAnchor] = useState(/** @type {HTMLElement | null} */ (null));
+    const [pendingAction, setPendingAction] = useState(/** @type {any} */ (null));
     const [actionInProgress, setActionInProgress] = useState(false);
 
     const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
@@ -97,7 +95,7 @@ const ObjectDetail = () => {
     const [simpleDialogOpen, setSimpleDialogOpen] = useState(false);
     const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
     const [consoleUrlDialogOpen, setConsoleUrlDialogOpen] = useState(false);
-    const [currentConsoleUrl, setCurrentConsoleUrl] = useState(null);
+    const [currentConsoleUrl, setCurrentConsoleUrl] = useState(/** @type {string | null} */ (null));
 
     const [seats, setSeats] = useState(1);
     const [greetTimeout, setGreetTimeout] = useState("5s");
@@ -108,11 +106,11 @@ const ObjectDetail = () => {
     const [snackbar, setSnackbar] = useState({open: false, message: "", severity: "success"});
 
     const [initialLoading, setInitialLoading] = useState(true);
-    const [initialDataError, setInitialDataError] = useState(null);
+    const [initialDataError, setInitialDataError] = useState(/** @type {string | null} */ (null));
 
     const [logsDrawerOpen, setLogsDrawerOpen] = useState(false);
-    const [selectedNodeForLogs, setSelectedNodeForLogs] = useState(null);
-    const [selectedInstanceForLogs, setSelectedInstanceForLogs] = useState(null);
+    const [selectedNodeForLogs, setSelectedNodeForLogs] = useState(/** @type {string | null} */ (null));
+    const [selectedInstanceForLogs, setSelectedInstanceForLogs] = useState(/** @type {string | null} */ (null));
     const [drawerWidth, setDrawerWidth] = useState(600);
     const minDrawerWidth = 300;
     const maxDrawerWidth = window.innerWidth * 0.8;
@@ -121,7 +119,7 @@ const ObjectDetail = () => {
     const startXRef = useRef(0);
     const startWidthRef = useRef(0);
     const isDraggingRef = useRef(false);
-    const resizeHandleRef = useRef(null);
+    const resizeHandleRef = useRef(/** @type {HTMLElement | null} */ (null));
 
     const objectEventTypes = useMemo(() => [
         "ObjectStatusUpdated",
@@ -137,8 +135,7 @@ const ObjectDetail = () => {
         "CONNECTION_CLOSED"
     ], []);
 
-    const isMounted = useRef(true);
-    const fallbackTimer = useRef(null);
+    const fallbackTimer = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
     const hasFallbackFired = useRef(false);
     const [fallbackCompleted, setFallbackCompleted] = useState(false);
 
@@ -246,11 +243,13 @@ const ObjectDetail = () => {
         }
 
         fallbackTimer.current = setTimeout(() => {
-            fetchFallbackData();
+            fetchFallbackData().catch((err) => {
+                logger.error("[ObjectDetail] fetchFallbackData failed:", err);
+            });
         }, 5000);
 
         return () => {
-            clearTimeout(fallbackTimer.current);
+            if (fallbackTimer.current) clearTimeout(fallbackTimer.current);
             closeEventSource();
         };
     }, [decodedObjectName, objectEventTypes, fetchFallbackData]);
@@ -421,14 +420,20 @@ const ObjectDetail = () => {
             return;
         }
         if (pendingAction.batch === "nodes") {
-            selectedNodes.forEach(node => node && postNodeAction({node, action: pendingAction.action}).catch(() => {
-            }));
+            selectedNodes.forEach(node => {
+                if (!node) return;
+                postNodeAction({node, action: pendingAction.action}).catch((err) => {
+                    logger.error("[ObjectDetail] postNodeAction failed:", err);
+                });
+            });
             setSelectedNodes([]);
         } else if (pendingAction.node && !pendingAction.rid) {
-            postNodeAction({node: pendingAction.node, action: pendingAction.action}).catch(() => {
+            postNodeAction({node: pendingAction.node, action: pendingAction.action}).catch((err) => {
+                logger.error("[ObjectDetail] postNodeAction failed:", err);
             });
         } else {
-            postObjectAction({action: pendingAction.action}).catch(() => {
+            postObjectAction({action: pendingAction.action}).catch((err) => {
+                logger.error("[ObjectDetail] postObjectAction failed:", err);
             });
         }
         setPendingAction(null);
@@ -446,7 +451,8 @@ const ObjectDetail = () => {
                 rid: pendingAction.rid,
                 seats,
                 greet_timeout: greetTimeout
-            }).catch(() => {
+            }).catch((err) => {
+                logger.error("[ObjectDetail] postConsoleAction failed:", err);
             });
         }
         setConsoleDialogOpen(false);
@@ -489,6 +495,9 @@ const ObjectDetail = () => {
         setSelectedInstanceForLogs(null);
     }, []);
 
+    /**
+     * @param {string | boolean} status
+     */
     const getColor = useCallback((status) => {
         if (status === "up" || status === true) return green[500];
         if (status === "down" || status === false) return red[500];
@@ -496,6 +505,10 @@ const ObjectDetail = () => {
         return grey[500];
     }, []);
 
+    /**
+     * @param {string} node
+     * @returns {{avail: string, frozen: string, state: string | null}}
+     */
     const getNodeState = useCallback((node) => {
         const nodeStatus = objectInstanceStatus?.[node] || {};
         const monitor = instanceMonitor[`${node}:${decodedObjectName}`] || {};
@@ -536,22 +549,26 @@ const ObjectDetail = () => {
     }, [selectedNodes, filterActionsForMultipleNodes]);
 
     const getZoomLevel = useCallback(() => window.devicePixelRatio || 1, []);
+
+    /** @type {import("@mui/material").PopperProps["modifiers"]} */
+    const popperModifiers = useMemo(() => ([
+        {
+            name: "offset",
+            options: {offset: [0, 8 / getZoomLevel()]},
+        },
+        {name: "preventOverflow", options: {boundariesElement: "viewport"}},
+        {name: "flip", enabled: true},
+    ]), [getZoomLevel]);
+
     const popperProps = useMemo(() => ({
-        placement: "bottom-end",
+        placement: /** @type {import("@mui/material").PopperPlacementType} */ ("bottom-end"),
         disablePortal: isSafari,
-        modifiers: [
-            {
-                name: "offset",
-                options: {offset: [0, 8 / getZoomLevel()]},
-            },
-            {name: "preventOverflow", options: {boundariesElement: "viewport"}},
-            {name: "flip", options: {enabled: true}},
-        ],
+        modifiers: popperModifiers,
         sx: {
             zIndex: 10000,
             "& .MuiPaper-root": {minWidth: 200, boxShadow: "0px 5px 15px rgba(0,0,0,0.2)"},
         },
-    }), [getZoomLevel]);
+    }), [popperModifiers]);
 
     // Resize handlers (EventLogger style)
     const handleResizeStart = useCallback((e) => {
@@ -814,7 +831,11 @@ const ObjectDetail = () => {
                             }}>
                                 <Button variant="outlined" size={window.innerWidth < 600 ? "small" : "medium"}
                                         onClick={() => {
-                                            if (currentConsoleUrl) navigator.clipboard.writeText(String(currentConsoleUrl));
+                                            if (currentConsoleUrl) {
+                                                navigator.clipboard.writeText(String(currentConsoleUrl)).catch((err) => {
+                                                    logger.error("[ObjectDetail] Failed to copy console URL:", err);
+                                                });
+                                            }
                                         }}
                                         disabled={!currentConsoleUrl}>Copy URL</Button>
                                 <Button variant="contained" size={window.innerWidth < 600 ? "small" : "medium"}
