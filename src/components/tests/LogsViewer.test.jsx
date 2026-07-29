@@ -264,11 +264,7 @@ describe('LogsViewer', () => {
 
         test('pauses and resumes streaming - covers abort during reading', async () => {
             const now = Date.now();
-            const logs = [
-                {__REALTIME_TIMESTAMP: now * 1000, MESSAGE: 'First log'},
-                {__REALTIME_TIMESTAMP: (now + 100) * 1000, MESSAGE: 'Second log'},
-            ];
-            mockSuccessfulFetch(logs, 50);
+            mockSuccessfulFetch([{__REALTIME_TIMESTAMP: now * 1000, MESSAGE: 'First log'}], 50);
 
             renderComponent();
             await screen.findByText('First log');
