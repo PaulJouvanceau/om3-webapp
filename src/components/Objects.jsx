@@ -1000,7 +1000,7 @@ const Objects = () => {
                             )}
                         </Box>
 
-                        <Collapse in={showFilters} sx={{width: '100%'}}>
+                        <Collapse in={!isMobile || showFilters} unmountOnExit sx={{width: '100%'}}>
                             <Grid container spacing={2} sx={{mb: 2}}>
                                 <Grid item xs={12} sm={6} md={4} lg={3}>
                                     <FormControl fullWidth size={isMobile ? "small" : "medium"}>
