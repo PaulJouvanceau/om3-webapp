@@ -36,6 +36,12 @@ const createMockToken = (payload) => {
     return `${encode(header)}.${encode(payload)}.mock-signature`;
 };
 
+const makeTokenWithPayloadString = (payloadString) => {
+    const header = Buffer.from(JSON.stringify({alg: 'HS256', typ: 'JWT'})).toString('base64').replace(/=/g, '');
+    const payload = Buffer.from(payloadString).toString('base64').replace(/=/g, '');
+    return `${header}.${payload}.mock-signature`;
+};
+
 const setupLogin = () => {
     const utils = render(<Login/>);
     const getUsernameInput = () => screen.getByLabelText('Username');
@@ -92,6 +98,15 @@ describe('Login Component', () => {
         fillForm('testuser', 'testpass');
         fireEvent.keyDown(getPasswordInput(), {key: 'Enter'});
         await waitFor(() => expect(fetch).toHaveBeenCalled());
+    });
+
+    test('shows error when submitting empty form via Enter key', async () => {
+        const {getPasswordInput} = setupLogin();
+        fireEvent.keyDown(getPasswordInput(), {key: 'Enter'});
+        await waitFor(() => {
+            expect(screen.getByText('Please enter both username and password')).toBeInTheDocument();
+        });
+        expect(fetch).not.toHaveBeenCalled();
     });
 
     test('handles successful login', async () => {
@@ -178,7 +193,28 @@ describe('Login Component', () => {
         expect(decodeToken(undefined)).toBeNull();
         expect(decodeToken('')).toBeNull();
         expect(decodeToken('invalid.token')).toBeNull();
-        expect(consoleSpy).toHaveBeenCalledTimes(1); // only the invalid case logs
+        expect(consoleSpy).toHaveBeenCalledTimes(1);
+        consoleSpy.mockRestore();
+    });
+
+    test('decodeToken returns null for token with invalid base64 payload', () => {
+        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {
+        });
+        // Token with payload that causes atob to fail (e.g., "!!!" is not valid base64)
+        const token = 'header.!!!.signature';
+        expect(decodeToken(token)).toBeNull();
+        // Should log the "Failed to decode payload" error exactly once
+        expect(consoleSpy).toHaveBeenCalledTimes(1);
+        expect(consoleSpy).toHaveBeenCalledWith('Error decoding token:', expect.any(Error));
+        consoleSpy.mockRestore();
+    });
+
+    test('decodeToken returns null for token with valid base64 but non-JSON payload', () => {
+        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {
+        });
+        const token = makeTokenWithPayloadString('not a json');
+        expect(decodeToken(token)).toBeNull();
+        expect(consoleSpy).toHaveBeenCalledWith('Error decoding token:', expect.any(Error));
         consoleSpy.mockRestore();
     });
 
@@ -245,7 +281,6 @@ describe('Login Component', () => {
     });
 
     test('handles login and refresh when tokens have no expiration', async () => {
-        // Login without exp
         const payload = {sub: '123', name: 'John Doe', iat: 1516239022};
         const accessToken = createMockToken(payload);
         const refreshTokenValue = createMockToken({...payload, token_use: 'refresh'});
@@ -254,6 +289,9 @@ describe('Login Component', () => {
             ok: true,
             json: () => Promise.resolve({access_token: accessToken, refresh_token: refreshTokenValue}),
         });
+
+        // Spy on removeItem to ensure expiration cleanup is called
+        const removeItemSpy = jest.spyOn(Storage.prototype, 'removeItem');
 
         const {fillForm, getSubmitButton} = setupLogin();
         fillForm('testuser', 'testpass');
@@ -267,7 +305,11 @@ describe('Login Component', () => {
         expect(localStorage.getItem('refreshToken')).toBe(refreshTokenValue);
         expect(localStorage.getItem('tokenExpiration')).toBeNull();
         expect(localStorage.getItem('refreshTokenExpiration')).toBeNull();
+        expect(removeItemSpy).toHaveBeenCalledWith('tokenExpiration');
+        expect(removeItemSpy).toHaveBeenCalledWith('refreshTokenExpiration');
         expect(mockNavigate).toHaveBeenCalledWith('/');
+
+        removeItemSpy.mockRestore();
     });
 
     test('refreshToken stores no expiration when access token has no exp', async () => {
@@ -281,9 +323,12 @@ describe('Login Component', () => {
             json: () => Promise.resolve({access_token: accessToken}),
         });
 
+        const removeItemSpy = jest.spyOn(Storage.prototype, 'removeItem');
         await refreshToken(mockDispatch);
         expect(localStorage.getItem('authToken')).toBe(accessToken);
         expect(localStorage.getItem('tokenExpiration')).toBeNull();
+        expect(removeItemSpy).toHaveBeenCalledWith('tokenExpiration');
+        removeItemSpy.mockRestore();
     });
 
     test('concurrent refreshToken calls are queued and return the same promise', async () => {
@@ -312,5 +357,73 @@ describe('Login Component', () => {
         expect(token1).toBe(accessToken);
         expect(token2).toBe(accessToken);
         expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    test('refreshToken succeeds when no refresh expiration is set', async () => {
+        const payload = {sub: '123', exp: Math.floor(Date.now() / 1000) + 3600};
+        const accessToken = createMockToken(payload);
+        localStorage.setItem('refreshToken', 'no-expiration.token');
+
+        fetch.mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve({access_token: accessToken}),
+        });
+
+        const result = await refreshToken(mockDispatch);
+        expect(result).toBe(accessToken);
+        expect(localStorage.getItem('authToken')).toBe(accessToken);
+        expect(mockDispatch).toHaveBeenCalledWith({type: SetAccessToken, data: accessToken});
+    });
+
+    test('refreshToken stores new refresh token when provided', async () => {
+        const accessPayload = {sub: '123', exp: Math.floor(Date.now() / 1000) + 3600};
+        const refreshPayload = {sub: '123', exp: Math.floor(Date.now() / 1000) + 7200, token_use: 'refresh'};
+        const accessToken = createMockToken(accessPayload);
+        const newRefreshToken = createMockToken(refreshPayload);
+        localStorage.setItem('refreshToken', 'old-refresh.token');
+        localStorage.setItem('refreshTokenExpiration', (Date.now() + 3600000).toString());
+
+        fetch.mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve({
+                access_token: accessToken,
+                refresh_token: newRefreshToken,
+            }),
+        });
+
+        const result = await refreshToken(mockDispatch);
+        expect(result).toBe(accessToken);
+        expect(localStorage.getItem('authToken')).toBe(accessToken);
+        expect(localStorage.getItem('refreshToken')).toBe(newRefreshToken);
+        expect(localStorage.getItem('tokenExpiration')).toBe(String(accessPayload.exp * 1000));
+        expect(localStorage.getItem('refreshTokenExpiration')).toBe(String(refreshPayload.exp * 1000));
+        expect(mockDispatch).toHaveBeenCalledWith({type: SetAccessToken, data: accessToken});
+    });
+
+    test('refreshToken handles new refresh token without expiration', async () => {
+        const accessPayload = {sub: '123', exp: Math.floor(Date.now() / 1000) + 3600};
+        const refreshPayload = {sub: '123', token_use: 'refresh'}; // no exp
+        const accessToken = createMockToken(accessPayload);
+        const newRefreshToken = createMockToken(refreshPayload);
+        localStorage.setItem('refreshToken', 'old-refresh.token');
+        localStorage.setItem('refreshTokenExpiration', (Date.now() + 3600000).toString());
+
+        fetch.mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve({
+                access_token: accessToken,
+                refresh_token: newRefreshToken,
+            }),
+        });
+
+        const removeItemSpy = jest.spyOn(Storage.prototype, 'removeItem');
+
+        const result = await refreshToken(mockDispatch);
+        expect(result).toBe(accessToken);
+        expect(localStorage.getItem('refreshToken')).toBe(newRefreshToken);
+        expect(removeItemSpy).toHaveBeenCalledWith('refreshTokenExpiration');
+        expect(localStorage.getItem('refreshTokenExpiration')).toBeNull();
+
+        removeItemSpy.mockRestore();
     });
 });
