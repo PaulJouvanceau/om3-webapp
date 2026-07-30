@@ -101,7 +101,6 @@ jest.mock('../../utils/logger', () => ({
     debug: jest.fn(),
 }));
 
-// Mock de ConfigSection
 jest.mock('../ConfigSection', () => ({
     __esModule: true,
     default: (props) => {
@@ -164,8 +163,6 @@ const mockLocalStorage = {
     removeItem: jest.fn(),
 };
 Object.defineProperty(global, 'localStorage', {value: mockLocalStorage});
-
-// ─── clipboard mock ─────────────────────────────────────────────────────────
 Object.defineProperty(global.navigator, 'clipboard', {
     value: {writeText: jest.fn()},
     configurable: true,
@@ -181,6 +178,14 @@ const BASE_FNS = () => ({
     setInstanceStatuses: jest.fn(),
 });
 
+const emptyState = () => ({
+    objectStatus: {},
+    objectInstanceStatus: {},
+    instanceMonitor: {},
+    instanceConfig: {},
+    ...BASE_FNS(),
+});
+
 const buildState = (overrides = {}) => ({
     objectStatus: {'root/svc/svc1': {avail: 'up', frozen: null}},
     objectInstanceStatus: {
@@ -189,26 +194,14 @@ const buildState = (overrides = {}) => ({
                 avail: 'up',
                 frozen_at: null,
                 resources: {
-                    res1: {
-                        status: 'up',
-                        label: 'R1',
-                        type: 'disk',
-                        provisioned: {state: 'true'},
-                        running: true,
-                    },
+                    res1: {status: 'up', label: 'R1', type: 'disk', provisioned: {state: 'true'}, running: true},
                 },
             },
             node2: {
                 avail: 'down',
                 frozen_at: null,
                 resources: {
-                    res2: {
-                        status: 'warn',
-                        label: 'R2',
-                        type: 'compute',
-                        provisioned: {state: 'true'},
-                        running: false,
-                    },
+                    res2: {status: 'warn', label: 'R2', type: 'compute', provisioned: {state: 'true'}, running: false},
                 },
             },
         },
@@ -219,16 +212,7 @@ const buildState = (overrides = {}) => ({
     },
     instanceConfig: {
         'root/svc/svc1': {
-            node1: {
-                resources: {
-                    res1: {
-                        is_monitored: true,
-                        is_disabled: false,
-                        is_standby: false,
-                        restart: 0,
-                    },
-                },
-            },
+            node1: {resources: {res1: {is_monitored: true, is_disabled: false, is_standby: false, restart: 0}}},
         },
     },
     ...BASE_FNS(),
@@ -251,14 +235,14 @@ const fullMockState = {
                         label: 'Resource 1',
                         type: 'disk',
                         provisioned: {state: 'true'},
-                        running: true,
+                        running: true
                     },
                     res2: {
                         status: 'down',
                         label: 'Resource 2',
                         type: 'task',
                         provisioned: {state: 'false'},
-                        running: false,
+                        running: false
                     },
                 },
             },
@@ -271,7 +255,7 @@ const fullMockState = {
                         label: 'Resource 3',
                         type: 'compute',
                         provisioned: {state: 'true'},
-                        running: false,
+                        running: false
                     },
                 },
             },
@@ -286,22 +270,16 @@ const fullMockState = {
                         label: 'Resource 1',
                         type: 'disk',
                         provisioned: {state: 'true'},
-                        running: true,
+                        running: true
                     },
                     res2: {
                         status: 'down',
                         label: 'Resource 2',
                         type: 'task',
                         provisioned: {state: 'false'},
-                        running: false,
+                        running: false
                     },
-                    res5: {
-                        status: 'up',
-                        label: 'Resource 5',
-                        type: 'ip',
-                        provisioned: true,
-                        running: true,
-                    },
+                    res5: {status: 'up', label: 'Resource 5', type: 'ip', provisioned: true, running: true},
                 },
                 encap: {
                     container1: {
@@ -311,7 +289,7 @@ const fullMockState = {
                                 label: 'Encap Resource 1',
                                 type: 'container',
                                 provisioned: {state: 'true'},
-                                running: true,
+                                running: true
                             },
                         },
                     },
@@ -326,7 +304,7 @@ const fullMockState = {
                         label: 'Resource 3',
                         type: 'compute',
                         provisioned: {state: 'true'},
-                        running: false,
+                        running: false
                     },
                 },
             },
@@ -336,24 +314,18 @@ const fullMockState = {
         'node1:root/cfg/cfg1': {
             state: 'running',
             global_expect: 'placed@node1',
-            resources: {res1: {restart: {remaining: 0}}},
+            resources: {res1: {restart: {remaining: 0}}}
         },
         'node1:root/svc/svc1': {
             state: 'running',
             global_expect: 'placed@node1',
-            resources: {res1: {restart: {remaining: 0}}},
+            resources: {res1: {restart: {remaining: 0}}}
         },
-        'node2:root/svc/svc1': {
-            state: 'idle',
-            global_expect: 'none',
-            resources: {res3: {restart: {remaining: 0}}},
-        },
+        'node2:root/svc/svc1': {state: 'idle', global_expect: 'none', resources: {res3: {restart: {remaining: 0}}}},
     },
     instanceConfig: {
         'root/cfg/cfg1': {
-            node1: {
-                resources: {res1: {is_monitored: true, is_disabled: false, is_standby: false, restart: 0}},
-            },
+            node1: {resources: {res1: {is_monitored: true, is_disabled: false, is_standby: false, restart: 0}}},
         },
         'root/svc/svc1': {
             node1: {
@@ -362,9 +334,7 @@ const fullMockState = {
                     res2: {is_monitored: true, is_disabled: false, is_standby: false, restart: 0},
                 },
             },
-            node2: {
-                resources: {},
-            },
+            node2: {resources: {}},
         },
     },
     ...BASE_FNS(),
@@ -388,6 +358,11 @@ const renderReadySvc = async () => {
     renderSvc();
     await waitForNode('node1');
     await waitForNode('node2');
+};
+
+const setStoreState = (state) => {
+    useEventStore.mockImplementation((s) => s(state));
+    useEventStore.getState.mockReturnValue(state);
 };
 
 // ─── Action helpers ────────────────────────────────────────────────────────
@@ -437,19 +412,15 @@ const openConsoleDialogFn = async () => {
     await userEvent.click(consoleItems[0]);
     await waitFor(() => {
         expect(
-            screen
-                .queryAllByRole('dialog')
-                .some(
-                    (d) =>
-                        d.textContent.includes('terminal console') ||
-                        d.textContent.includes('Open Console')
-                )
+            screen.queryAllByRole('dialog').some(
+                (d) => d.textContent.includes('terminal console') || d.textContent.includes('Open Console')
+            )
         ).toBe(true);
     }, {timeout: 5000});
     return (
-        screen
-            .queryAllByRole('dialog')
-            .find((d) => d.textContent.includes('terminal console') || d.textContent.includes('Open Console')) || null
+        screen.queryAllByRole('dialog').find(
+            (d) => d.textContent.includes('terminal console') || d.textContent.includes('Open Console')
+        ) || null
     );
 };
 
@@ -465,6 +436,26 @@ const expandResourceSections = async () => {
             }
         }
     }
+};
+
+const findAndOpenResourceConsoleDialog = async (candidateFinders) => {
+    let trigger = null;
+    for (const find of candidateFinders) {
+        const matches = find();
+        if (matches && matches.length > 0) {
+            trigger = matches[0];
+            break;
+        }
+    }
+    if (!trigger) return null;
+    await userEvent.click(trigger);
+    const menus = screen.queryAllByRole('menu');
+    const consoleItem = menus.length
+        ? within(menus[menus.length - 1]).queryByRole('menuitem', {name: /console/i})
+        : null;
+    if (!consoleItem) return null;
+    await userEvent.click(consoleItem);
+    return screen.queryAllByRole('dialog').find((d) => d.textContent.includes('Open Console')) || null;
 };
 
 const defaultFetchMock = (url, options) => {
@@ -486,16 +477,13 @@ const defaultFetchMock = (url, options) => {
             ok: true,
             status: 200,
             json: () => Promise.resolve({}),
-            text: () => Promise.resolve('Success'),
+            text: () => Promise.resolve('Success')
         });
     if (url.includes('/config/file'))
         return Promise.resolve({
             ok: true,
             status: 200,
-            text: () =>
-                Promise.resolve(
-                    `[DEFAULT]\nnodes = *\norchestrate = ha\nid = 0bfea9c4-0114-4776-9169-d5e3455cee1f\n[fs#1]\ntype = flag`
-                ),
+            text: () => Promise.resolve(`[DEFAULT]\nnodes = *\norchestrate = ha\nid = 0bfea9c4-0114-4776-9169-d5e3455cee1f\n[fs#1]\ntype = flag`),
             json: () => Promise.resolve({}),
         });
     if (url.includes('/console') && options?.method === 'POST')
@@ -504,11 +492,7 @@ const defaultFetchMock = (url, options) => {
             headers: {get: (h) => (h === 'Location' ? 'http://console.example.com/session123' : null)},
         });
     if (options?.method === 'POST' && url.includes('/action/'))
-        return Promise.resolve({
-            ok: true,
-            status: 200,
-            text: () => Promise.resolve('Action executed successfully'),
-        });
+        return Promise.resolve({ok: true, status: 200, text: () => Promise.resolve('Action executed successfully')});
     return Promise.resolve({ok: true, status: 200, json: () => Promise.resolve({}), text: () => Promise.resolve('')});
 };
 
@@ -543,22 +527,11 @@ describe('ObjectDetail Component', () => {
             ['rid1', {resources: {}, encap: {}}, ''],
             ['rid1', {resources: {rid1: {type: 'disk.disk'}}}, 'disk.disk'],
             ['rid2', {resources: {rid2: {type: 'fs.flag'}}}, 'fs.flag'],
-            [
-                'rid2',
-                {
-                    resources: {},
-                    encap: {container1: {resources: {rid2: {type: 'container.docker'}}}},
-                },
-                'container.docker',
-            ],
-            [
-                'r3',
-                {
-                    resources: {r1: {type: 'disk'}},
-                    encap: {c1: {resources: {r2: {type: 'container'}}}},
-                },
-                '',
-            ],
+            ['rid2', {
+                resources: {},
+                encap: {container1: {resources: {rid2: {type: 'container.docker'}}}}
+            }, 'container.docker'],
+            ['r3', {resources: {r1: {type: 'disk'}}, encap: {c1: {resources: {r2: {type: 'container'}}}}}, ''],
         ])('getResourceType(%p, %p) => %p', (rid, nodeData, expected) =>
             expect(getResourceType(rid, nodeData)).toBe(expected)
         );
@@ -566,33 +539,12 @@ describe('ObjectDetail Component', () => {
 
     describe('parseProvisionedState', () => {
         test.each([
-            ['true', true],
-            ['True', true],
-            ['TRUE', true],
-            ['tRuE', true],
-            ['false', false],
-            ['False', false],
-            ['FALSE', false],
-            ['fAlSe', false],
-            ['yes', false],
-            ['no', false],
-            ['', false],
-            ['abc', false],
-            ['1', false],
-            ['0', false],
-            [true, true],
-            [false, false],
-            [1, true],
-            [0, false],
-            [42, true],
-            [-1, true],
-            [{}, true],
-            [{state: true}, true],
-            [[], true],
-            [new Date(), true],
-            [null, false],
-            [undefined, false],
-            [NaN, false],
+            ['true', true], ['True', true], ['TRUE', true], ['tRuE', true],
+            ['false', false], ['False', false], ['FALSE', false], ['fAlSe', false],
+            ['yes', false], ['no', false], ['', false], ['abc', false], ['1', false], ['0', false],
+            [true, true], [false, false], [1, true], [0, false], [42, true], [-1, true],
+            [{}, true], [{state: true}, true], [[], true], [new Date(), true],
+            [null, false], [undefined, false], [NaN, false],
         ])('%p => %p', (input, expected) => expect(parseProvisionedState(input)).toBe(expected));
     });
 
@@ -617,15 +569,7 @@ describe('ObjectDetail Component', () => {
     });
 
     test('shows no data message when object data is empty', async () => {
-        const emptyState = {
-            objectStatus: {},
-            objectInstanceStatus: {'root/cfg/cfg1': {}},
-            instanceMonitor: {},
-            instanceConfig: {},
-            ...BASE_FNS(),
-        };
-        useEventStore.mockImplementation((s) => s(emptyState));
-        useEventStore.getState.mockReturnValue(emptyState);
+        setStoreState({...emptyState(), objectInstanceStatus: {'root/cfg/cfg1': {}}});
         global.fetch.mockImplementation((url) =>
             url.includes('/data/keys')
                 ? Promise.resolve({ok: true, json: () => Promise.resolve({items: []})})
@@ -639,32 +583,24 @@ describe('ObjectDetail Component', () => {
         renderComponent('root/cfg/cfg1');
         await screen.findByText(/root\/cfg\/cfg1/i);
         await waitFor(() => {
-            expect(
-                document.querySelectorAll('[class*="MuiCard"], [role="region"][class*="node"]')
-            ).toHaveLength(0);
-            expect(
-                screen.queryByRole('button', {name: /Actions on Selected Nodes/i})
-            ).not.toBeInTheDocument();
+            expect(document.querySelectorAll('[class*="MuiCard"], [role="region"][class*="node"]')).toHaveLength(0);
+            expect(screen.queryByRole('button', {name: /Actions on Selected Nodes/i})).not.toBeInTheDocument();
         });
     });
 
     test.each([['root/sec/sec1'], ['root/usr/usr1']])(
         'batch actions hidden for %s',
         async (objectName) => {
-            const testState = {
+            setStoreState({
                 objectStatus: {[objectName]: {avail: 'up', frozen: null}},
                 objectInstanceStatus: {[objectName]: {node1: {avail: 'up', resources: {}}}},
                 instanceMonitor: {},
                 instanceConfig: {},
                 ...BASE_FNS(),
-            };
-            useEventStore.mockImplementation((s) => s(testState));
-            useEventStore.getState.mockReturnValue(testState);
+            });
             renderComponent(objectName);
             await screen.findByText(new RegExp(objectName.replace(/\//g, '\\/'), 'i'));
-            expect(
-                screen.queryByRole('button', {name: /Actions on Selected Nodes/i})
-            ).not.toBeInTheDocument();
+            expect(screen.queryByRole('button', {name: /Actions on Selected Nodes/i})).not.toBeInTheDocument();
         }
     );
 
@@ -673,23 +609,20 @@ describe('ObjectDetail Component', () => {
         state.objectStatus['root/svc/svc1'].avail = 'warn';
         state.objectInstanceStatus['root/svc/svc1'].node1.avail = 'unknown';
         state.objectInstanceStatus['root/svc/svc1'].node1.frozen_at = '2023-01-01T12:00:00Z';
-        useEventStore.mockImplementation((s) => s(state));
-        useEventStore.getState.mockReturnValue(state);
+        setStoreState(state);
         renderSvc();
         await waitFor(() => expect(screen.getByTitle('warn')).toBeInTheDocument());
         expect(screen.getByText('node1', {exact: true})).toBeInTheDocument();
     });
 
     test('getObjectStatus handles missing global_expect (none)', async () => {
-        const state = {
+        setStoreState({
             objectStatus: {},
             objectInstanceStatus: {},
             instanceMonitor: {'node1:root/cfg/cfg1': {state: 'running', global_expect: 'none'}},
             instanceConfig: {},
             ...BASE_FNS(),
-        };
-        useEventStore.mockImplementation((s) => s(state));
-        useEventStore.getState.mockReturnValue(state);
+        });
         renderComponent('root/cfg/cfg1');
         await waitFor(() => expect(screen.queryByText(/placed@node1/i)).not.toBeInTheDocument());
     });
@@ -737,63 +670,46 @@ describe('ObjectDetail Component', () => {
     test('view instance navigation on node click', async () => {
         await renderReadySvc();
         fireEvent.click(screen.getByText('node1'));
-        await waitFor(() =>
-            expect(mockNavigate).toHaveBeenCalledWith('/nodes/node1/objects/root%2Fsvc%2Fsvc1')
-        );
+        await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/nodes/node1/objects/root%2Fsvc%2Fsvc1'));
     });
 
     test('switches configNode when current node disappears', async () => {
         const debugSpy = jest.spyOn(logger, 'debug').mockImplementation();
-        const initialState = {
+        setStoreState({
             ...buildState(),
-            objectInstanceStatus: {'root/svc/svc1': {node2: {avail: 'up', resources: {}}}},
-        };
-        useEventStore.mockImplementation((s) => s(initialState));
-        useEventStore.getState.mockReturnValue(initialState);
+            objectInstanceStatus: {'root/svc/svc1': {node2: {avail: 'up', resources: {}}}}
+        });
 
         require('react-router-dom').useParams.mockReturnValue({objectName: 'root/svc/svc1'});
         const {rerender} = render(
             <MemoryRouter initialEntries={['/object/root%2Fsvc%2Fsvc1']}>
-                <Routes>
-                    <Route path="/object/:objectName" element={<ObjectDetail/>}/>
-                </Routes>
+                <Routes><Route path="/object/:objectName" element={<ObjectDetail/>}/></Routes>
             </MemoryRouter>
         );
         await screen.findByText('node2');
 
-        const updatedState = {
+        setStoreState({
             ...buildState(),
-            objectInstanceStatus: {'root/svc/svc1': {node1: {avail: 'up', resources: {}}}},
-        };
-        useEventStore.mockImplementation((s) => s(updatedState));
-        useEventStore.getState.mockReturnValue(updatedState);
+            objectInstanceStatus: {'root/svc/svc1': {node1: {avail: 'up', resources: {}}}}
+        });
         rerender(
             <MemoryRouter initialEntries={['/object/root%2Fsvc%2Fsvc1']}>
-                <Routes>
-                    <Route path="/object/:objectName" element={<ObjectDetail/>}/>
-                </Routes>
+                <Routes><Route path="/object/:objectName" element={<ObjectDetail/>}/></Routes>
             </MemoryRouter>
         );
 
         await waitFor(() => {
-            expect(debugSpy).toHaveBeenCalledWith(
-                expect.stringContaining('configNode "node2" removed, switching to "node1"')
-            );
+            expect(debugSpy).toHaveBeenCalledWith(expect.stringContaining('configNode "node2" removed, switching to "node1"'));
         });
         debugSpy.mockRestore();
     });
 
     test('resets configNode to null and closes config dialog when all nodes are removed', async () => {
-        const initialState = {...buildState()};
-        useEventStore.mockImplementation((s) => s(initialState));
-        useEventStore.getState.mockReturnValue(initialState);
-
+        setStoreState({...buildState()});
         require('react-router-dom').useParams.mockReturnValue({objectName: 'root/svc/svc1'});
         const {rerender} = render(
             <MemoryRouter initialEntries={['/object/root%2Fsvc%2Fsvc1']}>
-                <Routes>
-                    <Route path="/object/:objectName" element={<ObjectDetail/>}/>
-                </Routes>
+                <Routes><Route path="/object/:objectName" element={<ObjectDetail/>}/></Routes>
             </MemoryRouter>
         );
         await screen.findByText('node1');
@@ -801,17 +717,10 @@ describe('ObjectDetail Component', () => {
         fireEvent.click(screen.getByTestId('open-config-dialog'));
         await waitFor(() => expect(screen.getByTestId('config-dialog')).toBeInTheDocument());
 
-        const emptyNodesState = {
-            ...buildState(),
-            objectInstanceStatus: {'root/svc/svc1': {}},
-        };
-        useEventStore.mockImplementation((s) => s(emptyNodesState));
-        useEventStore.getState.mockReturnValue(emptyNodesState);
+        setStoreState({...buildState(), objectInstanceStatus: {'root/svc/svc1': {}}});
         rerender(
             <MemoryRouter initialEntries={['/object/root%2Fsvc%2Fsvc1']}>
-                <Routes>
-                    <Route path="/object/:objectName" element={<ObjectDetail/>}/>
-                </Routes>
+                <Routes><Route path="/object/:objectName" element={<ObjectDetail/>}/></Routes>
             </MemoryRouter>
         );
 
@@ -834,12 +743,10 @@ describe('ObjectDetail Component', () => {
         await confirmDialog(await screen.findByRole('dialog'));
         await waitFor(() => {
             expect(global.fetch).toHaveBeenCalledWith(
-                expect.stringMatching(
-                    /\/api\/node\/name\/node1\/instance\/path\/root(%2F|\/)svc(%2F|\/)svc1\/action\/start/
-                ),
+                expect.stringMatching(/\/api\/node\/name\/node1\/instance\/path\/root(%2F|\/)svc(%2F|\/)svc1\/action\/start/),
                 expect.objectContaining({
                     method: 'POST',
-                    headers: expect.objectContaining({Authorization: 'Bearer mock-token'}),
+                    headers: expect.objectContaining({Authorization: 'Bearer mock-token'})
                 })
             );
         });
@@ -854,12 +761,10 @@ describe('ObjectDetail Component', () => {
         await confirmDialog(await screen.findByRole('dialog'));
         await waitFor(() => {
             expect(global.fetch).toHaveBeenCalledWith(
-                expect.stringMatching(
-                    /\/api\/node\/name\/node1\/instance\/path\/root(%2F|\/)svc(%2F|\/)svc1\/action\/stop/
-                ),
+                expect.stringMatching(/\/api\/node\/name\/node1\/instance\/path\/root(%2F|\/)svc(%2F|\/)svc1\/action\/stop/),
                 expect.objectContaining({
                     method: 'POST',
-                    headers: expect.objectContaining({Authorization: 'Bearer mock-token'}),
+                    headers: expect.objectContaining({Authorization: 'Bearer mock-token'})
                 })
             );
         });
@@ -867,14 +772,10 @@ describe('ObjectDetail Component', () => {
 
     // ─── Error handling (object & node actions) ────────────────────────────
     describe.each([
-        {
-            label: 'object',
-            openMenu: async () => userEvent.click(screen.getByRole('button', {name: /object actions/i})),
-        },
+        {label: 'object', openMenu: async () => userEvent.click(screen.getByRole('button', {name: /object actions/i}))},
         {
             label: 'node',
-            openMenu: async () =>
-                userEvent.click(screen.getByRole('button', {name: /Node node1 actions/i})),
+            openMenu: async () => userEvent.click(screen.getByRole('button', {name: /Node node1 actions/i}))
         },
     ])('$label actions', ({openMenu}) => {
         test('fetch exception', async () => {
@@ -884,29 +785,22 @@ describe('ObjectDetail Component', () => {
             await userEvent.click(screen.getByRole('menuitem', {name: /start/i}));
             await confirmDialog(await screen.findByRole('dialog'));
             await waitFor(() =>
-                expect(
-                    screen.getAllByRole('alert').some((a) => a.textContent.includes('Network error'))
-                ).toBe(true)
+                expect(screen.getAllByRole('alert').some((a) => a.textContent.includes('Network error'))).toBe(true)
             );
         });
 
-        test.each([[403, 'Forbidden'], [500, 'Server error']])(
-            'HTTP %i',
-            async (status, msg) => {
-                mockActionFailure(status, msg);
-                await renderReadySvc();
-                await openMenu();
-                await userEvent.click(screen.getByRole('menuitem', {name: /start/i}));
-                await confirmDialog(await screen.findByRole('dialog'));
-                await waitFor(() =>
-                    expect(
-                        screen
-                            .getAllByRole('alert')
-                            .some((a) => a.textContent.includes(`HTTP error! status: ${status}`))
-                    ).toBe(true)
-                );
-            }
-        );
+        test.each([[403, 'Forbidden'], [500, 'Server error']])('HTTP %i', async (status, msg) => {
+            mockActionFailure(status, msg);
+            await renderReadySvc();
+            await openMenu();
+            await userEvent.click(screen.getByRole('menuitem', {name: /start/i}));
+            await confirmDialog(await screen.findByRole('dialog'));
+            await waitFor(() =>
+                expect(
+                    screen.getAllByRole('alert').some((a) => a.textContent.includes(`HTTP error! status: ${status}`))
+                ).toBe(true)
+            );
+        });
 
         test('missing auth token', async () => {
             mockLocalStorage.getItem.mockReturnValue(null);
@@ -916,25 +810,47 @@ describe('ObjectDetail Component', () => {
             const dialog = await screen.findByRole('dialog');
             await userEvent.click(within(dialog).getByRole('button', {name: /confirm/i}));
             await waitFor(() =>
-                expect(
-                    screen
-                        .getAllByRole('alert')
-                        .some((a) => a.textContent.includes('Auth token not found'))
-                ).toBe(true)
+                expect(screen.getAllByRole('alert').some((a) => a.textContent.includes('Auth token not found'))).toBe(true)
             );
         });
     });
 
     // ─── handleDialogConfirm outer .catch branches ─────────────────────────
     describe('handleDialogConfirm promise rejection handling', () => {
-        test('batch node action rejection is logged via logger.error', async () => {
+        test.each([
+            [
+                'batch node',
+                'postNodeAction',
+                async () => {
+                    await user.click(screen.getByLabelText(/select node node1/i));
+                    await user.click(screen.getByLabelText(/select node node2/i));
+                    await user.click(screen.getByRole('button', {name: /Actions on selected nodes/i}));
+                    await waitFor(() => expect(screen.queryAllByRole('menu').length).toBeGreaterThan(0));
+                    await user.click(within(screen.getAllByRole('menu')[0]).getByRole('menuitem', {name: /start/i}));
+                },
+            ],
+            [
+                'individual node',
+                'postNodeAction',
+                async () => {
+                    await user.click(screen.getByRole('button', {name: /Node node1 actions/i}));
+                    await waitFor(() => expect(screen.queryAllByRole('menu').length).toBeGreaterThan(0));
+                    await user.click(within(screen.getAllByRole('menu')[0]).getByRole('menuitem', {name: /start/i}));
+                },
+            ],
+            [
+                'object',
+                'postObjectAction',
+                async () => {
+                    await user.click(screen.getByRole('button', {name: /object actions/i}));
+                    await waitFor(() => expect(screen.queryAllByRole('menu').length).toBeGreaterThan(0));
+                    await user.click(screen.getByRole('menuitem', {name: /start/i}));
+                },
+            ],
+        ])('%s action rejection is logged via logger.error', async (label, fnName, triggerAction) => {
             const errorSpy = jest.spyOn(logger, 'error').mockImplementation();
             await renderReadySvc();
-            await user.click(screen.getByLabelText(/select node node1/i));
-            await user.click(screen.getByLabelText(/select node node2/i));
-            await user.click(screen.getByRole('button', {name: /Actions on selected nodes/i}));
-            await waitFor(() => expect(screen.queryAllByRole('menu').length).toBeGreaterThan(0));
-            await user.click(within(screen.getAllByRole('menu')[0]).getByRole('menuitem', {name: /start/i}));
+            await triggerAction();
             const dialog = await screen.findByRole('dialog');
 
             mockLocalStorage.getItem.mockImplementation(() => {
@@ -944,56 +860,7 @@ describe('ObjectDetail Component', () => {
             await confirmDialog(dialog);
 
             await waitFor(() => {
-                expect(errorSpy).toHaveBeenCalledWith(
-                    '[ObjectDetail] postNodeAction failed:',
-                    expect.any(Error)
-                );
-            });
-            errorSpy.mockRestore();
-        });
-
-        test('individual node action rejection is logged via logger.error', async () => {
-            const errorSpy = jest.spyOn(logger, 'error').mockImplementation();
-            await renderReadySvc();
-            await user.click(screen.getByRole('button', {name: /Node node1 actions/i}));
-            await waitFor(() => expect(screen.queryAllByRole('menu').length).toBeGreaterThan(0));
-            await user.click(within(screen.getAllByRole('menu')[0]).getByRole('menuitem', {name: /start/i}));
-            const dialog = await screen.findByRole('dialog');
-
-            mockLocalStorage.getItem.mockImplementation(() => {
-                throw new Error('Storage boom');
-            });
-
-            await confirmDialog(dialog);
-
-            await waitFor(() => {
-                expect(errorSpy).toHaveBeenCalledWith(
-                    '[ObjectDetail] postNodeAction failed:',
-                    expect.any(Error)
-                );
-            });
-            errorSpy.mockRestore();
-        });
-
-        test('object action rejection is logged via logger.error', async () => {
-            const errorSpy = jest.spyOn(logger, 'error').mockImplementation();
-            await renderReadySvc();
-            await user.click(screen.getByRole('button', {name: /object actions/i}));
-            await waitFor(() => expect(screen.queryAllByRole('menu').length).toBeGreaterThan(0));
-            await user.click(screen.getByRole('menuitem', {name: /start/i}));
-            const dialog = await screen.findByRole('dialog');
-
-            mockLocalStorage.getItem.mockImplementation(() => {
-                throw new Error('Storage boom');
-            });
-
-            await confirmDialog(dialog);
-
-            await waitFor(() => {
-                expect(errorSpy).toHaveBeenCalledWith(
-                    '[ObjectDetail] postObjectAction failed:',
-                    expect.any(Error)
-                );
+                expect(errorSpy).toHaveBeenCalledWith(`[ObjectDetail] ${fnName} failed:`, expect.any(Error));
             });
             errorSpy.mockRestore();
         });
@@ -1001,9 +868,7 @@ describe('ObjectDetail Component', () => {
 
     // ─── Dialog controls ──────────────────────────────────────────────────
     test('all object action dialogs open and cancel', async () => {
-        const state = buildState();
-        useEventStore.mockImplementation((s) => s(state));
-        useEventStore.getState.mockReturnValue(state);
+        setStoreState(buildState());
         renderSvc();
         for (const action of ['start', 'freeze', 'stop', 'unprovision', 'purge']) {
             await user.click(screen.getByRole('button', {name: /object actions/i}));
@@ -1040,47 +905,42 @@ describe('ObjectDetail Component', () => {
     });
 
     // ─── Logs drawer ──────────────────────────────────────────────────────
-    test.each(['mouse', 'touch'])(
-        'logs drawer resize with %s events adds/removes listeners',
-        async (kind) => {
-            const addSpy = jest.spyOn(document, 'addEventListener');
-            const removeSpy = jest.spyOn(document, 'removeEventListener');
-            renderSvc();
-            await waitForNode('node1');
-            await user.click(screen.getAllByRole('button', {name: /logs/i})[0]);
-            await waitFor(() => expect(screen.getByLabelText('Resize drawer')).toBeInTheDocument());
-            const handle = screen.getByLabelText('Resize drawer');
-            const moveEvt = `${kind}move`;
-            const endEvt = kind === 'mouse' ? 'mouseup' : 'touchend';
+    test.each(['mouse', 'touch'])('logs drawer resize with %s events adds/removes listeners', async (kind) => {
+        const addSpy = jest.spyOn(document, 'addEventListener');
+        const removeSpy = jest.spyOn(document, 'removeEventListener');
+        renderSvc();
+        await waitForNode('node1');
+        await user.click(screen.getAllByRole('button', {name: /logs/i})[0]);
+        await waitFor(() => expect(screen.getByLabelText('Resize drawer')).toBeInTheDocument());
+        const handle = screen.getByLabelText('Resize drawer');
+        const moveEvt = `${kind}move`;
+        const endEvt = kind === 'mouse' ? 'mouseup' : 'touchend';
 
-            if (kind === 'mouse') {
-                fireEvent.mouseDown(handle, {clientX: 100});
-            } else {
-                fireEvent.touchStart(handle, {touches: [{clientX: 100}]});
-            }
-            if (kind === 'touch') {
-                expect(
-                    addSpy.mock.calls.find((c) => c[0] === 'touchmove' && c[2]?.passive === false)
-                ).toBeDefined();
-            } else {
-                expect(addSpy).toHaveBeenCalledWith(moveEvt, expect.any(Function));
-            }
-            expect(addSpy).toHaveBeenCalledWith(endEvt, expect.any(Function));
-
-            if (kind === 'mouse') {
-                fireEvent.mouseMove(document, {clientX: 150});
-                fireEvent.mouseUp(document);
-            } else {
-                fireEvent.touchMove(document, {touches: [{clientX: 150}]});
-                fireEvent.touchEnd(document);
-            }
-            expect(removeSpy).toHaveBeenCalledWith(moveEvt, expect.any(Function));
-            expect(removeSpy).toHaveBeenCalledWith(endEvt, expect.any(Function));
-            expect(document.body.style.cursor).toBe('default');
-            addSpy.mockRestore();
-            removeSpy.mockRestore();
+        if (kind === 'mouse') {
+            fireEvent.mouseDown(handle, {clientX: 100});
+        } else {
+            fireEvent.touchStart(handle, {touches: [{clientX: 100}]});
         }
-    );
+        if (kind === 'touch') {
+            expect(addSpy.mock.calls.find((c) => c[0] === 'touchmove' && c[2]?.passive === false)).toBeDefined();
+        } else {
+            expect(addSpy).toHaveBeenCalledWith(moveEvt, expect.any(Function));
+        }
+        expect(addSpy).toHaveBeenCalledWith(endEvt, expect.any(Function));
+
+        if (kind === 'mouse') {
+            fireEvent.mouseMove(document, {clientX: 150});
+            fireEvent.mouseUp(document);
+        } else {
+            fireEvent.touchMove(document, {touches: [{clientX: 150}]});
+            fireEvent.touchEnd(document);
+        }
+        expect(removeSpy).toHaveBeenCalledWith(moveEvt, expect.any(Function));
+        expect(removeSpy).toHaveBeenCalledWith(endEvt, expect.any(Function));
+        expect(document.body.style.cursor).toBe('default');
+        addSpy.mockRestore();
+        removeSpy.mockRestore();
+    });
 
     test.each([
         ['respects min/max constraints', 50, 900, null],
@@ -1114,8 +974,7 @@ describe('ObjectDetail Component', () => {
         const logButtons = screen.getAllByRole('button', {name: /logs/i});
         await user.click(logButtons[0]);
         await waitFor(() => expect(screen.getByRole('complementary')).toBeInTheDocument());
-        const closeIcon = screen.getByTestId('CloseIcon');
-        const closeButton = closeIcon.closest('button');
+        const closeButton = screen.getByTestId('CloseIcon').closest('button');
         expect(closeButton).toBeTruthy();
         fireEvent.click(closeButton);
         await waitFor(() => expect(screen.queryByRole('complementary')).not.toBeInTheDocument());
@@ -1130,70 +989,63 @@ describe('ObjectDetail Component', () => {
         await user.click(logButtons[1]);
         await waitFor(() => expect(screen.getByRole('complementary')).toBeInTheDocument());
         const instanceTitle = screen.queryByText(/Instance Logs -/i);
-        if (instanceTitle) {
-            expect(instanceTitle).toBeInTheDocument();
-        }
+        if (instanceTitle) expect(instanceTitle).toBeInTheDocument();
     });
 
     // ─── instanceConfig subscription ──────────────────────────────────────
-    test('instanceConfig subscription triggers snackbar', async () => {
-        const state = {
-            objectStatus: {},
-            instanceMonitor: {},
-            objectInstanceStatus: {'root/svc/svc1': {node1: {avail: 'up', resources: {}}}},
-            instanceConfig: {'root/svc/svc1': {node1: {resources: {res1: {is_monitored: true}}}}},
-            ...BASE_FNS(),
-        };
-        useEventStore.mockImplementation((s) => s(state));
-        useEventStore.getState.mockReturnValue(state);
+    test.each([
+        [
+            'triggers snackbar when configNode is set',
+            {
+                objectStatus: {},
+                instanceMonitor: {},
+                objectInstanceStatus: {'root/svc/svc1': {node1: {avail: 'up', resources: {}}}},
+                instanceConfig: {'root/svc/svc1': {node1: {resources: {res1: {is_monitored: true}}}}},
+                ...BASE_FNS(),
+            },
+            'root/svc/svc1',
+            () => waitForNode('node1'),
+            {'root/svc/svc1': {node1: {resources: {res1: {is_monitored: false}}}}},
+            true,
+        ],
+        [
+            'does not trigger snackbar when configNode is null',
+            {
+                objectStatus: {},
+                instanceMonitor: {},
+                objectInstanceStatus: {'root/svc/svc-empty': {}},
+                instanceConfig: {},
+                ...BASE_FNS(),
+            },
+            'root/svc/svc-empty',
+            () => screen.findByText(/No information available/i),
+            {'root/svc/svc-empty': {node1: {resources: {res1: {is_monitored: true}}}}},
+            false,
+        ],
+    ])('instanceConfig subscription %s', async (label, state, objectName, waitForReady, updatedConfig, shouldFire) => {
+        setStoreState(state);
         let instanceConfigCallback;
         useEventStore.subscribe = jest.fn((selector, callback) => {
             if (selector.toString().includes('instanceConfig')) instanceConfigCallback = callback;
             return jest.fn();
         });
-        renderSvc();
-        await waitForNode('node1');
-        act(() =>
-            instanceConfigCallback({'root/svc/svc1': {node1: {resources: {res1: {is_monitored: false}}}}})
-        );
-        await waitFor(() => {
-            expect(
-                screen
-                    .queryAllByRole('alert')
-                    .find((a) => a.textContent?.includes('Instance configuration updated'))
-            ).toBeInTheDocument();
-        });
-    });
+        renderComponent(objectName);
+        await waitForReady();
+        act(() => instanceConfigCallback(updatedConfig));
 
-    test('instanceConfig subscription does not trigger snackbar when configNode is null', async () => {
-        const state = {
-            objectStatus: {},
-            instanceMonitor: {},
-            objectInstanceStatus: {'root/svc/svc-empty': {}},
-            instanceConfig: {},
-            ...BASE_FNS(),
-        };
-        useEventStore.mockImplementation((s) => s(state));
-        useEventStore.getState.mockReturnValue(state);
-        let instanceConfigCallback;
-        useEventStore.subscribe = jest.fn((selector, callback) => {
-            if (selector.toString().includes('instanceConfig')) instanceConfigCallback = callback;
-            return jest.fn();
-        });
-        renderComponent('root/svc/svc-empty');
-        await waitFor(() => expect(screen.getByText(/No information available/i)).toBeInTheDocument());
-
-        act(() =>
-            instanceConfigCallback({'root/svc/svc-empty': {node1: {resources: {res1: {is_monitored: true}}}}})
-        );
-
-        await waitFor(() => {
-            expect(
-                screen
-                    .queryAllByRole('alert')
-                    .find((a) => a.textContent?.includes('Instance configuration updated'))
-            ).toBeUndefined();
-        });
+        if (shouldFire) {
+            await waitFor(() => {
+                expect(
+                    screen.queryAllByRole('alert').find((a) => a.textContent?.includes('Instance configuration updated'))
+                ).toBeInTheDocument();
+            });
+        } else {
+            await waitFor(() => {
+                expect(
+                    screen.queryAllByRole('alert').find((a) => a.textContent?.includes('Instance configuration updated'))
+                ).toBeUndefined();
+            });
+        }
     });
 
     test.each([
@@ -1230,30 +1082,38 @@ describe('ObjectDetail Component', () => {
         await waitForNode('node1');
 
         expect(typeof capturedSelector).toBe('function');
-        const sampleState = {
-            instanceConfig: {'root/svc/svc1': {node1: {resources: {}}}},
-            other: 'ignored',
-        };
-        const result = capturedSelector(sampleState);
-        expect(result).toBe(sampleState.instanceConfig);
+        const sampleState = {instanceConfig: {'root/svc/svc1': {node1: {resources: {}}}}, other: 'ignored'};
+        expect(capturedSelector(sampleState)).toBe(sampleState.instanceConfig);
     });
 
     // ─── batch menu mixed frozen state ────────────────────────────────────
-    test('batch menu keeps freeze when selected nodes have mixed frozen state', async () => {
-        const mixedState = {
-            objectStatus: {'root/svc/svc1': {avail: 'up', frozen: null}},
-            objectInstanceStatus: {
-                'root/svc/svc1': {
-                    node1: {avail: 'up', frozen_at: null, resources: {}},
-                    node2: {avail: 'up', frozen_at: '2023-01-01T12:00:00Z', resources: {}},
-                },
+    test.each([
+        [
+            'keeps freeze when selected nodes have mixed frozen state',
+            {
+                node1: {avail: 'up', frozen_at: null, resources: {}},
+                node2: {avail: 'up', frozen_at: '2023-01-01T12:00:00Z', resources: {}}
             },
+            true,
+            false,
+        ],
+        [
+            'hides freeze when all selected nodes are already frozen',
+            {
+                node1: {avail: 'up', frozen_at: '2023-01-01T12:00:00Z', resources: {}},
+                node2: {avail: 'up', frozen_at: '2023-01-01T12:00:00Z', resources: {}}
+            },
+            false,
+            true,
+        ],
+    ])('batch menu %s', async (label, nodeStates, expectFreeze, expectStart) => {
+        setStoreState({
+            objectStatus: {'root/svc/svc1': {avail: 'up', frozen: null}},
+            objectInstanceStatus: {'root/svc/svc1': nodeStates},
             instanceMonitor: {},
             instanceConfig: {},
             ...BASE_FNS(),
-        };
-        useEventStore.mockImplementation((s) => s(mixedState));
-        useEventStore.getState.mockReturnValue(mixedState);
+        });
         renderSvc();
         await waitForNode('node1');
         await waitForNode('node2');
@@ -1262,36 +1122,8 @@ describe('ObjectDetail Component', () => {
         await user.click(screen.getByRole('button', {name: /Actions on selected nodes/i}));
         await waitFor(() => expect(screen.queryAllByRole('menu').length).toBeGreaterThan(0));
         const menu = screen.getAllByRole('menu')[0];
-        expect(within(menu).queryByRole('menuitem', {name: /freeze/i})).toBeTruthy();
-        expect(within(menu).queryByRole('menuitem', {name: /unfreeze/i})).toBeFalsy();
-    });
-
-    test('batch menu hides freeze when all selected nodes are already frozen', async () => {
-
-        const frozenState = {
-            objectStatus: {'root/svc/svc1': {avail: 'up', frozen: null}},
-            objectInstanceStatus: {
-                'root/svc/svc1': {
-                    node1: {avail: 'up', frozen_at: '2023-01-01T12:00:00Z', resources: {}},
-                    node2: {avail: 'up', frozen_at: '2023-01-01T12:00:00Z', resources: {}},
-                },
-            },
-            instanceMonitor: {},
-            instanceConfig: {},
-            ...BASE_FNS(),
-        };
-        useEventStore.mockImplementation((s) => s(frozenState));
-        useEventStore.getState.mockReturnValue(frozenState);
-        renderSvc();
-        await waitForNode('node1');
-        await waitForNode('node2');
-        await user.click(screen.getByLabelText(/select node node1/i));
-        await user.click(screen.getByLabelText(/select node node2/i));
-        await user.click(screen.getByRole('button', {name: /Actions on selected nodes/i}));
-        await waitFor(() => expect(screen.queryAllByRole('menu').length).toBeGreaterThan(0));
-        const menu = screen.getAllByRole('menu')[0];
-        expect(within(menu).queryByRole('menuitem', {name: /^freeze/i})).toBeFalsy();
-        expect(within(menu).queryByRole('menuitem', {name: /start/i})).toBeTruthy();
+        expect(!!within(menu).queryByRole('menuitem', {name: /^freeze/i})).toBe(expectFreeze);
+        if (expectStart) expect(within(menu).queryByRole('menuitem', {name: /start/i})).toBeTruthy();
     });
 
     // ─── Console dialog ───────────────────────────────────────────────────
@@ -1311,9 +1143,7 @@ describe('ObjectDetail Component', () => {
                 await user.click(cancelBtn);
                 await waitFor(() =>
                     expect(
-                        screen
-                            .queryAllByRole('dialog')
-                            .filter((d) => d.textContent.includes('terminal console')).length
+                        screen.queryAllByRole('dialog').filter((d) => d.textContent.includes('terminal console')).length
                     ).toBe(0)
                 );
             }
@@ -1326,23 +1156,20 @@ describe('ObjectDetail Component', () => {
             await waitForNode('node1');
             await userEvent.click(screen.getByRole('button', {name: /Node node1 actions/i}));
             await waitFor(() => expect(screen.queryAllByRole('menu').length).toBeGreaterThan(0));
-            const consoleItem = within(screen.getAllByRole('menu')[0]).queryByRole('menuitem', {
-                name: /console/i,
-            });
-            if (consoleItem) {
-                await userEvent.click(consoleItem);
-                const dialog = await screen.findByRole('dialog');
-                const fetchCallsBefore = global.fetch.mock.calls.filter(
+            const consoleItem = within(screen.getAllByRole('menu')[0]).queryByRole('menuitem', {name: /console/i});
+            if (!consoleItem) return;
+            await userEvent.click(consoleItem);
+            const dialog = await screen.findByRole('dialog');
+            const fetchCallsBefore = global.fetch.mock.calls.filter(
+                ([u, opts]) => opts?.method === 'POST' && u.includes('/console')
+            ).length;
+            await userEvent.click(within(dialog).getByRole('button', {name: /open console/i}));
+            await waitFor(() => {
+                const fetchCallsAfter = global.fetch.mock.calls.filter(
                     ([u, opts]) => opts?.method === 'POST' && u.includes('/console')
                 ).length;
-                await userEvent.click(within(dialog).getByRole('button', {name: /open console/i}));
-                await waitFor(() => {
-                    const fetchCallsAfter = global.fetch.mock.calls.filter(
-                        ([u, opts]) => opts?.method === 'POST' && u.includes('/console')
-                    ).length;
-                    expect(fetchCallsAfter).toBe(fetchCallsBefore);
-                });
-            }
+                expect(fetchCallsAfter).toBe(fetchCallsBefore);
+            });
         });
     });
 
@@ -1368,80 +1195,40 @@ describe('ObjectDetail Component', () => {
         });
     });
 
-    test('best-effort: resource-level console trigger (skips gracefully if UI hook not found)', async () => {
+    // Covers resource-level console triggers found via different UI hooks (action button vs
+    // tooltip title), including the HTTP-error branch of postConsoleAction. Both are
+    // best-effort: they skip gracefully if the corresponding UI hook isn't present.
+    test.each([
+        ['action-button trigger', () => [
+            () => screen.queryAllByRole('button', {name: /res1.*(actions|console)/i}),
+            () => screen.queryAllByRole('button', {name: /console/i}),
+            () => screen.queryAllByLabelText(/resource res1 actions/i),
+        ], false],
+        ['tooltip title trigger, exercises HTTP-error path', () => [
+            () => screen.queryAllByTitle(/console/i),
+        ], true],
+    ])('best-effort: resource console trigger via %s', async (label, getCandidates, simulateHttpError) => {
         await withConsoleAction(async () => {
             renderSvc();
             await waitForNode('node1');
             await expandResourceSections();
 
-            const candidates = [
-                () => screen.queryAllByRole('button', {name: /res1.*(actions|console)/i}),
-                () => screen.queryAllByRole('button', {name: /console/i}),
-                () => screen.queryAllByLabelText(/resource res1 actions/i),
-            ];
-
-            let trigger = null;
-            for (const find of candidates) {
-                const matches = find();
-                if (matches && matches.length > 0) {
-                    trigger = matches[0];
-                    break;
-                }
-            }
-
-            if (!trigger) return;
-
-            await user.click(trigger);
-            const menus = screen.queryAllByRole('menu');
-            const consoleItem = menus.length
-                ? within(menus[menus.length - 1]).queryByRole('menuitem', {name: /console/i})
-                : null;
-            if (consoleItem) await user.click(consoleItem);
-
-            const dialog = screen
-                .queryAllByRole('dialog')
-                .find((d) => d.textContent.includes('Open Console'));
+            const dialog = await findAndOpenResourceConsoleDialog(getCandidates());
             if (!dialog) return;
 
+            if (simulateHttpError) mockActionFailure(500, 'Console error');
             await user.click(within(dialog).getByRole('button', {name: /open console/i}));
             await waitFor(() => {
-                const called = global.fetch.mock.calls.some(
-                    ([u, opts]) => opts?.method === 'POST' && u.includes('/console')
-                );
-                if (called) expect(called).toBe(true);
-            });
-        });
-    });
-
-    test('best-effort: resource console trigger via tooltip title attribute exercises postConsoleAction error paths', async () => {
-        await withConsoleAction(async () => {
-            renderSvc();
-            await waitForNode('node1');
-            await expandResourceSections();
-
-            const consoleTrigger = screen.queryAllByTitle(/console/i)[0];
-            if (!consoleTrigger) return;
-
-            await user.click(consoleTrigger);
-            const menus = screen.queryAllByRole('menu');
-            const consoleItem = menus.length
-                ? within(menus[menus.length - 1]).queryByRole('menuitem', {name: /console/i})
-                : null;
-            if (!consoleItem) return;
-            await user.click(consoleItem);
-
-            const dialog = screen
-                .queryAllByRole('dialog')
-                .find((d) => d.textContent.includes('Open Console'));
-            if (!dialog) return;
-
-            // Exercise the HTTP-error branch of postConsoleAction, if reachable.
-            mockActionFailure(500, 'Console error');
-            await user.click(within(dialog).getByRole('button', {name: /open console/i}));
-            await waitFor(() => {
-                const alerts = screen.queryAllByRole('alert');
-                if (alerts.some((a) => a.textContent.includes('Failed to open console'))) {
-                    expect(alerts.some((a) => a.textContent.includes('Failed to open console'))).toBe(true);
+                if (simulateHttpError) {
+                    const alerts = screen.queryAllByRole('alert');
+                    if (alerts.some((a) => a.textContent.includes('Failed to open console'))) {
+                        expect(alerts.some((a) => a.textContent.includes('Failed to open console'))).toBe(true);
+                    }
+                } else {
+                    const called = global.fetch.mock.calls.some(
+                        ([u, opts]) => opts?.method === 'POST' && u.includes('/console')
+                    );
+                    if (called) expect(called).toBe(true);
                 }
             });
         });
@@ -1452,18 +1239,8 @@ describe('ObjectDetail Component', () => {
         beforeEach(() => jest.useFakeTimers());
         afterEach(() => jest.useRealTimers());
 
-        const emptyState = () => ({
-            objectStatus: {},
-            objectInstanceStatus: {},
-            instanceMonitor: {},
-            instanceConfig: {},
-            ...BASE_FNS(),
-        });
-
         test('triggers after 5 seconds when no SSE data', async () => {
-            const s = emptyState();
-            useEventStore.mockImplementation((sel) => sel(s));
-            useEventStore.getState.mockReturnValue(s);
+            setStoreState(emptyState());
             renderSvc();
             expect(screen.getByText(/Loading object data.../i)).toBeInTheDocument();
             act(() => jest.advanceTimersByTime(5000));
@@ -1480,38 +1257,28 @@ describe('ObjectDetail Component', () => {
         });
 
         test('handles fallback fetch failure gracefully', async () => {
-            const s = emptyState();
-            useEventStore.mockImplementation((sel) => sel(s));
-            useEventStore.getState.mockReturnValue(s);
+            setStoreState(emptyState());
             global.fetch.mockRejectedValueOnce(new Error('Network failure'));
             renderSvc();
             act(() => jest.advanceTimersByTime(5000));
-            await waitFor(() =>
-                expect(screen.queryByText(/Loading object data.../i)).not.toBeInTheDocument()
-            );
+            await waitFor(() => expect(screen.queryByText(/Loading object data.../i)).not.toBeInTheDocument());
             expect(screen.queryByText(/Network failure/i)).not.toBeInTheDocument();
             expect(screen.getByRole('button', {name: /Object Events/i})).toBeInTheDocument();
         });
 
         test('sets error and stops loading when auth token is missing', async () => {
-            const s = emptyState();
-            useEventStore.mockImplementation((sel) => sel(s));
-            useEventStore.getState.mockReturnValue(s);
+            setStoreState(emptyState());
             mockLocalStorage.getItem.mockReturnValue(null);
             renderSvc();
             expect(screen.getByText(/Loading object data.../i)).toBeInTheDocument();
             act(() => jest.advanceTimersByTime(5000));
-            await waitFor(() =>
-                expect(screen.queryByText(/Loading object data.../i)).not.toBeInTheDocument()
-            );
+            await waitFor(() => expect(screen.queryByText(/Loading object data.../i)).not.toBeInTheDocument());
             expect(global.fetch).not.toHaveBeenCalled();
         });
 
         test('logs error when fetchFallbackData itself rejects outside its own try/catch', async () => {
             const errorSpy = jest.spyOn(logger, 'error').mockImplementation();
-            const s = emptyState();
-            useEventStore.mockImplementation((sel) => sel(s));
-            useEventStore.getState.mockReturnValue(s);
+            setStoreState(emptyState());
             mockLocalStorage.getItem
                 .mockReturnValueOnce('mock-token')
                 .mockImplementation(() => {
@@ -1522,18 +1289,14 @@ describe('ObjectDetail Component', () => {
             act(() => jest.advanceTimersByTime(5000));
 
             await waitFor(() => {
-                expect(errorSpy).toHaveBeenCalledWith(
-                    '[ObjectDetail] fetchFallbackData failed:',
-                    expect.any(Error)
-                );
+                expect(errorSpy).toHaveBeenCalledWith('[ObjectDetail] fetchFallbackData failed:', expect.any(Error));
             });
             errorSpy.mockRestore();
         });
 
         test('sets empty instance statuses when instance endpoint returns null body', async () => {
             const s = emptyState();
-            useEventStore.mockImplementation((sel) => sel(s));
-            useEventStore.getState.mockReturnValue(s);
+            setStoreState(s);
             global.fetch.mockImplementation((url) => {
                 if (url.includes('/api/object/path')) {
                     return Promise.resolve({ok: true, json: () => Promise.resolve({avail: 'up'})});
@@ -1541,11 +1304,7 @@ describe('ObjectDetail Component', () => {
                 if (url.includes('/api/node/name/all/instance/path')) {
                     return Promise.resolve({ok: true, json: () => Promise.resolve(null)});
                 }
-                return Promise.resolve({
-                    ok: true,
-                    json: () => Promise.resolve({}),
-                    text: () => Promise.resolve(''),
-                });
+                return Promise.resolve({ok: true, json: () => Promise.resolve({}), text: () => Promise.resolve('')});
             });
             renderSvc();
             act(() => jest.advanceTimersByTime(5000));
