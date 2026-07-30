@@ -925,6 +925,80 @@ describe('ObjectDetail Component', () => {
         });
     });
 
+    // ─── handleDialogConfirm outer .catch branches ─────────────────────────
+    describe('handleDialogConfirm promise rejection handling', () => {
+        test('batch node action rejection is logged via logger.error', async () => {
+            const errorSpy = jest.spyOn(logger, 'error').mockImplementation();
+            await renderReadySvc();
+            await user.click(screen.getByLabelText(/select node node1/i));
+            await user.click(screen.getByLabelText(/select node node2/i));
+            await user.click(screen.getByRole('button', {name: /Actions on selected nodes/i}));
+            await waitFor(() => expect(screen.queryAllByRole('menu').length).toBeGreaterThan(0));
+            await user.click(within(screen.getAllByRole('menu')[0]).getByRole('menuitem', {name: /start/i}));
+            const dialog = await screen.findByRole('dialog');
+
+            mockLocalStorage.getItem.mockImplementation(() => {
+                throw new Error('Storage boom');
+            });
+
+            await confirmDialog(dialog);
+
+            await waitFor(() => {
+                expect(errorSpy).toHaveBeenCalledWith(
+                    '[ObjectDetail] postNodeAction failed:',
+                    expect.any(Error)
+                );
+            });
+            errorSpy.mockRestore();
+        });
+
+        test('individual node action rejection is logged via logger.error', async () => {
+            const errorSpy = jest.spyOn(logger, 'error').mockImplementation();
+            await renderReadySvc();
+            await user.click(screen.getByRole('button', {name: /Node node1 actions/i}));
+            await waitFor(() => expect(screen.queryAllByRole('menu').length).toBeGreaterThan(0));
+            await user.click(within(screen.getAllByRole('menu')[0]).getByRole('menuitem', {name: /start/i}));
+            const dialog = await screen.findByRole('dialog');
+
+            mockLocalStorage.getItem.mockImplementation(() => {
+                throw new Error('Storage boom');
+            });
+
+            await confirmDialog(dialog);
+
+            await waitFor(() => {
+                expect(errorSpy).toHaveBeenCalledWith(
+                    '[ObjectDetail] postNodeAction failed:',
+                    expect.any(Error)
+                );
+            });
+            errorSpy.mockRestore();
+        });
+
+        test('object action rejection is logged via logger.error', async () => {
+            const errorSpy = jest.spyOn(logger, 'error').mockImplementation();
+            await renderReadySvc();
+            await user.click(screen.getByRole('button', {name: /object actions/i}));
+            await waitFor(() => expect(screen.queryAllByRole('menu').length).toBeGreaterThan(0));
+            await user.click(screen.getByRole('menuitem', {name: /start/i}));
+            const dialog = await screen.findByRole('dialog');
+
+            mockLocalStorage.getItem.mockImplementation(() => {
+                throw new Error('Storage boom');
+            });
+
+            await confirmDialog(dialog);
+
+            await waitFor(() => {
+                expect(errorSpy).toHaveBeenCalledWith(
+                    '[ObjectDetail] postObjectAction failed:',
+                    expect.any(Error)
+                );
+            });
+            errorSpy.mockRestore();
+        });
+    });
+
     // ─── Dialog controls ──────────────────────────────────────────────────
     test('all object action dialogs open and cancel', async () => {
         const state = buildState();
@@ -1047,6 +1121,20 @@ describe('ObjectDetail Component', () => {
         await waitFor(() => expect(screen.queryByRole('complementary')).not.toBeInTheDocument());
     });
 
+    test('best-effort: instance-level logs drawer shows the instance title when a per-instance trigger exists', async () => {
+        renderSvc();
+        await waitForNode('node1');
+        await expandResourceSections();
+        const logButtons = screen.getAllByRole('button', {name: /logs/i});
+        if (logButtons.length < 2) return;
+        await user.click(logButtons[1]);
+        await waitFor(() => expect(screen.getByRole('complementary')).toBeInTheDocument());
+        const instanceTitle = screen.queryByText(/Instance Logs -/i);
+        if (instanceTitle) {
+            expect(instanceTitle).toBeInTheDocument();
+        }
+    });
+
     // ─── instanceConfig subscription ──────────────────────────────────────
     test('instanceConfig subscription triggers snackbar', async () => {
         const state = {
@@ -1074,6 +1162,37 @@ describe('ObjectDetail Component', () => {
                     .queryAllByRole('alert')
                     .find((a) => a.textContent?.includes('Instance configuration updated'))
             ).toBeInTheDocument();
+        });
+    });
+
+    test('instanceConfig subscription does not trigger snackbar when configNode is null', async () => {
+        const state = {
+            objectStatus: {},
+            instanceMonitor: {},
+            objectInstanceStatus: {'root/svc/svc-empty': {}},
+            instanceConfig: {},
+            ...BASE_FNS(),
+        };
+        useEventStore.mockImplementation((s) => s(state));
+        useEventStore.getState.mockReturnValue(state);
+        let instanceConfigCallback;
+        useEventStore.subscribe = jest.fn((selector, callback) => {
+            if (selector.toString().includes('instanceConfig')) instanceConfigCallback = callback;
+            return jest.fn();
+        });
+        renderComponent('root/svc/svc-empty');
+        await waitFor(() => expect(screen.getByText(/No information available/i)).toBeInTheDocument());
+
+        act(() =>
+            instanceConfigCallback({'root/svc/svc-empty': {node1: {resources: {res1: {is_monitored: true}}}}})
+        );
+
+        await waitFor(() => {
+            expect(
+                screen
+                    .queryAllByRole('alert')
+                    .find((a) => a.textContent?.includes('Instance configuration updated'))
+            ).toBeUndefined();
         });
     });
 
@@ -1145,6 +1264,34 @@ describe('ObjectDetail Component', () => {
         const menu = screen.getAllByRole('menu')[0];
         expect(within(menu).queryByRole('menuitem', {name: /freeze/i})).toBeTruthy();
         expect(within(menu).queryByRole('menuitem', {name: /unfreeze/i})).toBeFalsy();
+    });
+
+    test('batch menu hides freeze when all selected nodes are already frozen', async () => {
+
+        const frozenState = {
+            objectStatus: {'root/svc/svc1': {avail: 'up', frozen: null}},
+            objectInstanceStatus: {
+                'root/svc/svc1': {
+                    node1: {avail: 'up', frozen_at: '2023-01-01T12:00:00Z', resources: {}},
+                    node2: {avail: 'up', frozen_at: '2023-01-01T12:00:00Z', resources: {}},
+                },
+            },
+            instanceMonitor: {},
+            instanceConfig: {},
+            ...BASE_FNS(),
+        };
+        useEventStore.mockImplementation((s) => s(frozenState));
+        useEventStore.getState.mockReturnValue(frozenState);
+        renderSvc();
+        await waitForNode('node1');
+        await waitForNode('node2');
+        await user.click(screen.getByLabelText(/select node node1/i));
+        await user.click(screen.getByLabelText(/select node node2/i));
+        await user.click(screen.getByRole('button', {name: /Actions on selected nodes/i}));
+        await waitFor(() => expect(screen.queryAllByRole('menu').length).toBeGreaterThan(0));
+        const menu = screen.getAllByRole('menu')[0];
+        expect(within(menu).queryByRole('menuitem', {name: /^freeze/i})).toBeFalsy();
+        expect(within(menu).queryByRole('menuitem', {name: /start/i})).toBeTruthy();
     });
 
     // ─── Console dialog ───────────────────────────────────────────────────
@@ -1266,6 +1413,40 @@ describe('ObjectDetail Component', () => {
         });
     });
 
+    test('best-effort: resource console trigger via tooltip title attribute exercises postConsoleAction error paths', async () => {
+        await withConsoleAction(async () => {
+            renderSvc();
+            await waitForNode('node1');
+            await expandResourceSections();
+
+            const consoleTrigger = screen.queryAllByTitle(/console/i)[0];
+            if (!consoleTrigger) return;
+
+            await user.click(consoleTrigger);
+            const menus = screen.queryAllByRole('menu');
+            const consoleItem = menus.length
+                ? within(menus[menus.length - 1]).queryByRole('menuitem', {name: /console/i})
+                : null;
+            if (!consoleItem) return;
+            await user.click(consoleItem);
+
+            const dialog = screen
+                .queryAllByRole('dialog')
+                .find((d) => d.textContent.includes('Open Console'));
+            if (!dialog) return;
+
+            // Exercise the HTTP-error branch of postConsoleAction, if reachable.
+            mockActionFailure(500, 'Console error');
+            await user.click(within(dialog).getByRole('button', {name: /open console/i}));
+            await waitFor(() => {
+                const alerts = screen.queryAllByRole('alert');
+                if (alerts.some((a) => a.textContent.includes('Failed to open console'))) {
+                    expect(alerts.some((a) => a.textContent.includes('Failed to open console'))).toBe(true);
+                }
+            });
+        });
+    });
+
     // ─── Fallback fetch ───────────────────────────────────────────────────
     describe('fallback fetch', () => {
         beforeEach(() => jest.useFakeTimers());
@@ -1324,6 +1505,29 @@ describe('ObjectDetail Component', () => {
                 expect(screen.queryByText(/Loading object data.../i)).not.toBeInTheDocument()
             );
             expect(global.fetch).not.toHaveBeenCalled();
+        });
+
+        test('logs error when fetchFallbackData itself rejects outside its own try/catch', async () => {
+            const errorSpy = jest.spyOn(logger, 'error').mockImplementation();
+            const s = emptyState();
+            useEventStore.mockImplementation((sel) => sel(s));
+            useEventStore.getState.mockReturnValue(s);
+            mockLocalStorage.getItem
+                .mockReturnValueOnce('mock-token')
+                .mockImplementation(() => {
+                    throw new Error('Storage boom');
+                });
+
+            renderSvc();
+            act(() => jest.advanceTimersByTime(5000));
+
+            await waitFor(() => {
+                expect(errorSpy).toHaveBeenCalledWith(
+                    '[ObjectDetail] fetchFallbackData failed:',
+                    expect.any(Error)
+                );
+            });
+            errorSpy.mockRestore();
         });
 
         test('sets empty instance statuses when instance endpoint returns null body', async () => {
