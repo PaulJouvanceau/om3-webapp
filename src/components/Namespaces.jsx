@@ -33,6 +33,9 @@ const getColorByStatus = (status) => {
     }
 };
 
+export const areStatusDotPropsEqual = (prev, next) =>
+    prev.status === next.status && prev.count === next.count;
+
 const StatusDot = React.memo(({status, count}) => (
     <Box display="flex" justifyContent="center" alignItems="center" gap={1}>
         <FiberManualRecordIcon
@@ -40,7 +43,7 @@ const StatusDot = React.memo(({status, count}) => (
         />
         <Typography variant="body1">{count}</Typography>
     </Box>
-), (prev, next) => prev.status === next.status && prev.count === next.count);
+), areStatusDotPropsEqual);
 
 const NamespaceTableRow = React.memo(({
                                           namespace,

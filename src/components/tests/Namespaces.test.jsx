@@ -1,7 +1,7 @@
 import React from 'react';
 import {render, screen, fireEvent, waitFor, act, within} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
-import Namespaces from '../Namespaces';
+import Namespaces, {areStatusDotPropsEqual} from '../Namespaces';
 import useEventStore from '../../hooks/useEventStore.js';
 import {startEventReception, closeEventSource} from '../../eventSourceManager.jsx';
 
@@ -68,7 +68,6 @@ jest.mock('@mui/material', () => {
     };
 });
 
-// Mock icons with proper test IDs
 jest.mock('@mui/icons-material/KeyboardArrowUp', () => ({
     __esModule: true,
     default: (props) => <span data-testid="arrow-up" {...props} />,
@@ -95,6 +94,7 @@ jest.mock('@mui/icons-material/PriorityHigh', () => ({
     },
 }));
 
+// Helpers
 const getHeaderCellFor = (columnName) => {
     const head = screen.getByTestId('table-head');
     const headRow = within(head).getByTestId('table-row');
@@ -126,6 +126,26 @@ const defaultMockData = {
         'dev/svc/service5': {avail: 'up'},
     }),
     namespaces: ['root', 'prod', 'dev'],
+};
+
+const sortingMockData = {
+    statusByNamespace: buildStatusByNamespace({
+        'alpha/svc/a': {avail: 'up'},
+        'alpha/svc/b': {avail: 'down'},
+        'alpha/svc/c': {avail: 'warn'},
+        'alpha/svc/d': {avail: 'n/a'},
+        'beta/svc/a': {avail: 'up'},
+        'beta/svc/b': {avail: 'up'},
+        'beta/svc/c': {avail: 'warn'},
+        'gamma/svc/a': {avail: 'down'},
+        'gamma/svc/b': {avail: 'down'},
+        'gamma/svc/c': {avail: 'warn'},
+        'gamma/svc/d': {avail: 'n/a'},
+        'delta/svc/a': {avail: 'up'},
+        'delta/svc/b': {avail: 'up'},
+        'delta/svc/c': {avail: 'up'},
+    }),
+    namespaces: ['alpha', 'beta', 'gamma', 'delta'],
 };
 
 function setup(overrides = {}) {
@@ -189,12 +209,32 @@ describe('Namespaces', () => {
         expect(mockNavigate).toHaveBeenCalledWith('/objects?namespace=root');
     });
 
-    test('navigates with status on status cell click', () => {
+    test('navigates with up status on cell click', () => {
         renderComponent();
         const rootRow = screen.getByRole('row', {name: /root/i});
-        const statusCells = within(rootRow).getAllByTestId('table-cell');
-        fireEvent.click(statusCells[1]);
+        fireEvent.click(within(rootRow).getAllByTestId('table-cell')[1]);
         expect(mockNavigate).toHaveBeenCalledWith('/objects?namespace=root&globalState=up');
+    });
+
+    test('navigates with down status', () => {
+        renderComponent();
+        const rootRow = screen.getByRole('row', {name: /root/i});
+        fireEvent.click(within(rootRow).getAllByTestId('table-cell')[2]);
+        expect(mockNavigate).toHaveBeenCalledWith('/objects?namespace=root&globalState=down');
+    });
+
+    test('navigates with warn status', () => {
+        renderComponent();
+        const prodRow = screen.getByRole('row', {name: /prod/i});
+        fireEvent.click(within(prodRow).getAllByTestId('table-cell')[3]);
+        expect(mockNavigate).toHaveBeenCalledWith('/objects?namespace=prod&globalState=warn');
+    });
+
+    test('navigates with n/a status', () => {
+        renderComponent();
+        const rootRow = screen.getByRole('row', {name: /root/i});
+        fireEvent.click(within(rootRow).getAllByTestId('table-cell')[4]);
+        expect(mockNavigate).toHaveBeenCalledWith('/objects?namespace=root&globalState=n/a');
     });
 
     test('starts event reception on mount with token', async () => {
@@ -258,21 +298,74 @@ describe('Namespaces', () => {
         expect(screen.getByTestId('autocomplete-input')).toHaveValue('all');
     });
 
-    test('sorts namespaces by clicking headers', () => {
-        renderComponent();
-        const header = getHeaderCellFor('Namespace');
-        fireEvent.click(header);
-        fireEvent.click(header);
-        expect(screen.getAllByTestId('table-row').length).toBeGreaterThan(0);
-    });
-
     test('clicking different column resets direction', () => {
         renderComponent();
-        const upHeader = getHeaderCellFor('Up');
-        const downHeader = getHeaderCellFor('Down');
-        fireEvent.click(upHeader);
-        fireEvent.click(downHeader);
+        fireEvent.click(getHeaderCellFor('Up'));
+        fireEvent.click(getHeaderCellFor('Down'));
         expect(screen.getByTestId('table-body')).toBeInTheDocument();
+    });
+
+    describe('sorting order verification', () => {
+        beforeEach(() => {
+            setup({data: sortingMockData});
+            renderComponent();
+        });
+
+        const getNamespaceNames = () => {
+            const rows = within(screen.getByTestId('table-body')).getAllByTestId('table-row');
+            return rows.map(row => within(row).getAllByTestId('table-cell')[0].textContent);
+        };
+
+        test('default sort by namespace ascending', async () => {
+            await waitFor(() => {
+                expect(getNamespaceNames()).toEqual(['alpha', 'beta', 'delta', 'gamma']);
+            });
+        });
+
+        test('sort by Up ascending', async () => {
+            fireEvent.click(getHeaderCellFor('Up'));
+            await waitFor(() => {
+                expect(getNamespaceNames()).toEqual(['gamma', 'alpha', 'beta', 'delta']);
+            });
+        });
+
+        test('sort by Down ascending', async () => {
+            fireEvent.click(getHeaderCellFor('Down'));
+            await waitFor(() => {
+                expect(getNamespaceNames()).toEqual(['beta', 'delta', 'alpha', 'gamma']);
+            });
+        });
+
+        test('sort by Warn ascending', async () => {
+            fireEvent.click(getHeaderCellFor('Warn'));
+            await waitFor(() => {
+                const names = getNamespaceNames();
+                expect(names[0]).toBe('delta');
+            });
+        });
+
+        test('sort by N/A ascending', async () => {
+            fireEvent.click(getHeaderCellFor('N/A'));
+            await waitFor(() => {
+                const names = getNamespaceNames();
+                expect(names[0]).toBe('beta');
+                expect(names[1]).toBe('delta');
+            });
+        });
+
+        test('sort by Total ascending', async () => {
+            fireEvent.click(getHeaderCellFor('Total'));
+            await waitFor(() => {
+                expect(getNamespaceNames()).toEqual(['beta', 'delta', 'alpha', 'gamma']);
+            });
+        });
+
+        test('sort by Namespace descending', async () => {
+            fireEvent.click(getHeaderCellFor('Namespace'));
+            await waitFor(() => {
+                expect(getNamespaceNames()).toEqual(['gamma', 'delta', 'beta', 'alpha']);
+            });
+        });
     });
 
     describe('infinite scroll', () => {
@@ -374,23 +467,20 @@ describe('Namespaces', () => {
         expect(cells[4]).toHaveTextContent('1');
     });
 
-    test('getColorByStatus returns correct colors', () => {
-        const getColorByStatus = (status) => {
-            const {green, red, orange, grey} = require('@mui/material/colors');
-            switch (status) {
-                case 'up':
-                    return green[500];
-                case 'down':
-                    return red[500];
-                case 'warn':
-                    return orange[500];
-                default:
-                    return grey[500];
-            }
-        };
-        expect(getColorByStatus('up')).toBe('#4caf50');
-        expect(getColorByStatus('down')).toBe('#f44336');
-        expect(getColorByStatus('warn')).toBe('#ff9800');
-        expect(getColorByStatus('unknown')).toBe('#9e9e9e');
+    test('renderTextField displays correct label', () => {
+        renderComponent();
+        expect(screen.getByText('Filter by namespace')).toBeInTheDocument();
+    });
+});
+
+describe('areStatusDotPropsEqual', () => {
+    test('returns true when status and count are equal', () => {
+        expect(areStatusDotPropsEqual({status: 'up', count: 3}, {status: 'up', count: 3})).toBe(true);
+    });
+    test('returns false when status differs', () => {
+        expect(areStatusDotPropsEqual({status: 'up', count: 3}, {status: 'down', count: 3})).toBe(false);
+    });
+    test('returns false when count differs', () => {
+        expect(areStatusDotPropsEqual({status: 'up', count: 3}, {status: 'up', count: 5})).toBe(false);
     });
 });
