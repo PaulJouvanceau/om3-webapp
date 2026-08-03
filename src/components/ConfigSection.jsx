@@ -344,6 +344,20 @@ const ManageParamsDialog = ({
         return Array.from(sections);
     }, [existingParams]);
 
+    const existingSectionSuffixes = useMemo(() => {
+        const suffixMap = {};
+        existingSections.forEach((section) => {
+            const hashIndex = section.indexOf("#");
+            if (hashIndex !== -1) {
+                const prefix = section.substring(0, hashIndex);
+                const suffix = section.substring(hashIndex + 1);
+                if (!suffixMap[prefix]) suffixMap[prefix] = [];
+                if (!suffixMap[prefix].includes(suffix)) suffixMap[prefix].push(suffix);
+            }
+        });
+        return suffixMap;
+    }, [existingSections]);
+
     const addParameter = () => {
         if (selectedKeyword) {
             if (typeof selectedKeyword === 'string') {
@@ -466,27 +480,61 @@ const ManageParamsDialog = ({
                                                 <Typography variant="body2" sx={{whiteSpace: "nowrap"}}>
                                                     {param.sectionPrefix}#
                                                 </Typography>
-                                                <TextField
-                                                    fullWidth
-                                                    label="Index (free text)"
+                                                <Autocomplete
+                                                    freeSolo
+                                                    options={existingSectionSuffixes[param.sectionPrefix] || []}
+                                                    getOptionLabel={(option) => typeof option === 'string' ? option : ''}
                                                     value={param.sectionSuffix}
-                                                    onChange={(e) => updateParamSectionSuffix(index, e.target.value)}
+                                                    inputValue={param.sectionSuffix}
+                                                    onInputChange={(event, newInputValue) => {
+                                                        updateParamSectionSuffix(index, newInputValue);
+                                                    }}
+                                                    onChange={(event, newValue) => {
+                                                        updateParamSectionSuffix(index, newValue || "");
+                                                    }}
+                                                    renderInput={(params) => (
+                                                        <TextField
+                                                            {...params}
+                                                            label="Index"
+                                                            size="small"
+                                                            placeholder="e.g., prod, 1, data"
+                                                            inputProps={{
+                                                                ...params.inputProps,
+                                                                'aria-label': 'Index'
+                                                            }}
+                                                        />
+                                                    )}
                                                     disabled={actionLoading}
-                                                    size="small"
-                                                    placeholder="e.g., prod, 1, data"
-                                                    slotProps={{inputLabel: {"aria-label": "Section suffix"}}}
+                                                    sx={{width: "100%"}}
                                                 />
                                             </Box>
                                         ) : (
-                                            <TextField
-                                                fullWidth
-                                                label="Section (optional)"
+                                            <Autocomplete
+                                                freeSolo
+                                                options={existingSections}
+                                                getOptionLabel={(option) => typeof option === 'string' ? option : ''}
                                                 value={param.section || ""}
-                                                onChange={(e) => updateParamSection(index, e.target.value)}
+                                                inputValue={param.section || ""}
+                                                onInputChange={(event, newInputValue) => {
+                                                    updateParamSection(index, newInputValue);
+                                                }}
+                                                onChange={(event, newValue) => {
+                                                    updateParamSection(index, newValue || "");
+                                                }}
+                                                renderInput={(params) => (
+                                                    <TextField
+                                                        {...params}
+                                                        label="Section (optional)"
+                                                        size="small"
+                                                        placeholder="e.g., database, fs#data"
+                                                        inputProps={{
+                                                            ...params.inputProps,
+                                                            'aria-label': 'Section (optional)'
+                                                        }}
+                                                    />
+                                                )}
                                                 disabled={actionLoading}
-                                                size="small"
-                                                placeholder="e.g., database, fs#data"
-                                                slotProps={{inputLabel: {"aria-label": "Section"}}}
+                                                sx={{width: "100%"}}
                                             />
                                         )}
                                     </Box>
@@ -553,7 +601,6 @@ const ManageParamsDialog = ({
                         />
                     )}
                     onChange={(_event, newValue) => {
-                        // newValue is guaranteed to be an array because multiple is true
                         const formattedParams = (newValue || []).map((item, index) => {
                             if (typeof item === "string") {
                                 const parts = item.split(".");
