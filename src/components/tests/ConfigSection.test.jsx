@@ -41,10 +41,11 @@ jest.mock('@mui/material', () => {
                    placeholder={placeholder || label || ''} value={value || ''} onChange={onChange} disabled={disabled}
                    {...inputProps} {...props} />
         ),
+        // Autocomplete mock: always calls getOptionLabel
         Autocomplete: ({options, getOptionLabel, onChange, multiple, renderInput, value, freeSolo, ...props}) => {
             const [inputValue, setInputValue] = useState(
                 multiple
-                    ? (Array.isArray(value) ? value.map(v => typeof v === 'string' ? v : getOptionLabel(v)).join(', ') : '')
+                    ? (Array.isArray(value) ? value.map(v => getOptionLabel(v)).join(', ') : '')
                     : (value ? (typeof value === 'string' ? value : getOptionLabel(value)) : '')
             );
             const handleChange = (e) => {
@@ -52,7 +53,7 @@ jest.mock('@mui/material', () => {
                 setInputValue(text);
                 const vals = multiple ? text.split(',').map(v => v.trim()).filter(Boolean) : [text.trim()];
                 const selected = vals.map(v => {
-                    const opt = options.find(o => (typeof o === 'string' ? o : getOptionLabel(o)) === v);
+                    const opt = options.find(o => getOptionLabel(o) === v);
                     if (!opt) return freeSolo ? v : multiple ? (options[0]?.option ? {
                         option: v,
                         section: v.includes('.') ? v.split('.')[0] : ''
@@ -608,6 +609,25 @@ describe('ConfigSection Component', () => {
         await act(() => user.click(screen.getByRole('button', {name: /Apply/i})));
         await waitFor(() => expect(openSnackbar).toHaveBeenCalledWith(expectedError, 'error'));
         expect(screen.getByText(/Manage Configuration Parameters/i)).toBeInTheDocument();
+    });
+
+    test('manage params: add parameter network error shows specific message', async () => {
+        global.fetch.mockImplementation((url) => {
+            if (url.includes('/config?set=')) return Promise.reject(new Error('Network failure'));
+            return defaultFetchMock(url);
+        });
+        const openSnackbar = jest.fn();
+        renderConfig({openSnackbar});
+        await openManageDialog(user);
+        await act(() => user.type(getComboboxes()[0], 'DEFAULT.orchestrate{Enter}'));
+        await act(() => user.click(screen.getByRole('button', {name: /Add Parameter/i})));
+        await waitFor(() => expect(screen.getByText('orchestrate')).toBeInTheDocument());
+        await user.clear(screen.getByLabelText('Value'));
+        await user.type(screen.getByLabelText('Value'), 'test');
+        await act(() => user.click(screen.getByRole('button', {name: /Apply/i})));
+        await waitFor(() => expect(openSnackbar).toHaveBeenCalledWith(
+            'Error adding parameter orchestrate: Network failure', 'error'
+        ));
     });
 
     test.each([

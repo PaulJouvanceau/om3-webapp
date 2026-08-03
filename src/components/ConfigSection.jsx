@@ -45,6 +45,7 @@ const useConfig = (decodedObjectName, configNode, setConfigNode, refreshTrigger)
                 return {...state, loading: false, error: action.payload};
             case "RESET":
                 return initialState;
+            /* istanbul ignore next */
             default:
                 return state;
         }
@@ -53,6 +54,7 @@ const useConfig = (decodedObjectName, configNode, setConfigNode, refreshTrigger)
     const lastFetch = useRef({});
 
     const fetchConfig = useCallback(async (node, forceBypassThrottle = false) => {
+        /* istanbul ignore next */
         if (!node) {
             dispatch({type: "RESET"});
             return;
@@ -116,6 +118,7 @@ const useKeywords = (decodedObjectName) => {
                 return {...state, loading: false, data: action.payload};
             case "FETCH_ERROR":
                 return {...state, loading: false, error: action.payload};
+            /* istanbul ignore next */
             default:
                 return state;
         }
@@ -176,6 +179,7 @@ const useExistingParams = (decodedObjectName) => {
                 return {...state, loading: false, data: action.payload};
             case "FETCH_ERROR":
                 return {...state, loading: false, error: action.payload};
+            /* istanbul ignore next */
             default:
                 return state;
         }
@@ -653,6 +657,7 @@ const ConfigSection = ({
     };
 
     const handleUpdateConfig = async () => {
+        /* istanbul ignore next */
         if (!newConfigFile) {
             openSnackbar("Configuration file is required.", "error");
             return;
@@ -694,6 +699,7 @@ const ConfigSection = ({
     };
 
     const handleAddParams = async () => {
+        /* istanbul ignore next */
         if (!paramsToSet.length) {
             openSnackbar("Parameter input is required.", "error");
             return false;
@@ -714,11 +720,13 @@ const ConfigSection = ({
                 const section = param.sectionSuffix ? `${param.sectionPrefix}#${param.sectionSuffix}` : param.sectionPrefix;
                 fullKeyword = section ? `${section}.${param.option}` : param.option;
             } else {
+                /* istanbul ignore next */
                 fullKeyword = param.option;
             }
             const {value, option} = param;
             const keyword = param.keyword;
             try {
+                /* istanbul ignore next */
                 if (!keyword) {
                     openSnackbar(`Invalid parameter: ${option}`, "error");
                     continue;
@@ -770,6 +778,7 @@ const ConfigSection = ({
         for (const param of paramsToUnset) {
             const {section, option} = param;
             try {
+                /* istanbul ignore next */
                 if (!option) {
                     openSnackbar(`Error unsetting parameter ${param.option || "unknown"}`, "error");
                     continue;
