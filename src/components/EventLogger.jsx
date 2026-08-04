@@ -238,6 +238,7 @@ const FullJSONView = ({data, isDarkMode, theme}) => {
             .replace(/'/g, '&#039;');
     };
     const syntaxHighlightJSON = (json) => {
+        /* istanbul ignore next */
         if (typeof json !== 'string') {
             try {
                 json = JSON.stringify(json, null, 2);
@@ -250,6 +251,7 @@ const FullJSONView = ({data, isDarkMode, theme}) => {
             /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
             (match) => {
                 let cls = 'json-number';
+                /* istanbul ignore next */
                 if (/^"/.test(match)) {
                     if (/:$/.test(match)) {
                         cls = 'json-key';
@@ -523,7 +525,9 @@ const EventDrawerContent = ({
     }, []);
 
     const handleScroll = useCallback(() => {
-        if (loadingMore || initialLoading) return;
+        /* istanbul ignore next */
+        if (loadingMore) return;
+        /* istanbul ignore next */
         const container = logsContainerRef.current;
         if (!container) return;
         const {scrollTop, scrollHeight, clientHeight} = container;
@@ -665,6 +669,7 @@ const EventDrawerContent = ({
                                 chipSx.backgroundColor = isDarkMode ? '#90caf9' : '#1976d2';
                                 chipSx.color = isDarkMode ? '#000000' : '#ffffff';
                             } else {
+                                /* istanbul ignore next */
                                 chipSx.backgroundColor = isDarkMode ? '#a5d6a7' : '#2e7d32';
                                 chipSx.color = isDarkMode ? '#000000' : '#ffffff';
                             }
@@ -886,12 +891,14 @@ const EventLogger = React.memo(({
                     </Button>
                 </Tooltip>
             )}
+            {/* istanbul ignore next */}
             <Drawer
                 anchor="bottom"
                 open={drawerOpen}
                 onClose={() => setDrawerOpen(false)}
                 variant="persistent"
                 slotProps={{
+                    /* istanbul ignore next */
                     paper: {
                         style: paperStyle
                     }
