@@ -3,22 +3,30 @@ import {render, screen, waitFor, fireEvent, within} from '@testing-library/react
 import '@testing-library/jest-dom';
 import {MemoryRouter} from 'react-router-dom';
 import axios from 'axios';
+import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 import Network from '../Network';
 import {URL_NETWORK} from '../../config/apiPath.js';
 
 // Mock axios
-jest.mock('axios');
+vi.mock('axios', () => ({
+    default: {
+        get: vi.fn(),
+    },
+}));
 
 // Mock useNavigate from react-router-dom
-const mockNavigate = jest.fn();
-jest.mock('react-router-dom', () => ({
-    ...jest.requireActual('react-router-dom'),
-    useNavigate: () => mockNavigate,
-}));
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        useNavigate: () => mockNavigate,
+    };
+});
 
 // Mock localStorage
 const mockLocalStorage = {
-    getItem: jest.fn(),
+    getItem: vi.fn(),
 };
 Object.defineProperty(window, 'localStorage', {
     value: mockLocalStorage,
@@ -28,13 +36,13 @@ Object.defineProperty(window, 'localStorage', {
 const mockNetworks = [
     {name: 'lo', type: 'loopback', network: '127.0.0.0/8', size: 100, used: 50, free: 50},
     {name: 'default', type: 'bridge', network: '192.168.1.0/24', size: 200, used: 100, free: 100},
-    {name: 'test', type: 'overlay', network: '10.0.0.0/24', size: 100, used: 90, free: 10}, // For usage > 80
-    {name: 'mid', type: 'bridge', network: '172.16.0.0/16', size: 100, used: 60, free: 40}, // For usage > 50
+    {name: 'test', type: 'overlay', network: '10.0.0.0/24', size: 100, used: 90, free: 10},
+    {name: 'mid', type: 'bridge', network: '172.16.0.0/16', size: 100, used: 60, free: 40},
 ];
 
 describe('Network Component', () => {
     beforeEach(() => {
-        jest.clearAllMocks();
+        vi.clearAllMocks();
         mockLocalStorage.getItem.mockReturnValue('mock-token');
     });
 
@@ -125,7 +133,7 @@ describe('Network Component', () => {
     });
 
     test('handles API error gracefully', async () => {
-        const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {
+        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {
         });
         axios.get.mockRejectedValueOnce(new Error('API Error'));
 
@@ -202,7 +210,6 @@ describe('Network Component', () => {
         });
 
         const rows = screen.getAllByRole('row');
-        // Skip header row, check data rows
         const appleRow = rows.find(row => row.textContent.includes('apple'));
         const zebraRow = rows.find(row => row.textContent.includes('zebra'));
 

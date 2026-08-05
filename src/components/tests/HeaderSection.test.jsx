@@ -1,20 +1,25 @@
 import React from 'react';
 import {render, screen} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import {vi} from 'vitest';
 import HeaderSection from '../HeaderSection';
-import {isActionAllowedForSelection} from '../../utils/objectUtils';
 
-// Mock constants
-jest.mock('../../constants/actions', () => ({
+// ── Hoisted mock functions ──────────────────────────────────────────────
+const {mockSetObjectMenuAnchor, mockHandleObjectActionClick} = vi.hoisted(() => ({
+    mockSetObjectMenuAnchor: vi.fn(),
+    mockHandleObjectActionClick: vi.fn(),
+}));
+
+// ── Mocks ───────────────────────────────────────────────────────────────
+vi.mock('../../constants/actions', () => ({
     OBJECT_ACTIONS: [
         {name: 'delete', icon: 'delete-icon'},
         {name: 'edit', icon: 'edit-icon'},
     ],
 }));
 
-// Mock Material-UI components
-jest.mock('@mui/material', () => {
-    const actual = jest.requireActual('@mui/material');
+vi.mock('@mui/material', async (importOriginal) => {
+    const actual = await importOriginal();
     return {
         ...actual,
         Typography: ({children, ...props}) => <span {...props}>{children}</span>,
@@ -26,8 +31,7 @@ jest.mock('@mui/material', () => {
         ),
         Popper: ({children, open, anchorEl, modifiers, ...props}) => {
             if (open) {
-                // Simulate calling offset modifier for coverage
-                modifiers?.forEach(mod => {
+                modifiers?.forEach((mod) => {
                     if (mod.name === 'offset' && typeof mod.options.offset === 'function') {
                         mod.options.offset();
                     }
@@ -50,34 +54,37 @@ jest.mock('@mui/material', () => {
     };
 });
 
-// Mock Material-UI icons
-jest.mock('@mui/icons-material/FiberManualRecord', () => () => (
-    <svg data-testid="FiberManualRecordIcon"/>
-));
-jest.mock('@mui/icons-material/PriorityHigh', () => () => (
-    <svg data-testid="PriorityHighIcon"/>
-));
-jest.mock('@mui/icons-material/AcUnit', () => () => <svg data-testid="AcUnitIcon"/>);
-jest.mock('@mui/icons-material/MoreVert', () => () => (
-    <svg data-testid="MoreVertIcon"/>
-));
-
-// Mock objectUtils
-jest.mock('../../utils/objectUtils', () => ({
-    isActionAllowedForSelection: jest.fn(),
+vi.mock('@mui/icons-material/FiberManualRecord', () => ({
+    default: () => <svg data-testid="FiberManualRecordIcon"/>,
+}));
+vi.mock('@mui/icons-material/PriorityHigh', () => ({
+    default: () => <svg data-testid="PriorityHighIcon"/>,
+}));
+vi.mock('@mui/icons-material/AcUnit', () => ({
+    default: () => <svg data-testid="AcUnitIcon"/>,
+}));
+vi.mock('@mui/icons-material/MoreVert', () => ({
+    default: () => <svg data-testid="MoreVertIcon"/>,
 }));
 
-// Mock navigator.userAgent for Safari detection
+vi.mock('../../utils/objectUtils', () => ({
+    isActionAllowedForSelection: vi.fn(),
+}));
+
+import {isActionAllowedForSelection} from '../../utils/objectUtils';
+
+// Mock navigator.userAgent
 Object.defineProperty(global.navigator, 'userAgent', {
-    value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36',
+    value:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36',
     writable: true,
 });
 
 // Mock localStorage
 const mockLocalStorage = {
-    getItem: jest.fn(() => 'mock-token'),
-    setItem: jest.fn(),
-    removeItem: jest.fn(),
+    getItem: vi.fn(() => 'mock-token'),
+    setItem: vi.fn(),
+    removeItem: vi.fn(),
 };
 Object.defineProperty(global, 'localStorage', {value: mockLocalStorage});
 
@@ -87,14 +94,14 @@ describe('HeaderSection Component', () => {
         globalStatus: {avail: 'up', frozen: 'frozen', provisioned: 'true'},
         actionInProgress: false,
         objectMenuAnchor: null,
-        setObjectMenuAnchor: jest.fn(),
-        handleObjectActionClick: jest.fn(),
-        getObjectStatus: jest.fn(() => ({
+        setObjectMenuAnchor: mockSetObjectMenuAnchor,
+        handleObjectActionClick: mockHandleObjectActionClick,
+        getObjectStatus: vi.fn(() => ({
             avail: 'up',
             frozen: 'frozen',
             globalExpect: 'placed@node1',
         })),
-        getColor: jest.fn((status) => {
+        getColor: vi.fn((status) => {
             if (status === 'up') return 'green';
             if (status === 'warn') return 'orange';
             if (status === 'down') return 'red';
@@ -104,20 +111,15 @@ describe('HeaderSection Component', () => {
     };
 
     beforeEach(() => {
-        jest.clearAllMocks();
-        isActionAllowedForSelection.mockReturnValue(true);
+        vi.clearAllMocks();
+        vi.mocked(isActionAllowedForSelection).mockReturnValue(true);
         defaultProps.getObjectStatus.mockReturnValue({
             avail: 'up',
             frozen: 'frozen',
             globalExpect: 'placed@node1',
         });
-        defaultProps.getColor.mockImplementation((status) => {
-            if (status === 'up') return 'green';
-            if (status === 'warn') return 'orange';
-            if (status === 'down') return 'red';
-            return 'grey';
-        });
-        global.navigator.userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36';
+        global.navigator.userAgent =
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36';
     });
 
     test('renders object name and status icons', async () => {
@@ -183,13 +185,14 @@ describe('HeaderSection Component', () => {
     });
 
     test('opens menu and logs position on button click', async () => {
-        jest.spyOn(console, 'info').mockImplementation(() => {});
+        vi.spyOn(console, 'info').mockImplementation(() => {
+        });
         render(<HeaderSection {...defaultProps} />);
 
         const button = screen.getByLabelText('Object actions');
         await userEvent.click(button);
 
-        expect(defaultProps.setObjectMenuAnchor).toHaveBeenCalledWith(expect.anything());
+        expect(mockSetObjectMenuAnchor).toHaveBeenCalledWith(expect.anything());
         expect(console.info).toHaveBeenCalledWith(
             'Object menu opened at:',
             expect.any(Object)
@@ -198,7 +201,7 @@ describe('HeaderSection Component', () => {
 
     test('renders popper menu when objectMenuAnchor is set', () => {
         const mockAnchor = {
-            getBoundingClientRect: jest.fn(() => ({})),
+            getBoundingClientRect: vi.fn(() => ({})),
         };
         const props = {
             ...defaultProps,
@@ -213,7 +216,7 @@ describe('HeaderSection Component', () => {
 
     test('handles object action click', async () => {
         const mockAnchor = {
-            getBoundingClientRect: jest.fn(() => ({})),
+            getBoundingClientRect: vi.fn(() => ({})),
         };
         const props = {
             ...defaultProps,
@@ -224,14 +227,14 @@ describe('HeaderSection Component', () => {
         const menuItems = screen.getAllByRole('menuitem');
         await userEvent.click(menuItems[0]);
 
-        expect(defaultProps.handleObjectActionClick).toHaveBeenCalledWith('delete');
-        expect(defaultProps.setObjectMenuAnchor).toHaveBeenCalledWith(null);
+        expect(mockHandleObjectActionClick).toHaveBeenCalledWith('delete');
+        expect(mockSetObjectMenuAnchor).toHaveBeenCalledWith(null);
     });
 
     test('disables menu items when not allowed', () => {
-        isActionAllowedForSelection.mockReturnValue(false);
+        vi.mocked(isActionAllowedForSelection).mockReturnValue(false);
         const mockAnchor = {
-            getBoundingClientRect: jest.fn(() => ({})),
+            getBoundingClientRect: vi.fn(() => ({})),
         };
         const props = {
             ...defaultProps,
@@ -244,9 +247,10 @@ describe('HeaderSection Component', () => {
     });
 
     test('configures popperProps correctly for Safari', () => {
-        global.navigator.userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15';
+        global.navigator.userAgent =
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15';
         const mockAnchor = {
-            getBoundingClientRect: jest.fn(() => ({})),
+            getBoundingClientRect: vi.fn(() => ({})),
         };
         const props = {
             ...defaultProps,
@@ -263,7 +267,7 @@ describe('HeaderSection Component', () => {
             writable: true,
         });
         const mockAnchor = {
-            getBoundingClientRect: jest.fn(() => ({})),
+            getBoundingClientRect: vi.fn(() => ({})),
         };
         const props = {
             ...defaultProps,

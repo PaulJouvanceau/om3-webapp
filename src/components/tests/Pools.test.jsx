@@ -1,22 +1,27 @@
 import React from 'react';
 import {render, screen, waitFor, fireEvent, within} from '@testing-library/react';
 import '@testing-library/jest-dom';
+import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 import axios from 'axios';
 import Pools from '../Pools';
 import {URL_POOL} from '../../config/apiPath.js';
 
-// Mock axios
-jest.mock('axios');
+// ── Mocks ──────────────────────────────────────────────────────────────
+vi.mock('axios', () => ({
+    default: {
+        get: vi.fn(),
+    },
+}));
 
 // Mock localStorage
 const mockLocalStorage = {
-    getItem: jest.fn(),
+    getItem: vi.fn(),
 };
 Object.defineProperty(window, 'localStorage', {
     value: mockLocalStorage,
 });
 
-// Sample pool data for testing
+// Sample pool data
 const mockPools = [
     {name: 'pool1', type: 'zfs', volume_count: 5, used: 50, size: 100, head: 'node1'},
     {name: 'pool2', type: 'lvm', volume_count: 3, used: 0, size: 200, head: 'node2'},
@@ -25,8 +30,12 @@ const mockPools = [
 
 describe('Pools Component', () => {
     beforeEach(() => {
-        jest.clearAllMocks();
+        vi.clearAllMocks();
         mockLocalStorage.getItem.mockReturnValue('mock-token');
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
     });
 
     test('renders table headers correctly', async () => {
@@ -36,17 +45,9 @@ describe('Pools Component', () => {
 
         await waitFor(() => {
             expect(screen.getByText('Name')).toBeInTheDocument();
-        });
-        await waitFor(() => {
             expect(screen.getByText('Type')).toBeInTheDocument();
-        });
-        await waitFor(() => {
             expect(screen.getByText('Volume Count')).toBeInTheDocument();
-        });
-        await waitFor(() => {
             expect(screen.getByText('Usage')).toBeInTheDocument();
-        });
-        await waitFor(() => {
             expect(screen.getByText('Head')).toBeInTheDocument();
         });
     });
@@ -58,65 +59,31 @@ describe('Pools Component', () => {
 
         await waitFor(() => {
             expect(screen.getByText('pool1')).toBeInTheDocument();
-        });
-
-        // Check pool1 data
-        await waitFor(() => {
             expect(screen.getByText('zfs')).toBeInTheDocument();
-        });
-        await waitFor(() => {
             expect(screen.getByText('5')).toBeInTheDocument();
-        });
-        await waitFor(() => {
             expect(screen.getByText('50.0%')).toBeInTheDocument();
-        });
-        await waitFor(() => {
             expect(screen.getByText('node1')).toBeInTheDocument();
-        });
 
-        // Check pool2 data
-        await waitFor(() => {
             expect(screen.getByText('pool2')).toBeInTheDocument();
-        });
-        await waitFor(() => {
             expect(screen.getByText('lvm')).toBeInTheDocument();
-        });
-        await waitFor(() => {
             expect(screen.getByText('3')).toBeInTheDocument();
-        });
-        await waitFor(() => {
             expect(screen.getByText('0.0%')).toBeInTheDocument();
-        });
-        await waitFor(() => {
             expect(screen.getByText('node2')).toBeInTheDocument();
-        });
 
-        // Check pool3 data
-        await waitFor(() => {
             expect(screen.getByText('pool3')).toBeInTheDocument();
-        });
-        await waitFor(() => {
             expect(screen.getByText('ext4')).toBeInTheDocument();
-        });
-        await waitFor(() => {
             expect(screen.getByText('10')).toBeInTheDocument();
-        });
-        await waitFor(() => {
             expect(screen.getByText('75.0%')).toBeInTheDocument();
-        });
-        await waitFor(() => {
             expect(screen.getByText('node3')).toBeInTheDocument();
         });
 
-        await waitFor(() => {
-            expect(axios.get).toHaveBeenCalledWith(URL_POOL, {
-                headers: {Authorization: 'Bearer mock-token'},
-            });
+        expect(axios.get).toHaveBeenCalledWith(URL_POOL, {
+            headers: {Authorization: 'Bearer mock-token'},
         });
     });
 
     test('handles API error gracefully', async () => {
-        const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {
+        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {
         });
         axios.get.mockRejectedValueOnce(new Error('API Error'));
 
@@ -124,46 +91,33 @@ describe('Pools Component', () => {
 
         await waitFor(() => {
             expect(consoleErrorSpy).toHaveBeenCalledWith('Error retrieving pools', expect.any(Error));
-        });
-        await waitFor(() => {
             expect(screen.queryByText('pool1')).not.toBeInTheDocument();
-        });
-        await waitFor(() => {
             expect(screen.queryByText('pool2')).not.toBeInTheDocument();
-        });
-        await waitFor(() => {
+
             const alert = screen.getByRole('alert');
             expect(alert).toHaveClass('MuiAlert-standardError');
-        });
-        await waitFor(() => {
-            expect(within(screen.getByRole('alert')).getByText('Failed to load pools. Please try again.')).toBeInTheDocument();
-        });
-        await waitFor(() => {
-            expect(within(screen.getByRole('alert')).getByRole('button', {name: /retry/i})).toBeInTheDocument();
+            expect(within(alert).getByText('Failed to load pools. Please try again.')).toBeInTheDocument();
+            expect(within(alert).getByRole('button', {name: /retry/i})).toBeInTheDocument();
         });
 
         consoleErrorSpy.mockRestore();
     });
 
     test('does not update state when component is unmounted during API error', async () => {
-        const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {
+        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {
         });
-        // Mock a delayed API error response
-        axios.get.mockImplementationOnce(() =>
-            new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('API Error')), 100);
-            })
+        axios.get.mockImplementationOnce(
+            () =>
+                new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('API Error')), 100);
+                })
         );
 
         const {unmount} = render(<Pools/>);
-
-        // Unmount before the API resolves
         unmount();
 
-        // Wait for the API to reject
         await new Promise((resolve) => setTimeout(resolve, 150));
 
-        // Verify that console.error was called, but state updates were skipped
         expect(consoleErrorSpy).toHaveBeenCalledWith('Error retrieving pools', expect.any(Error));
         expect(screen.queryByText('Failed to load pools. Please try again.')).not.toBeInTheDocument();
 
@@ -182,9 +136,8 @@ describe('Pools Component', () => {
             expect(screen.getByText('pool4')).toBeInTheDocument();
         });
 
-        await waitFor(() => {
-            expect(screen.getByText((content, element) => content.includes('N/A') && element.tagName === 'TD')).toBeInTheDocument();
-        });
+        const usageCell = screen.getByText((content, element) => content.includes('N/A') && element.tagName === 'TD');
+        expect(usageCell).toBeInTheDocument();
     });
 
     test('handles pools with missing properties', async () => {
@@ -197,7 +150,7 @@ describe('Pools Component', () => {
 
         await waitFor(() => {
             const naElements = screen.getAllByText((content, element) => content.includes('N/A') && element.tagName === 'TD');
-            expect(naElements.length).toBe(5); // Expect N/A for name, type, volume_count, usage, head
+            expect(naElements.length).toBe(5);
         });
     });
 
@@ -240,12 +193,10 @@ describe('Pools Component', () => {
 
         await waitFor(() => {
             expect(screen.getByText('Failed to load pools. Please try again.')).toBeInTheDocument();
-        });
-        await waitFor(() => {
             expect(screen.getByRole('button', {name: /retry/i})).toBeInTheDocument();
         });
 
-        // Second call succeeds after retry
+        // Second call succeeds
         axios.get.mockResolvedValueOnce({data: {items: mockPools}});
 
         const retryButton = screen.getByRole('button', {name: /retry/i});
@@ -253,19 +204,12 @@ describe('Pools Component', () => {
 
         await waitFor(() => {
             expect(screen.getByText('pool1')).toBeInTheDocument();
-        });
-        await waitFor(() => {
             expect(screen.getByText('pool2')).toBeInTheDocument();
-        });
-        await waitFor(() => {
             expect(screen.getByText('pool3')).toBeInTheDocument();
-        });
-        await waitFor(() => {
             expect(screen.queryByText('Failed to load pools. Please try again.')).not.toBeInTheDocument();
         });
-        await waitFor(() => {
-            expect(axios.get).toHaveBeenCalledTimes(2);
-        });
+
+        expect(axios.get).toHaveBeenCalledTimes(2);
     });
 
     test('handles retry with missing auth token', async () => {
@@ -277,7 +221,6 @@ describe('Pools Component', () => {
             expect(screen.getByText('Failed to load pools. Please try again.')).toBeInTheDocument();
         });
 
-        // Mock missing auth token
         mockLocalStorage.getItem.mockReturnValue(null);
         axios.get.mockRejectedValueOnce(new Error('No Token'));
 
@@ -287,17 +230,15 @@ describe('Pools Component', () => {
         await waitFor(() => {
             expect(screen.getByRole('progressbar')).toBeInTheDocument();
         });
+
         await waitFor(() => {
             expect(screen.getByText('Failed to load pools. Please try again.')).toBeInTheDocument();
         });
-        await waitFor(() => {
-            expect(axios.get).toHaveBeenCalledWith(URL_POOL, {
-                headers: {Authorization: 'Bearer null'},
-            });
+
+        expect(axios.get).toHaveBeenCalledWith(URL_POOL, {
+            headers: {Authorization: 'Bearer null'},
         });
-        await waitFor(() => {
-            expect(axios.get).toHaveBeenCalledTimes(2);
-        });
+        expect(axios.get).toHaveBeenCalledTimes(2);
     });
 
     test('sorts table by different columns', async () => {
@@ -309,168 +250,96 @@ describe('Pools Component', () => {
             expect(screen.getByText('pool1')).toBeInTheDocument();
         });
 
-        // Get table rows for comparison
-        const getRows = () => screen.getAllByRole('row', {name: /pool[1-3]/}); // Filter rows with pool names
+        const getRows = () => screen.getAllByRole('row', {name: /pool[1-3]/});
 
-        // Check initial sort by name (asc)
+        // initial name asc
         await waitFor(() => {
             const rows = getRows();
             expect(within(rows[0]).getByText('pool1')).toBeInTheDocument();
-        });
-        await waitFor(() => {
-            const rows = getRows();
             expect(within(rows[1]).getByText('pool2')).toBeInTheDocument();
-        });
-        await waitFor(() => {
-            const rows = getRows();
             expect(within(rows[2]).getByText('pool3')).toBeInTheDocument();
-        });
-        await waitFor(() => {
             expect(screen.getByTestId('KeyboardArrowUpIcon')).toBeInTheDocument();
         });
 
-        // Test sorting by name (desc)
-        const nameHeader = screen.getByText('Name');
-        fireEvent.click(nameHeader);
+        // name desc
+        fireEvent.click(screen.getByText('Name'));
         await waitFor(() => {
             const rows = getRows();
             expect(within(rows[0]).getByText('pool3')).toBeInTheDocument();
-        });
-        await waitFor(() => {
-            const rows = getRows();
             expect(within(rows[1]).getByText('pool2')).toBeInTheDocument();
-        });
-        await waitFor(() => {
-            const rows = getRows();
             expect(within(rows[2]).getByText('pool1')).toBeInTheDocument();
-        });
-        await waitFor(() => {
             expect(screen.getByTestId('KeyboardArrowDownIcon')).toBeInTheDocument();
         });
 
-        // Test sorting by name (asc again)
-        fireEvent.click(nameHeader);
-        await waitFor(() => {
-            const rows = getRows();
-            expect(within(rows[0]).getByText('pool1')).toBeInTheDocument();
-        });
-        await waitFor(() => {
-            expect(screen.getByTestId('KeyboardArrowUpIcon')).toBeInTheDocument();
-        });
-
-        // Test sorting by type (asc)
-        const typeHeader = screen.getByText('Type');
-        fireEvent.click(typeHeader);
+        // type asc
+        fireEvent.click(screen.getByText('Type'));
         await waitFor(() => {
             const rows = getRows();
             expect(within(rows[0]).getByText('pool3')).toBeInTheDocument(); // ext4
-        });
-        await waitFor(() => {
-            const rows = getRows();
             expect(within(rows[1]).getByText('pool2')).toBeInTheDocument(); // lvm
-        });
-        await waitFor(() => {
-            const rows = getRows();
             expect(within(rows[2]).getByText('pool1')).toBeInTheDocument(); // zfs
-        });
-        await waitFor(() => {
             expect(screen.getByTestId('KeyboardArrowUpIcon')).toBeInTheDocument();
         });
 
-        // Test sorting by type (desc)
-        fireEvent.click(typeHeader);
+        // type desc
+        fireEvent.click(screen.getByText('Type'));
         await waitFor(() => {
             const rows = getRows();
             expect(within(rows[0]).getByText('pool1')).toBeInTheDocument(); // zfs
-        });
-        await waitFor(() => {
             expect(screen.getByTestId('KeyboardArrowDownIcon')).toBeInTheDocument();
         });
 
-        // Test sorting by volume_count (asc)
-        const volumeHeader = screen.getByText('Volume Count');
-        fireEvent.click(volumeHeader);
+        // volume_count asc
+        fireEvent.click(screen.getByText('Volume Count'));
         await waitFor(() => {
             const rows = getRows();
             expect(within(rows[0]).getByText('pool2')).toBeInTheDocument(); // 3
-        });
-        await waitFor(() => {
-            const rows = getRows();
             expect(within(rows[1]).getByText('pool1')).toBeInTheDocument(); // 5
-        });
-        await waitFor(() => {
-            const rows = getRows();
             expect(within(rows[2]).getByText('pool3')).toBeInTheDocument(); // 10
-        });
-        await waitFor(() => {
             expect(screen.getByTestId('KeyboardArrowUpIcon')).toBeInTheDocument();
         });
 
-        // Test sorting by volume_count (desc)
-        fireEvent.click(volumeHeader);
+        // volume_count desc
+        fireEvent.click(screen.getByText('Volume Count'));
         await waitFor(() => {
             const rows = getRows();
             expect(within(rows[0]).getByText('pool3')).toBeInTheDocument(); // 10
-        });
-        await waitFor(() => {
             expect(screen.getByTestId('KeyboardArrowDownIcon')).toBeInTheDocument();
         });
 
-        // Test sorting by usage (asc)
-        const usageHeader = screen.getByText('Usage');
-        fireEvent.click(usageHeader);
+        // usage asc
+        fireEvent.click(screen.getByText('Usage'));
         await waitFor(() => {
             const rows = getRows();
             expect(within(rows[0]).getByText('pool2')).toBeInTheDocument(); // 0.0%
-        });
-        await waitFor(() => {
-            const rows = getRows();
             expect(within(rows[1]).getByText('pool1')).toBeInTheDocument(); // 50.0%
-        });
-        await waitFor(() => {
-            const rows = getRows();
             expect(within(rows[2]).getByText('pool3')).toBeInTheDocument(); // 75.0%
-        });
-        await waitFor(() => {
             expect(screen.getByTestId('KeyboardArrowUpIcon')).toBeInTheDocument();
         });
 
-        // Test sorting by usage (desc)
-        fireEvent.click(usageHeader);
+        // usage desc
+        fireEvent.click(screen.getByText('Usage'));
         await waitFor(() => {
             const rows = getRows();
             expect(within(rows[0]).getByText('pool3')).toBeInTheDocument(); // 75.0%
-        });
-        await waitFor(() => {
             expect(screen.getByTestId('KeyboardArrowDownIcon')).toBeInTheDocument();
         });
 
-        // Test sorting by head (asc)
-        const headHeader = screen.getByText('Head');
-        fireEvent.click(headHeader);
+        // head asc
+        fireEvent.click(screen.getByText('Head'));
         await waitFor(() => {
             const rows = getRows();
             expect(within(rows[0]).getByText('pool1')).toBeInTheDocument(); // node1
-        });
-        await waitFor(() => {
-            const rows = getRows();
             expect(within(rows[1]).getByText('pool2')).toBeInTheDocument(); // node2
-        });
-        await waitFor(() => {
-            const rows = getRows();
             expect(within(rows[2]).getByText('pool3')).toBeInTheDocument(); // node3
-        });
-        await waitFor(() => {
             expect(screen.getByTestId('KeyboardArrowUpIcon')).toBeInTheDocument();
         });
 
-        // Test sorting by head (desc)
-        fireEvent.click(headHeader);
+        // head desc
+        fireEvent.click(screen.getByText('Head'));
         await waitFor(() => {
             const rows = getRows();
             expect(within(rows[0]).getByText('pool3')).toBeInTheDocument(); // node3
-        });
-        await waitFor(() => {
             expect(screen.getByTestId('KeyboardArrowDownIcon')).toBeInTheDocument();
         });
     });
@@ -485,10 +354,8 @@ describe('Pools Component', () => {
 
         await waitFor(() => {
             expect(screen.getByText('pool5')).toBeInTheDocument();
-        });
-
-        await waitFor(() => {
-            expect(screen.getByText((content, element) => content.includes('N/A') && element.tagName === 'TD')).toBeInTheDocument();
+            const naText = screen.getByText((content, element) => content.includes('N/A') && element.tagName === 'TD');
+            expect(naText).toBeInTheDocument();
         });
     });
 
@@ -500,36 +367,27 @@ describe('Pools Component', () => {
         await waitFor(() => {
             const alert = screen.getByRole('alert');
             expect(alert).toHaveClass('MuiAlert-standardError');
-        });
-        await waitFor(() => {
-            expect(within(screen.getByRole('alert')).getByText('Failed to load pools. Please try again.')).toBeInTheDocument();
-        });
-        await waitFor(() => {
-            const retryButton = within(screen.getByRole('alert')).getByRole('button', {name: /retry/i});
+            expect(within(alert).getByText('Failed to load pools. Please try again.')).toBeInTheDocument();
+
+            const retryButton = within(alert).getByRole('button', {name: /retry/i});
             expect(retryButton).toHaveClass('MuiButton-colorInherit');
-        });
-        await waitFor(() => {
-            const retryButton = within(screen.getByRole('alert')).getByRole('button', {name: /retry/i});
             expect(retryButton).toHaveClass('MuiButton-sizeSmall');
         });
 
-        // Simulate retry with failure to test error state persistence
+        // Retry fails again
         axios.get.mockRejectedValueOnce(new Error('Retry Failed'));
-
         const retryButton = screen.getByRole('button', {name: /retry/i});
         fireEvent.click(retryButton);
 
         await waitFor(() => {
             expect(screen.getByRole('progressbar')).toBeInTheDocument();
         });
+
         await waitFor(() => {
             expect(screen.getByText('Failed to load pools. Please try again.')).toBeInTheDocument();
-        });
-        await waitFor(() => {
             expect(screen.getByRole('button', {name: /retry/i})).toBeInTheDocument();
         });
-        await waitFor(() => {
-            expect(axios.get).toHaveBeenCalledTimes(2);
-        });
+
+        expect(axios.get).toHaveBeenCalledTimes(2);
     });
 });

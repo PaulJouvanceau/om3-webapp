@@ -1,49 +1,71 @@
 import React from 'react';
 import {render, screen, fireEvent, waitFor, act, within} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
+import {vi} from 'vitest';
 import Namespaces, {areStatusDotPropsEqual} from '../Namespaces';
-import useEventStore from '../../hooks/useEventStore.js';
-import {startEventReception, closeEventSource} from '../../eventSourceManager.jsx';
 
-// Mock dependencies
-jest.mock('react-router-dom', () => ({
-    ...jest.requireActual('react-router-dom'),
-    useNavigate: jest.fn(),
-    useLocation: jest.fn(),
+// ── Hoisted mock variables ──────────────────────────────────────────────
+const {
+    mockNavigate,
+    mockUseNavigate,
+    mockUseLocation,
+    mockStartEventReception,
+    mockCloseEventSource,
+    mockUseEventStore,
+    mockUseNamespaceData,
+} = vi.hoisted(() => ({
+    mockNavigate: vi.fn(),
+    mockUseNavigate: vi.fn(() => mockNavigate),
+    mockUseLocation: vi.fn(() => ({pathname: '/namespaces', search: ''})),
+    mockStartEventReception: vi.fn(),
+    mockCloseEventSource: vi.fn(),
+    mockUseEventStore: vi.fn(),
+    mockUseNamespaceData: vi.fn(),
 }));
 
-jest.mock('../../hooks/useEventStore.js');
-jest.mock('../../eventSourceManager.jsx');
-jest.mock('../../hooks/useNamespaceData', () => ({
-    useNamespaceData: jest.fn(),
-}));
-
-import {useNamespaceData} from '../../hooks/useNamespaceData';
-
-const mockNavigate = jest.fn();
-const mockStartEventReception = startEventReception;
-const mockCloseEventSource = closeEventSource;
-
-jest.mock('@mui/material', () => {
-    const originalModule = jest.requireActual('@mui/material');
-    const React = require('react');
+// ── Mocks ───────────────────────────────────────────────────────────────
+vi.mock('react-router-dom', async (importOriginal) => {
+    const actual = await importOriginal();
     return {
-        ...originalModule,
-        Box: ({children, ...props}) => <div data-testid="box" {...props}>{children}</div>,
-        Table: ({children, ...props}) => <table data-testid="table" {...props}>{children}</table>,
-        TableHead: ({children, ...props}) => <thead data-testid="table-head" {...props}>{children}</thead>,
-        TableBody: ({children, ...props}) => <tbody data-testid="table-body" {...props}>{children}</tbody>,
-        TableRow: ({children, onClick, hover, ...props}) => (
+        ...actual,
+        useNavigate: mockUseNavigate,
+        useLocation: mockUseLocation,
+    };
+});
+
+vi.mock('../../hooks/useEventStore.js', () => ({
+    __esModule: true,
+    default: mockUseEventStore,
+}));
+
+vi.mock('../../eventSourceManager.jsx', () => ({
+    startEventReception: mockStartEventReception,
+    closeEventSource: mockCloseEventSource,
+}));
+
+vi.mock('../../hooks/useNamespaceData', () => ({
+    useNamespaceData: mockUseNamespaceData,
+}));
+
+vi.mock('@mui/material', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        Box: vi.fn(({children, ...props}) => <div data-testid="box" {...props}>{children}</div>),
+        Table: vi.fn(({children, ...props}) => <table data-testid="table" {...props}>{children}</table>),
+        TableHead: vi.fn(({children, ...props}) => <thead data-testid="table-head" {...props}>{children}</thead>),
+        TableBody: vi.fn(({children, ...props}) => <tbody data-testid="table-body" {...props}>{children}</tbody>),
+        TableRow: vi.fn(({children, onClick, hover, ...props}) => (
             <tr data-testid="table-row" onClick={onClick} {...props}>{children}</tr>
-        ),
-        TableCell: ({children, onClick, justifyContent, alignItems, ...props}) => (
-            <td data-testid="table-cell" onClick={onClick} {...props}>{children}</td>
-        ),
-        TableContainer: React.forwardRef(({children, ...props}, ref) => (
-            <div ref={ref} data-testid="table-container" {...props}>{children}</div>
         )),
-        Typography: ({children, ...props}) => <div data-testid="typography" {...props}>{children}</div>,
-        Autocomplete: ({options, value, onChange, renderInput, ...props}) => (
+        TableCell: vi.fn(({children, onClick, justifyContent, alignItems, ...props}) => (
+            <td data-testid="table-cell" onClick={onClick} {...props}>{children}</td>
+        )),
+        TableContainer: vi.fn(({children, ...props}) => (
+            <div data-testid="table-container" {...props}>{children}</div>
+        )),
+        Typography: vi.fn(({children, ...props}) => <div data-testid="typography" {...props}>{children}</div>),
+        Autocomplete: vi.fn(({options, value, onChange, renderInput, ...props}) => (
             <div data-testid="autocomplete" {...props}>
                 <input
                     data-testid="autocomplete-input"
@@ -55,30 +77,36 @@ jest.mock('@mui/material', () => {
                 />
                 {renderInput && renderInput({})}
             </div>
-        ),
-        TextField: ({label, inputProps, ...props}) => (
+        )),
+        TextField: vi.fn(({label, inputProps, ...props}) => (
             <div data-testid="text-field">
                 {label && <label>{label}</label>}
                 <input {...inputProps} {...props} />
             </div>
+        )),
+        Drawer: vi.fn(({children, open, anchor, onClose, ...props}) =>
+            open ? <div role="complementary" {...props}>{children}</div> : null
         ),
-        Drawer: ({children, open, anchor, onClose, ...props}) =>
-            open ? <div role="complementary" {...props}>{children}</div> : null,
-        CircularProgress: (props) => <div role="progressbar" {...props} />,
+        CircularProgress: vi.fn((props) => <div role="progressbar" {...props} />),
     };
 });
 
-jest.mock('@mui/icons-material/KeyboardArrowUp', () => ({
+vi.mock('@mui/icons-material/KeyboardArrowUp', () => ({
     __esModule: true,
     default: (props) => <span data-testid="arrow-up" {...props} />,
 }));
-
-jest.mock('@mui/icons-material/KeyboardArrowDown', () => ({
+vi.mock('@mui/icons-material/KeyboardArrowDown', () => ({
     __esModule: true,
     default: (props) => <span data-testid="arrow-down" {...props} />,
 }));
-
-jest.mock('@mui/icons-material/FiberManualRecord', () => ({
+vi.mock('@mui/icons-material/FiberManualRecord', () => ({
+    __esModule: true,
+    default: ({sx = {}, ...props}) => {
+        const color = typeof sx.color === 'string' ? sx.color : 'inherit';
+        return <span data-testid="status-icon" style={{color}} {...props} />;
+    },
+}));
+vi.mock('@mui/icons-material/PriorityHigh', () => ({
     __esModule: true,
     default: ({sx = {}, ...props}) => {
         const color = typeof sx.color === 'string' ? sx.color : 'inherit';
@@ -86,15 +114,7 @@ jest.mock('@mui/icons-material/FiberManualRecord', () => ({
     },
 }));
 
-jest.mock('@mui/icons-material/PriorityHigh', () => ({
-    __esModule: true,
-    default: ({sx = {}, ...props}) => {
-        const color = typeof sx.color === 'string' ? sx.color : 'inherit';
-        return <span data-testid="status-icon" style={{color}} {...props} />;
-    },
-}));
-
-// Helpers
+// ── Helpers ─────────────────────────────────────────────────────────────
 const getHeaderCellFor = (columnName) => {
     const head = screen.getByTestId('table-head');
     const headRow = within(head).getByTestId('table-row');
@@ -156,12 +176,12 @@ function setup(overrides = {}) {
         token = 'valid-token',
     } = overrides;
 
-    jest.clearAllMocks();
-    Storage.prototype.getItem = jest.fn(() => token);
-    require('react-router-dom').useNavigate.mockReturnValue(mockNavigate);
-    require('react-router-dom').useLocation.mockReturnValue({pathname, search});
-    useEventStore.mockImplementation((selector) => selector({objectStatus: {}}));
-    useNamespaceData.mockReturnValue(data);
+    vi.clearAllMocks();
+    Storage.prototype.getItem = vi.fn(() => token);
+    mockUseNavigate.mockReturnValue(mockNavigate);
+    mockUseLocation.mockReturnValue({pathname, search});
+    mockUseEventStore.mockImplementation((selector) => selector({objectStatus: {}}));
+    mockUseNamespaceData.mockReturnValue(data);
 }
 
 function renderComponent() {
@@ -172,6 +192,7 @@ function renderComponent() {
     );
 }
 
+// ── Tests ───────────────────────────────────────────────────────────────
 describe('Namespaces', () => {
     beforeEach(() => setup());
 
@@ -317,23 +338,17 @@ describe('Namespaces', () => {
         };
 
         test('default sort by namespace ascending', async () => {
-            await waitFor(() => {
-                expect(getNamespaceNames()).toEqual(['alpha', 'beta', 'delta', 'gamma']);
-            });
+            await waitFor(() => expect(getNamespaceNames()).toEqual(['alpha', 'beta', 'delta', 'gamma']));
         });
 
         test('sort by Up ascending', async () => {
             fireEvent.click(getHeaderCellFor('Up'));
-            await waitFor(() => {
-                expect(getNamespaceNames()).toEqual(['gamma', 'alpha', 'beta', 'delta']);
-            });
+            await waitFor(() => expect(getNamespaceNames()).toEqual(['gamma', 'alpha', 'beta', 'delta']));
         });
 
         test('sort by Down ascending', async () => {
             fireEvent.click(getHeaderCellFor('Down'));
-            await waitFor(() => {
-                expect(getNamespaceNames()).toEqual(['beta', 'delta', 'alpha', 'gamma']);
-            });
+            await waitFor(() => expect(getNamespaceNames()).toEqual(['beta', 'delta', 'alpha', 'gamma']));
         });
 
         test('sort by Warn ascending', async () => {
@@ -355,16 +370,12 @@ describe('Namespaces', () => {
 
         test('sort by Total ascending', async () => {
             fireEvent.click(getHeaderCellFor('Total'));
-            await waitFor(() => {
-                expect(getNamespaceNames()).toEqual(['beta', 'delta', 'alpha', 'gamma']);
-            });
+            await waitFor(() => expect(getNamespaceNames()).toEqual(['beta', 'delta', 'alpha', 'gamma']));
         });
 
         test('sort by Namespace descending', async () => {
             fireEvent.click(getHeaderCellFor('Namespace'));
-            await waitFor(() => {
-                expect(getNamespaceNames()).toEqual(['gamma', 'delta', 'beta', 'alpha']);
-            });
+            await waitFor(() => expect(getNamespaceNames()).toEqual(['gamma', 'delta', 'beta', 'alpha']));
         });
     });
 
@@ -377,7 +388,7 @@ describe('Namespaces', () => {
         }
 
         test('loads more namespaces on scroll near bottom', async () => {
-            jest.useFakeTimers();
+            vi.useFakeTimers();
             setup({data: generateLargeData(60)});
             renderComponent();
             await screen.findByTestId('table-body');
@@ -392,22 +403,22 @@ describe('Namespaces', () => {
             });
             fireEvent.scroll(container);
             act(() => {
-                jest.advanceTimersByTime(0);
+                vi.advanceTimersByTime(0);
             });
             expect(screen.getByRole('progressbar')).toBeInTheDocument();
 
             act(() => {
-                jest.advanceTimersByTime(100);
+                vi.advanceTimersByTime(100);
             });
             await waitFor(() => {
                 rows = within(screen.getByTestId('table-body')).getAllByTestId('table-row');
                 expect(rows).toHaveLength(60);
             });
-            jest.useRealTimers();
+            vi.useRealTimers();
         });
 
         test('does not load more while already loading', () => {
-            jest.useFakeTimers();
+            vi.useFakeTimers();
             setup({data: generateLargeData(60)});
             renderComponent();
             const container = screen.getByTestId('table-container');
@@ -418,20 +429,20 @@ describe('Namespaces', () => {
             });
             fireEvent.scroll(container);
             act(() => {
-                jest.advanceTimersByTime(0);
+                vi.advanceTimersByTime(0);
             });
             expect(screen.getByRole('progressbar')).toBeInTheDocument();
 
             fireEvent.scroll(container);
             act(() => {
-                jest.advanceTimersByTime(100);
+                vi.advanceTimersByTime(100);
             });
             expect(within(screen.getByTestId('table-body')).getAllByTestId('table-row')).toHaveLength(60);
-            jest.useRealTimers();
+            vi.useRealTimers();
         });
 
         test('does not load more if all visible', () => {
-            jest.useFakeTimers();
+            vi.useFakeTimers();
             setup({data: generateLargeData(40)});
             renderComponent();
             const container = screen.getByTestId('table-container');
@@ -442,17 +453,17 @@ describe('Namespaces', () => {
             });
             fireEvent.scroll(container);
             act(() => {
-                jest.advanceTimersByTime(0);
+                vi.advanceTimersByTime(0);
             });
             expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
-            jest.useRealTimers();
+            vi.useRealTimers();
         });
 
         test('removes scroll listener on unmount', () => {
             setup({data: generateLargeData(60)});
             const {unmount} = renderComponent();
             const container = screen.getByTestId('table-container');
-            const removeSpy = jest.spyOn(container, 'removeEventListener');
+            const removeSpy = vi.spyOn(container, 'removeEventListener');
             unmount();
             expect(removeSpy).toHaveBeenCalledWith('scroll', expect.any(Function));
             removeSpy.mockRestore();

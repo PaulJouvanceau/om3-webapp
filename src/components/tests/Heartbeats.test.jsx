@@ -9,36 +9,53 @@ import {
     closeEventSource,
     startEventReception,
 } from "../../eventSourceManager.jsx";
+import {vi} from "vitest";
 
-const mockNavigate = jest.fn();
-jest.mock("react-router-dom", () => ({
-    ...jest.requireActual("react-router-dom"),
-    useNavigate: () => mockNavigate,
-}));
+const {mockUseMediaQuery} = vi.hoisted(() => {
+    return {mockUseMediaQuery: vi.fn()};
+});
 
-jest.mock("../../hooks/useEventStore.js", () => ({
+const mockNavigate = vi.fn();
+vi.mock("react-router-dom", async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        useNavigate: () => mockNavigate,
+    };
+});
+
+vi.mock("../../hooks/useEventStore.js", () => ({
     __esModule: true,
-    default: jest.fn(),
+    default: vi.fn(),
 }));
 
-jest.mock("../../eventSourceManager.jsx", () => ({
-    startEventReception: jest.fn(),
-    closeEventSource: jest.fn(),
-    startLoggerReception: jest.fn(),
-    closeLoggerEventSource: jest.fn(),
+vi.mock("../../eventSourceManager.jsx", () => ({
+    startEventReception: vi.fn(),
+    closeEventSource: vi.fn(),
+    startLoggerReception: vi.fn(),
+    closeLoggerEventSource: vi.fn(),
 }));
 
-jest.mock("@mui/material/useMediaQuery", () => jest.fn());
+vi.mock("@mui/material", async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        useMediaQuery: mockUseMediaQuery,
+    };
+});
+
+vi.mock("@mui/icons-material/FilterList", () => ({
+    default: () => <span data-testid="FilterListIcon"/>,
+}));
 
 const mockLocalStorage = {
-    getItem: jest.fn(),
-    setItem: jest.fn(),
-    removeItem: jest.fn(),
+    getItem: vi.fn(),
+    setItem: vi.fn(),
+    removeItem: vi.fn(),
 };
 Object.defineProperty(window, "localStorage", {value: mockLocalStorage});
 
 const theme = createTheme();
-const mockUseMediaQuery = jest.requireMock("@mui/material/useMediaQuery");
 
 const renderWithRouter = (ui, {route = "/"} = {}) => {
     const Wrapper = ({children}) => (
@@ -59,11 +76,11 @@ const buildStatus = (streamDefs) => {
 };
 
 // Default media query : desktop, filters always visible
-const defaultMediaQuery = jest.fn(() => false);
+const defaultMediaQuery = vi.fn(() => false);
 
 describe("Heartbeats Component", () => {
     beforeEach(() => {
-        jest.clearAllMocks();
+        vi.clearAllMocks();
         mockLocalStorage.getItem.mockReturnValue("valid-token");
         mockNavigate.mockClear();
         mockUseMediaQuery.mockImplementation(defaultMediaQuery);
@@ -439,7 +456,7 @@ describe("Heartbeats Component", () => {
 
         const beatingHeader = screen.getByText("BEATING");
         await userEvent.click(beatingHeader);
-        await userEvent.click(beatingHeader); // now desc
+        await userEvent.click(beatingHeader);
         await userEvent.click(screen.getByText("ID"));
         const rows = screen.getAllByRole("row").slice(1);
         expect(within(rows[0]).getByText("a.rx")).toBeInTheDocument();
@@ -580,8 +597,8 @@ describe("Heartbeats Component", () => {
         mockHeartbeatStore({node1: {streams: []}});
         renderWithRouter(<Heartbeats/>);
 
-        const filterButton = screen.queryByRole("button", {name: /filters/i});
-        expect(!!filterButton).toBe(buttonExists);
+        const filterIcon = screen.queryByTestId("FilterListIcon");
+        expect(!!filterIcon).toBe(buttonExists);
 
         const collapse = document.querySelector('.MuiCollapse-root');
         expect(collapse).toBeInTheDocument();
@@ -605,14 +622,15 @@ describe("Heartbeats Component", () => {
         renderWithRouter(<Heartbeats/>);
 
         const collapse = document.querySelector('.MuiCollapse-root');
-        const button = screen.getByRole("button", {name: /filters/i});
+        const filterIcon = screen.getByTestId("FilterListIcon");
+        const filterButton = filterIcon.closest("button");
 
         await waitFor(() => expect(collapse).toHaveClass('MuiCollapse-hidden'));
 
-        await userEvent.click(button);
+        await userEvent.click(filterButton);
         await waitFor(() => expect(collapse).not.toHaveClass('MuiCollapse-hidden'));
 
-        await userEvent.click(button);
+        await userEvent.click(filterButton);
         await waitFor(() => expect(collapse).toHaveClass('MuiCollapse-hidden'));
     });
 });

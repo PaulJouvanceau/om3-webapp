@@ -1,24 +1,29 @@
 import React from 'react';
 import {render, screen, fireEvent} from '@testing-library/react';
-import {useTranslation} from 'react-i18next';
+import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 import Authenticating from '../Authenticating';
 
-// Mock dependencies
-jest.mock('react-i18next', () => ({
-    useTranslation: jest.fn(),
+// Hoisted mock variables
+const {mockUseTranslation, mockReload} = vi.hoisted(() => ({
+    mockUseTranslation: vi.fn(),
+    mockReload: vi.fn(),
+}));
+
+// Mock react-i18next
+vi.mock('react-i18next', () => ({
+    useTranslation: mockUseTranslation,
 }));
 
 describe('Authenticating Component', () => {
-    const mockReload = jest.fn();
     let originalLocation;
-    const mockT = jest.fn((key) => key); // Simulates the `t` function returning the key
+    const mockT = vi.fn((key) => key);
     const mockI18n = {language: 'en'};
 
     beforeEach(() => {
-        jest.clearAllMocks();
-        useTranslation.mockReturnValue({t: mockT, i18n: mockI18n});
+        vi.clearAllMocks();
+        mockUseTranslation.mockReturnValue({t: mockT, i18n: mockI18n});
 
-        // Mock window.location.reload in a non-destructive way
+        // Mock window.location.reload
         originalLocation = window.location;
         Object.defineProperty(window, 'location', {
             configurable: true,
@@ -27,14 +32,14 @@ describe('Authenticating Component', () => {
     });
 
     afterEach(() => {
-        // Restore window.location after each test
+        // Restore window.location
         Object.defineProperty(window, 'location', {
             configurable: true,
             value: originalLocation,
         });
     });
 
-    test('1. renders dialog with translated title, content, and button', () => {
+    test('renders dialog with translated title, content, and button', () => {
         render(<Authenticating/>);
 
         // Check that the dialog is rendered
@@ -55,21 +60,21 @@ describe('Authenticating Component', () => {
         expect(mockT).toHaveBeenCalledWith('Reload');
     });
 
-    test('2. dialog is always open', () => {
+    test('dialog is always open', () => {
         render(<Authenticating/>);
         const dialog = screen.getByRole('dialog');
         expect(dialog).toBeInTheDocument();
         expect(dialog).toBeVisible();
     });
 
-    test('3. clicking reload button calls window.location.reload', () => {
+    test('clicking reload button calls window.location.reload', () => {
         render(<Authenticating/>);
         const reloadButton = screen.getByRole('button', {name: 'Reload'});
         fireEvent.click(reloadButton);
         expect(mockReload).toHaveBeenCalled();
     });
 
-    test('4. renders correctly with unused props', () => {
+    test('renders correctly with unused props', () => {
         render(<Authenticating someUnusedProp="value"/>);
         expect(screen.getByText('Authentication')).toBeInTheDocument();
         expect(screen.getByText('You are being redirected to the openid provider.')).toBeInTheDocument();
@@ -79,8 +84,8 @@ describe('Authenticating Component', () => {
         expect(mockT).toHaveBeenCalledWith('Reload');
     });
 
-    test('5. translation function handles different language', () => {
-        const mockTWithFrench = jest.fn((key) => {
+    test('translation function handles different language', () => {
+        const mockTWithFrench = vi.fn((key) => {
             const translations = {
                 Authentication: 'Authentification',
                 'You are being redirected to the openid provider.': 'Vous êtes redirigé vers le fournisseur OpenID.',
@@ -88,7 +93,7 @@ describe('Authenticating Component', () => {
             };
             return translations[key] || key;
         });
-        useTranslation.mockReturnValue({t: mockTWithFrench, i18n: {language: 'fr'}});
+        mockUseTranslation.mockReturnValue({t: mockTWithFrench, i18n: {language: 'fr'}});
 
         render(<Authenticating/>);
 

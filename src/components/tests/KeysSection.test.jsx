@@ -1,34 +1,45 @@
 import React from 'react';
 import {render, screen, waitFor, act, within, fireEvent} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import {vi} from 'vitest';
 import KeysSection from '../KeysSection';
 
-jest.mock('../../hooks/useEventStore.js', () => jest.fn());
-jest.mock('../../eventSourceManager.jsx', () => ({
-    closeEventSource: jest.fn(),
-    startEventReception: jest.fn(),
-    configureEventSource: jest.fn(),
+// ── Mocks ──────────────────────────────────────────────────────────────
+vi.mock('../../hooks/useEventStore.js', () => ({default: vi.fn()}));
+vi.mock('../../eventSourceManager.jsx', () => ({
+    closeEventSource: vi.fn(),
+    startEventReception: vi.fn(),
+    configureEventSource: vi.fn(),
 }));
 
-jest.mock('@mui/material', () => {
-    const actual = jest.requireActual('@mui/material');
-    const {RadioGroup, FormControlLabel, ...rest} = actual;
-
+vi.mock('@mui/material', async (importOriginal) => {
+    const actual = await importOriginal();
     return {
-        ...rest,
-        RadioGroup,
-        FormControlLabel,
+        ...actual,
         CircularProgress: () => <div role="progressbar">Loading...</div>,
         Dialog: ({children, open, onClose, fullScreen, ...props}) =>
             open ? (
-                <div role="dialog" data-fullscreen={fullScreen ? 'true' : 'false'}
-                     onKeyDown={e => e.key === 'Escape' && onClose?.()} {...props}>
+                <div
+                    role="dialog"
+                    data-fullscreen={fullScreen ? 'true' : 'false'}
+                    onKeyDown={e => e.key === 'Escape' && onClose?.()}
+                    {...props}
+                >
                     {children}
                 </div>
             ) : null,
-        TextField: ({label, value, onChange, disabled, multiline, placeholder, ...props}) => (
-            <input type="text" placeholder={placeholder || label} value={value} onChange={onChange}
-                   disabled={disabled} {...(multiline ? {'data-multiline': true} : {})} {...props} />
+        TextField: ({label, value, onChange, disabled, multiline, placeholder, inputProps, ...props}) => (
+            <input
+                type="text"
+                aria-label={label}
+                placeholder={placeholder || label}
+                value={value}
+                onChange={onChange}
+                disabled={disabled}
+                data-multiline={multiline ? 'true' : undefined}
+                {...inputProps}
+                {...props}
+            />
         ),
         IconButton: ({children, onClick, disabled, 'aria-label': ariaLabel}) => (
             <button onClick={onClick} disabled={disabled} aria-label={ariaLabel}>{children}</button>
@@ -56,16 +67,22 @@ jest.mock('@mui/material', () => {
     };
 });
 
-['Add', 'Edit', 'Delete', 'Visibility'].forEach(icon => jest.mock(`@mui/icons-material/${icon}`, () => () => <span/>));
-jest.mock('@mui/icons-material/Fullscreen', () => () => <span data-testid="fullscreen-icon"/>);
-jest.mock('@mui/icons-material/FullscreenExit', () => () => <span data-testid="fullscreen-exit-icon"/>);
+vi.mock('@mui/icons-material/Add', () => ({default: () => <span/>}));
+vi.mock('@mui/icons-material/Edit', () => ({default: () => <span/>}));
+vi.mock('@mui/icons-material/Delete', () => ({default: () => <span/>}));
+vi.mock('@mui/icons-material/Visibility', () => ({default: () => <span/>}));
+vi.mock('@mui/icons-material/Fullscreen', () => ({default: () => <span data-testid="fullscreen-icon"/>}));
+vi.mock('@mui/icons-material/FullscreenExit', () => ({default: () => <span data-testid="fullscreen-exit-icon"/>}));
 
-Object.defineProperty(global, 'localStorage', {
-    value: {getItem: jest.fn(() => 'mock-token'), setItem: jest.fn(), removeItem: jest.fn()},
-});
+const mockLocalStorage = {
+    getItem: vi.fn(() => 'mock-token'),
+    setItem: vi.fn(),
+    removeItem: vi.fn(),
+};
+Object.defineProperty(global, 'localStorage', {value: mockLocalStorage});
 
 const user = userEvent.setup();
-const openSnackbar = jest.fn();
+const openSnackbar = vi.fn();
 const encodeText = (text) => new TextEncoder().encode(text);
 const makeMockBlob = (uint8Array) => ({
     arrayBuffer: () => Promise.resolve(uint8Array.buffer.slice(uint8Array.byteOffset, uint8Array.byteOffset + uint8Array.byteLength)),
@@ -74,7 +91,7 @@ const makeMockBlob = (uint8Array) => ({
 });
 
 const mockFetch = ({keys = [], keyBlob = null, methods = {}} = {}) => {
-    global.fetch = jest.fn((url, options = {}) => {
+    global.fetch = vi.fn((url, options = {}) => {
         const method = options.method || 'GET';
         if (methods[method]) {
             const res = methods[method](url, options);
@@ -136,7 +153,7 @@ const uploadFileInDialog = async (dialog, prefix = 'create') => {
 };
 
 const fillNameAndSubmit = async (dialog, name, btnName) => {
-    const nameInput = within(dialog).getByPlaceholderText('Key Name');
+    const nameInput = within(dialog).getByRole('textbox', {name: /Key Name/i});
     await act(async () => {
         await user.clear(nameInput);
         await user.type(nameInput, name);
@@ -148,10 +165,11 @@ const fillNameAndSubmit = async (dialog, name, btnName) => {
 };
 
 beforeEach(() => {
-    jest.clearAllMocks();
-    global.localStorage.getItem.mockReturnValue('mock-token');
+    vi.clearAllMocks();
+    mockLocalStorage.getItem.mockReturnValue('mock-token');
 });
 
+// ── Tests ──────────────────────────────────────────────────────────────
 describe('KeysSection', () => {
     test.each([
         ['service path', 'root/svc/service1'],
@@ -189,20 +207,20 @@ describe('KeysSection', () => {
     });
 
     test('shows loading spinner', async () => {
-        global.fetch = jest.fn(() => new Promise(() => {
+        global.fetch = vi.fn(() => new Promise(() => {
         }));
         render(<KeysSection decodedObjectName="root/cfg/cfg1" openSnackbar={openSnackbar}/>);
         expect(await screen.findByRole('progressbar')).toBeInTheDocument();
     });
 
     test('displays fetch error', async () => {
-        global.fetch = jest.fn(() => Promise.reject(new Error('Fail')));
+        global.fetch = vi.fn(() => Promise.reject(new Error('Fail')));
         await renderAndWait('root/cfg/cfg1', 0);
         expect(screen.getByText(/Fail/i)).toBeInTheDocument();
     });
 
     test('displays HTTP error', async () => {
-        global.fetch = jest.fn(() => Promise.resolve({ok: false, status: 500}));
+        global.fetch = vi.fn(() => Promise.resolve({ok: false, status: 500}));
         await renderAndWait('root/cfg/cfg1', 0);
         expect(await screen.findByText(/Failed to fetch keys: 500/i)).toBeInTheDocument();
     });
@@ -232,7 +250,7 @@ describe('KeysSection', () => {
         await renderAndWait('root/cfg/cfg1', 0);
         const dialog = await openDialog('create');
         await act(async () => {
-            await user.type(within(dialog).getByPlaceholderText('Key Name'), 'emptyKey');
+            await user.type(within(dialog).getByRole('textbox', {name: /Key Name/i}), 'emptyKey');
         });
         await selectInputMode(dialog, 'empty');
         expect(within(dialog).getByRole('button', {name: /Create/i})).not.toBeDisabled();
@@ -249,7 +267,7 @@ describe('KeysSection', () => {
     ])('%s HTTP error', async (action, method, name, btn, info, err) => {
         mockFetch({
             keys: [{name: 'key1', node: 'n1', size: 10}],
-            methods: {[method]: () => Promise.resolve({ok: false, status: 400})}
+            methods: {[method]: () => Promise.resolve({ok: false, status: 400})},
         });
         await renderAndWait('root/cfg/cfg1', 1);
         const dialog = await openDialog(action);
@@ -272,7 +290,7 @@ describe('KeysSection', () => {
     ])('%s network error', async (action, method, name, btn, info) => {
         mockFetch({
             keys: [{name: 'key1', node: 'n1', size: 10}],
-            methods: {[method]: () => Promise.reject(new Error('Network error'))}
+            methods: {[method]: () => Promise.reject(new Error('Network error'))},
         });
         await renderAndWait('root/cfg/cfg1', 1);
         const dialog = await openDialog(action);
@@ -296,7 +314,7 @@ describe('KeysSection', () => {
         mockFetch({keys: [{name: 'key1', node: 'n1', size: 10}]});
         await renderAndWait('root/cfg/cfg1', 1);
         const dialog = await openDialog(action);
-        global.localStorage.getItem.mockReturnValue(null);
+        mockLocalStorage.getItem.mockReturnValue(null);
         await actionFn(dialog);
         await waitFor(() => expect(openSnackbar).toHaveBeenCalledWith('Auth token not found.', 'error'));
     });
@@ -304,7 +322,7 @@ describe('KeysSection', () => {
     test('auth token missing for view', async () => {
         mockFetch({keys: [{name: 'key1', node: 'n1', size: 10}]});
         await renderAndWait('root/cfg/cfg1', 1);
-        global.localStorage.getItem.mockReturnValue(null);
+        mockLocalStorage.getItem.mockReturnValue(null);
         const viewBtn = await screen.findByRole('button', {name: /View key key1/i});
         await act(async () => {
             await user.click(viewBtn);
@@ -322,7 +340,7 @@ describe('KeysSection', () => {
             methods: {
                 [method]: () => new Promise(() => {
                 })
-            }
+            },
         });
         await renderAndWait('root/cfg/cfg1', 1);
         const dialog = await openDialog(action);
@@ -344,7 +362,7 @@ describe('KeysSection', () => {
         await selectInputMode(dialog, 'file');
         expect(within(dialog).getByRole('button', {name: /Create/i})).toBeDisabled();
         await act(async () => {
-            await user.type(within(dialog).getByPlaceholderText('Key Name'), 'test');
+            await user.type(within(dialog).getByRole('textbox', {name: /Key Name/i}), 'test');
         });
         expect(within(dialog).getByRole('button', {name: /Create/i})).toBeDisabled();
     });
@@ -352,7 +370,7 @@ describe('KeysSection', () => {
     test.each(['create', 'edit', 'delete', 'view'])('%s dialog closes with Cancel/Escape', async (action) => {
         mockFetch({
             keys: [{name: 'key1', node: 'n1', size: 10}],
-            keyBlob: action === 'view' ? makeMockBlob(encodeText('t')) : undefined
+            keyBlob: action === 'view' ? makeMockBlob(encodeText('t')) : undefined,
         });
         if (action === 'create') await renderAndWait('root/cfg/cfg1', 0);
         else await renderAndWait('root/cfg/cfg1', 1);
@@ -391,10 +409,11 @@ describe('KeysSection', () => {
         mockFetch({
             keys: [{name: 'key1', node: 'n1', size: 1}],
             methods: {
-                GET: (url) => {
-                    if (url.includes('/data/key?name=')) return Promise.resolve({ok: false, status: 500});
-                }
-            }
+                GET: (url) => url.includes('/data/key?name=') ? Promise.resolve({
+                    ok: false,
+                    status: 500
+                }) : undefined
+            },
         });
         await renderAndWait('root/cfg/cfg1', 1);
         const viewBtn = await screen.findByRole('button', {name: /View key key1/i});
@@ -410,17 +429,13 @@ describe('KeysSection', () => {
         mockFetch({
             keys: [{name: 'key1', node: 'n1', size: 1}],
             methods: {
-                GET: (url) => {
-                    if (url.includes('/data/key?name=')) {
-                        return Promise.resolve({
-                            ok: true,
-                            blob: () => new Promise(r => {
-                                resolveBlob = r;
-                            })
-                        });
-                    }
-                }
-            }
+                GET: (url) => url.includes('/data/key?name=') ? Promise.resolve({
+                    ok: true,
+                    blob: () => new Promise(r => {
+                        resolveBlob = r;
+                    })
+                }) : undefined
+            },
         });
         await renderAndWait('root/cfg/cfg1', 1);
         const dialog = await openDialog('edit', 'key1');
@@ -430,24 +445,17 @@ describe('KeysSection', () => {
     });
 
     test('update binary falls back to file', async () => {
-        mockFetch({
-            keys: [{name: 'b', node: 'n', size: 2}],
-            keyBlob: makeMockBlob(new Uint8Array([0x00, 0x01]))
-        });
+        mockFetch({keys: [{name: 'b', node: 'n', size: 2}], keyBlob: makeMockBlob(new Uint8Array([0x00, 0x01]))});
         await renderAndWait('root/cfg/cfg1', 1);
-        const dialog = await openDialog('edit', 'b');
+        await openDialog('edit', 'b');
         await waitFor(() => expect(openSnackbar).toHaveBeenCalledWith("Key is binary – please use file upload to update.", "info"));
-        expect(within(dialog).getByRole('radio', {name: /Upload from file/i})).toBeChecked();
+        expect(within(screen.getByRole('dialog')).getByRole('radio', {name: /Upload from file/i})).toBeChecked();
     });
 
     test('update prefetch error', async () => {
         mockFetch({
             keys: [{name: 'key1', node: 'n1', size: 1}],
-            methods: {
-                GET: (url) => {
-                    if (url.includes('/data/key?name=')) return Promise.reject(new Error('fail'));
-                }
-            }
+            methods: {GET: (url) => url.includes('/data/key?name=') ? Promise.reject(new Error('fail')) : undefined},
         });
         await renderAndWait('root/cfg/cfg1', 1);
         await openDialog('edit', 'key1');
@@ -476,11 +484,12 @@ describe('KeysSection', () => {
         await renderAndWait('root/cfg/cfg1', 0);
         const dialog = await openDialog('create');
         await selectInputMode(dialog, 'text');
+        const fullscreenBtn = within(dialog).getByTestId('fullscreen-icon').closest('button');
         await act(async () => {
-            await user.click(within(dialog).getByTestId('fullscreen-icon').closest('button'));
+            await user.click(fullscreenBtn);
         });
         const fullDlg = screen.getByRole('dialog');
-        expect(within(fullDlg).queryByPlaceholderText('Key Name')).not.toBeInTheDocument();
+        expect(within(fullDlg).queryByRole('textbox', {name: /Key Name/i})).not.toBeInTheDocument();
         expect(within(fullDlg).queryByRole('radiogroup')).not.toBeInTheDocument();
     });
 
@@ -489,8 +498,9 @@ describe('KeysSection', () => {
         await renderAndWait('root/cfg/cfg1', 0);
         const dialog = await openDialog('create');
         await selectInputMode(dialog, 'text');
+        const fullscreenBtn = within(dialog).getByTestId('fullscreen-icon').closest('button');
         await act(async () => {
-            await user.click(within(dialog).getByTestId('fullscreen-icon').closest('button'));
+            await user.click(fullscreenBtn);
         });
         await act(async () => {
             await user.click(within(screen.getByRole('dialog')).getByRole('button', {name: /Cancel/i}));
@@ -515,22 +525,22 @@ describe('KeysSection', () => {
         await renderAndWait('root/cfg/cfg1', 0);
         const dialog = await openDialog('create');
         await act(async () => {
-            await user.type(within(dialog).getByPlaceholderText('Key Name'), 'temp');
+            await user.type(within(dialog).getByRole('textbox', {name: /Key Name/i}), 'temp');
         });
         await act(async () => {
             await user.click(within(dialog).getByRole('button', {name: /Create/i}));
         });
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
         const dialog2 = await openDialog('create');
-        expect(within(dialog2).getByPlaceholderText('Key Name').value).toBe('');
+        expect(within(dialog2).getByRole('textbox', {name: /Key Name/i}).value).toBe('');
     });
 
     test('token lost after delete triggers error', async () => {
         mockFetch({keys: [{name: 'k1', node: 'n1', size: 5}]});
         await renderAndWait('root/cfg/cfg1', 1);
-        global.fetch = jest.fn((url, options) => {
+        global.fetch = vi.fn((url, options) => {
             if (url.includes('/data/key') && options?.method === 'DELETE') {
-                global.localStorage.getItem.mockReturnValue(null);
+                mockLocalStorage.getItem.mockReturnValue(null);
                 return Promise.resolve({ok: true});
             }
             if (url.includes('/data/keys')) return Promise.resolve({
@@ -555,13 +565,13 @@ describe('KeysSection', () => {
         let dialog = await openDialog('create');
         await selectInputMode(dialog, 'text');
         await act(async () => {
-            await user.type(within(dialog).getByPlaceholderText('Key Name'), 'blobKey');
+            await user.type(within(dialog).getByRole('textbox', {name: /Key Name/i}), 'blobKey');
         });
         const textArea = within(dialog).getByPlaceholderText(/Enter the text content/i);
         await act(async () => {
             await user.type(textArea, 'data');
         });
-        global.fetch = jest.fn((url, options = {}) => {
+        global.fetch = vi.fn((url, options = {}) => {
             if (url.includes('/data/key') && options.method === 'POST') {
                 capturedBody = options.body;
                 return Promise.resolve({ok: true});
@@ -580,7 +590,7 @@ describe('KeysSection', () => {
         dialog = await openDialog('edit');
         await waitFor(() => expect(within(dialog).queryByRole('progressbar')).not.toBeInTheDocument());
         await uploadFileInDialog(dialog, 'update');
-        global.fetch = jest.fn((url, options = {}) => {
+        global.fetch = vi.fn((url, options = {}) => {
             if (url.includes('/data/key') && options.method === 'PUT') {
                 capturedBody = options.body;
                 return Promise.resolve({ok: true});

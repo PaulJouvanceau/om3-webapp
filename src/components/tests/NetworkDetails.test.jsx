@@ -1,5 +1,6 @@
 import React from 'react';
 import {render, screen, waitFor, fireEvent, within} from '@testing-library/react';
+import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 import '@testing-library/jest-dom';
 import {MemoryRouter, Route, Routes} from 'react-router-dom';
 import axios from 'axios';
@@ -7,21 +8,25 @@ import NetworkDetails from '../NetworkDetails';
 import {URL_NETWORK_IP} from '../../config/apiPath.js';
 
 // Mock axios
-jest.mock('axios');
+vi.mock('axios', () => ({
+    default: {
+        get: vi.fn(),
+    },
+}));
 
 // Mock localStorage
 const mockLocalStorage = {
-    getItem: jest.fn(),
+    getItem: vi.fn(),
 };
 Object.defineProperty(window, 'localStorage', {
     value: mockLocalStorage,
 });
 
-// Sample IP details data for testing, including a row with duplicate RID, null network, and undefined type
+// Sample IP details data
 const mockIpDetails = [
     {
         ip: '192.168.1.1',
-        network: {name: 'default', type: undefined}, // Undefined type to cover || "N/A"
+        network: {name: 'default', type: undefined},
         node: 'node1',
         path: '/path/to/resource',
         rid: 'ip#1',
@@ -38,7 +43,7 @@ const mockIpDetails = [
         network: {name: 'default', type: 'bridge'},
         node: 'node1',
         path: '/path/to/resource3',
-        rid: 'ip#1', // Duplicate RID, different IP and path
+        rid: 'ip#1',
     },
     {
         ip: '127.0.0.1',
@@ -49,7 +54,7 @@ const mockIpDetails = [
     },
     {
         ip: '192.168.1.5',
-        network: null, // Null network to cover ?.name nullish branch
+        network: null,
         node: 'node5',
         path: '/path5',
         rid: 'ip#5',
@@ -58,8 +63,12 @@ const mockIpDetails = [
 
 describe('NetworkDetails Component', () => {
     beforeEach(() => {
-        jest.clearAllMocks();
+        vi.clearAllMocks();
         mockLocalStorage.getItem.mockReturnValue('mock-token');
+    });
+
+    afterEach(() => {
+        vi.useRealTimers?.();
     });
 
     test('renders the Network Details title with network name and type', async () => {
@@ -77,7 +86,7 @@ describe('NetworkDetails Component', () => {
             const titleElements = screen.getAllByText(/Network Details:/i);
             const matchingTitle = titleElements.find(el =>
                 el.textContent.includes('Network Details: default') &&
-                el.textContent.includes('(N/A)') // Since first item has undefined type
+                el.textContent.includes('(N/A)')
             );
             expect(matchingTitle).toBeInTheDocument();
         });
@@ -137,14 +146,12 @@ describe('NetworkDetails Component', () => {
             </MemoryRouter>
         );
 
-        // Wait for the data to be loaded
         await waitFor(() => {
             expect(screen.getByLabelText('Node')).toBeInTheDocument();
         });
 
         const filterButton = screen.getByRole('button', {name: /hide filters/i});
 
-        // Hide the filters
         fireEvent.click(filterButton);
         await waitFor(() => {
             expect(screen.queryByLabelText('Node')).not.toBeInTheDocument();
@@ -154,7 +161,6 @@ describe('NetworkDetails Component', () => {
             expect(screen.getByRole('button', {name: /show filters/i})).toBeInTheDocument();
         });
 
-        // Show the filters
         fireEvent.click(screen.getByRole('button', {name: /show filters/i}));
         await waitFor(() => {
             expect(screen.getByLabelText('Node')).toBeInTheDocument();
@@ -177,7 +183,6 @@ describe('NetworkDetails Component', () => {
         );
 
         await waitFor(() => {
-            // First verify the table is rendered
             const table = screen.getByRole('table');
             const rows = within(table).getAllByRole('row').slice(1);
             expect(rows).toHaveLength(3);
@@ -200,7 +205,7 @@ describe('NetworkDetails Component', () => {
     });
 
     test('filters IP details by node', async () => {
-        jest.useFakeTimers();
+        vi.useFakeTimers();
         axios.get.mockResolvedValueOnce({data: {items: mockIpDetails}});
 
         render(
@@ -217,24 +222,18 @@ describe('NetworkDetails Component', () => {
 
         const nodeInput = screen.getByLabelText('Node');
         fireEvent.change(nodeInput, {target: {value: 'node1'}});
-        jest.advanceTimersByTime(300);
+        vi.advanceTimersByTime(300);
 
         await waitFor(() => {
             expect(screen.getByText('192.168.1.1')).toBeInTheDocument();
-        });
-
-        await waitFor(() => {
             expect(screen.getByText('192.168.1.3')).toBeInTheDocument();
-        });
-
-        await waitFor(() => {
             expect(screen.queryByText('192.168.1.2')).not.toBeInTheDocument();
         });
-        jest.useRealTimers();
+        vi.useRealTimers();
     });
 
     test('filters IP details by path', async () => {
-        jest.useFakeTimers();
+        vi.useFakeTimers();
         axios.get.mockResolvedValueOnce({data: {items: mockIpDetails}});
 
         render(
@@ -251,24 +250,18 @@ describe('NetworkDetails Component', () => {
 
         const pathInput = screen.getByLabelText('Path');
         fireEvent.change(pathInput, {target: {value: 'resource3'}});
-        jest.advanceTimersByTime(300);
-
-        await waitFor(() => {
-            expect(screen.queryByText('192.168.1.1')).not.toBeInTheDocument();
-        });
-
-        await waitFor(() => {
-            expect(screen.queryByText('192.168.1.2')).not.toBeInTheDocument();
-        });
+        vi.advanceTimersByTime(300);
 
         await waitFor(() => {
             expect(screen.getByText('192.168.1.3')).toBeInTheDocument();
+            expect(screen.queryByText('192.168.1.1')).not.toBeInTheDocument();
+            expect(screen.queryByText('192.168.1.2')).not.toBeInTheDocument();
         });
-        jest.useRealTimers();
+        vi.useRealTimers();
     });
 
     test('filters IP details by RID', async () => {
-        jest.useFakeTimers();
+        vi.useFakeTimers();
         axios.get.mockResolvedValueOnce({data: {items: mockIpDetails}});
 
         render(
@@ -285,24 +278,18 @@ describe('NetworkDetails Component', () => {
 
         const ridInput = screen.getByLabelText('RID');
         fireEvent.change(ridInput, {target: {value: 'ip#1'}});
-        jest.advanceTimersByTime(300);
+        vi.advanceTimersByTime(300);
 
         await waitFor(() => {
             expect(screen.getByText('192.168.1.1')).toBeInTheDocument();
-        });
-
-        await waitFor(() => {
             expect(screen.getByText('192.168.1.3')).toBeInTheDocument();
-        });
-
-        await waitFor(() => {
             expect(screen.queryByText('192.168.1.2')).not.toBeInTheDocument();
         });
-        jest.useRealTimers();
+        vi.useRealTimers();
     });
 
     test('displays no IP details when filters exclude all items', async () => {
-        jest.useFakeTimers();
+        vi.useFakeTimers();
         axios.get.mockResolvedValueOnce({data: {items: mockIpDetails}});
 
         render(
@@ -319,30 +306,21 @@ describe('NetworkDetails Component', () => {
 
         const nodeInput = screen.getByLabelText('Node');
         fireEvent.change(nodeInput, {target: {value: 'nonexistent'}});
-        jest.advanceTimersByTime(300);
+        vi.advanceTimersByTime(300);
 
         await waitFor(() => {
             expect(screen.getByText('No IP details available for this network.')).toBeInTheDocument();
-        });
-
-        await waitFor(() => {
             expect(screen.queryByText('192.168.1.1')).not.toBeInTheDocument();
-        });
-
-        await waitFor(() => {
             expect(screen.queryByText('192.168.1.2')).not.toBeInTheDocument();
-        });
-
-        await waitFor(() => {
             expect(screen.queryByText('192.168.1.3')).not.toBeInTheDocument();
         });
-        jest.useRealTimers();
+        vi.useRealTimers();
     });
 
     test('handles API error gracefully', async () => {
-        const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {
+        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {
         });
-        const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {
+        const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {
         });
         axios.get.mockRejectedValueOnce(new Error('API Error'));
 
@@ -360,17 +338,8 @@ describe('NetworkDetails Component', () => {
 
         await waitFor(() => {
             expect(screen.getByText('Failed to load network details. Please try again.')).toBeInTheDocument();
-        });
-
-        await waitFor(() => {
             expect(screen.getByText('No IP details available for this network.')).toBeInTheDocument();
-        });
-
-        await waitFor(() => {
             expect(screen.getByText(/Network Details: default \(N\/A\)/i)).toBeInTheDocument();
-        });
-
-        await waitFor(() => {
             expect(screen.queryByText('192.168.1.1')).not.toBeInTheDocument();
         });
 
@@ -392,17 +361,8 @@ describe('NetworkDetails Component', () => {
 
         await waitFor(() => {
             expect(screen.getByText('No IP details available for this network.')).toBeInTheDocument();
-        });
-
-        await waitFor(() => {
             expect(screen.getByText(/Network Details: unknown \(N\/A\)/i)).toBeInTheDocument();
-        });
-
-        await waitFor(() => {
             expect(screen.queryByText('192.168.1.1')).not.toBeInTheDocument();
-        });
-
-        await waitFor(() => {
             expect(screen.queryByText('127.0.0.1')).not.toBeInTheDocument();
         });
     });
@@ -420,13 +380,7 @@ describe('NetworkDetails Component', () => {
 
         await waitFor(() => {
             expect(screen.getByText('No IP details available for this network.')).toBeInTheDocument();
-        });
-
-        await waitFor(() => {
             expect(screen.getByText(/Network Details: default \(N\/A\)/i)).toBeInTheDocument();
-        });
-
-        await waitFor(() => {
             expect(screen.queryByText('192.168.1.1')).not.toBeInTheDocument();
         });
     });
@@ -444,9 +398,6 @@ describe('NetworkDetails Component', () => {
 
         await waitFor(() => {
             expect(screen.getByText('No IP details available for this network.')).toBeInTheDocument();
-        });
-
-        await waitFor(() => {
             expect(screen.getByText(/Network Details: default \(N\/A\)/i)).toBeInTheDocument();
         });
     });
@@ -484,7 +435,6 @@ describe('NetworkDetails Component', () => {
         });
 
         const rows = screen.getAllByRole('row').slice(1);
-
         const firstRowCells = within(rows[0]).getAllByRole('cell');
         expect(firstRowCells[0]).toHaveTextContent('192.168.1.1');
         expect(firstRowCells[1]).toHaveTextContent('N/A');
@@ -561,7 +511,7 @@ describe('NetworkDetails Component', () => {
     });
 
     test('does not update state if unmounted before fetch completes', async () => {
-        const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {
+        const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {
         });
         let resolve;
         const promise = new Promise((r) => {
@@ -587,9 +537,9 @@ describe('NetworkDetails Component', () => {
     });
 
     test('does not update state on error if unmounted', async () => {
-        const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {
+        const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {
         });
-        const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {
+        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {
         });
         let reject;
         const promise = new Promise((_, r) => {

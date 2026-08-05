@@ -1,32 +1,46 @@
 import React from 'react';
 import {render, screen, fireEvent, waitFor} from '@testing-library/react';
-import {useNavigate} from 'react-router-dom';
+import {vi, describe, test, expect, beforeEach} from 'vitest';
 import Login, {decodeToken, refreshToken} from '../Login';
 import {SetAccessToken, SetAuthChoice, useAuthDispatch} from '../../context/AuthProvider.jsx';
-import {URL_TOKEN, URL_REFRESH} from '../../config/apiPath';
+import {URL_TOKEN} from '../../config/apiPath';
 
-// --- Mocks ---
-jest.mock('react-router-dom', () => ({
-    ...jest.requireActual('react-router-dom'),
-    useNavigate: jest.fn(),
+// ── Hoisted mock functions ──────────────────────────────────────────────
+const {
+    mockNavigate,
+    mockUseNavigate,
+    mockUseAuthDispatch,
+} = vi.hoisted(() => ({
+    mockNavigate: vi.fn(),
+    mockUseNavigate: vi.fn(() => mockNavigate),
+    mockUseAuthDispatch: vi.fn(() => vi.fn()),
 }));
 
-jest.mock('react-i18next', () => ({
+// ── Mocks ───────────────────────────────────────────────────────────────
+vi.mock('react-router-dom', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        useNavigate: mockUseNavigate,
+    };
+});
+
+vi.mock('react-i18next', () => ({
     useTranslation: () => ({t: (key) => key}),
 }));
 
-jest.mock('../../context/AuthProvider.jsx', () => ({
+vi.mock('../../context/AuthProvider.jsx', () => ({
     SetAccessToken: 'SET_ACCESS_TOKEN',
     SetAuthChoice: 'SET_AUTH_CHOICE',
-    useAuthDispatch: jest.fn(),
+    useAuthDispatch: mockUseAuthDispatch,
 }));
 
-jest.mock('../../config/apiPath.js', () => ({
+vi.mock('../../config/apiPath.js', () => ({
     URL_TOKEN: 'http://mock-api/token',
     URL_REFRESH: 'http://mock-api/refresh',
 }));
 
-global.fetch = jest.fn();
+global.fetch = vi.fn();
 
 // --- Helpers ---
 const createMockToken = (payload) => {
@@ -59,14 +73,15 @@ const setupLogin = () => {
 
 // --- Tests ---
 describe('Login Component', () => {
-    const mockNavigate = jest.fn();
-    const mockDispatch = jest.fn();
+    const mockDispatch = vi.fn();
 
     beforeEach(() => {
-        jest.clearAllMocks();
-        useNavigate.mockReturnValue(mockNavigate);
-        useAuthDispatch.mockReturnValue(mockDispatch);
+        vi.clearAllMocks();
+        mockUseNavigate.mockReturnValue(mockNavigate);
+        mockUseAuthDispatch.mockReturnValue(mockDispatch);
         localStorage.clear();
+        vi.spyOn(console, 'error').mockImplementation(() => {
+        });
     });
 
     test('renders login form correctly', () => {
@@ -156,8 +171,6 @@ describe('Login Component', () => {
     });
 
     test('handles login network error', async () => {
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {
-        });
         fetch.mockRejectedValueOnce(new Error('Network error'));
 
         const {fillForm, getSubmitButton} = setupLogin();
@@ -168,8 +181,7 @@ describe('Login Component', () => {
             expect(screen.getByText('Network error')).toBeInTheDocument();
         });
 
-        expect(consoleSpy).toHaveBeenCalledWith('Authentication error:', expect.any(Error));
-        consoleSpy.mockRestore();
+        expect(console.error).toHaveBeenCalledWith('Authentication error:', expect.any(Error));
     });
 
     test('handles change method button click', () => {
@@ -180,6 +192,7 @@ describe('Login Component', () => {
         expect(mockNavigate).toHaveBeenCalledWith('/auth-choice');
     });
 
+    // --- decodeToken tests ---
     test('decodes token correctly', () => {
         const payload = {sub: '123', name: 'John', iat: 1516239022};
         const token = createMockToken(payload);
@@ -187,35 +200,23 @@ describe('Login Component', () => {
     });
 
     test('decodeToken returns null for missing/invalid token', () => {
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {
-        });
         expect(decodeToken(null)).toBeNull();
         expect(decodeToken(undefined)).toBeNull();
         expect(decodeToken('')).toBeNull();
         expect(decodeToken('invalid.token')).toBeNull();
-        expect(consoleSpy).toHaveBeenCalledTimes(1);
-        consoleSpy.mockRestore();
+        expect(console.error).toHaveBeenCalledTimes(1);
     });
 
     test('decodeToken returns null for token with invalid base64 payload', () => {
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {
-        });
-        // Token with payload that causes atob to fail (e.g., "!!!" is not valid base64)
         const token = 'header.!!!.signature';
         expect(decodeToken(token)).toBeNull();
-        // Should log the "Failed to decode payload" error exactly once
-        expect(consoleSpy).toHaveBeenCalledTimes(1);
-        expect(consoleSpy).toHaveBeenCalledWith('Error decoding token:', expect.any(Error));
-        consoleSpy.mockRestore();
+        expect(console.error).toHaveBeenCalledWith('Error decoding token:', expect.any(Error));
     });
 
     test('decodeToken returns null for token with valid base64 but non-JSON payload', () => {
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {
-        });
         const token = makeTokenWithPayloadString('not a json');
         expect(decodeToken(token)).toBeNull();
-        expect(consoleSpy).toHaveBeenCalledWith('Error decoding token:', expect.any(Error));
-        consoleSpy.mockRestore();
+        expect(console.error).toHaveBeenCalledWith('Error decoding token:', expect.any(Error));
     });
 
     // --- refreshToken tests ---
@@ -227,16 +228,13 @@ describe('Login Component', () => {
     });
 
     test('refreshToken returns null when refresh token is expired', async () => {
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {
-        });
         localStorage.setItem('refreshToken', 'mock.token');
         localStorage.setItem('refreshTokenExpiration', (Date.now() - 1000).toString());
 
         const result = await refreshToken(mockDispatch);
         expect(result).toBeNull();
         expect(mockDispatch).toHaveBeenCalledWith({type: SetAccessToken, data: null});
-        expect(consoleSpy).toHaveBeenCalledWith('Refresh token expired');
-        consoleSpy.mockRestore();
+        expect(console.error).toHaveBeenCalledWith('Refresh token expired');
     });
 
     test('refreshToken handles failed server response', async () => {
@@ -250,8 +248,6 @@ describe('Login Component', () => {
     });
 
     test('refreshToken handles network error', async () => {
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {
-        });
         localStorage.setItem('refreshToken', 'mock.token');
         localStorage.setItem('refreshTokenExpiration', (Date.now() + 3600000).toString());
         fetch.mockRejectedValueOnce(new Error('Network error'));
@@ -259,8 +255,7 @@ describe('Login Component', () => {
         const result = await refreshToken(mockDispatch);
         expect(result).toBeNull();
         expect(mockDispatch).toHaveBeenCalledWith({type: SetAccessToken, data: null});
-        expect(consoleSpy).toHaveBeenCalledWith('Error refreshing token:', expect.any(Error));
-        consoleSpy.mockRestore();
+        expect(console.error).toHaveBeenCalledWith('Error refreshing token:', expect.any(Error));
     });
 
     test('handles successful token refresh', async () => {
@@ -290,8 +285,7 @@ describe('Login Component', () => {
             json: () => Promise.resolve({access_token: accessToken, refresh_token: refreshTokenValue}),
         });
 
-        // Spy on removeItem to ensure expiration cleanup is called
-        const removeItemSpy = jest.spyOn(Storage.prototype, 'removeItem');
+        const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem');
 
         const {fillForm, getSubmitButton} = setupLogin();
         fillForm('testuser', 'testpass');
@@ -323,7 +317,7 @@ describe('Login Component', () => {
             json: () => Promise.resolve({access_token: accessToken}),
         });
 
-        const removeItemSpy = jest.spyOn(Storage.prototype, 'removeItem');
+        const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem');
         await refreshToken(mockDispatch);
         expect(localStorage.getItem('authToken')).toBe(accessToken);
         expect(localStorage.getItem('tokenExpiration')).toBeNull();
@@ -416,7 +410,7 @@ describe('Login Component', () => {
             }),
         });
 
-        const removeItemSpy = jest.spyOn(Storage.prototype, 'removeItem');
+        const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem');
 
         const result = await refreshToken(mockDispatch);
         expect(result).toBe(accessToken);

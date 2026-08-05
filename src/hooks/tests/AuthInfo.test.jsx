@@ -3,7 +3,7 @@ import useAuthInfo from '../AuthInfo';
 import {URL_AUTH_INFO} from '../../config/apiPath';
 import logger from '../../utils/logger.js';
 
-jest.mock('../../config/apiPath', () => ({
+vi.mock('../../config/apiPath', () => ({
     URL_AUTH_INFO: 'http://mock-api/auth-info',
 }));
 
@@ -12,7 +12,7 @@ describe('useAuthInfo hook', () => {
     let loggerErrorSpy;
     beforeEach(() => {
         originalFetch = global.fetch;
-        loggerErrorSpy = jest.spyOn(logger, 'error').mockImplementation(() => {});
+        loggerErrorSpy = vi.spyOn(logger, 'error').mockImplementation(() => {});
         loggerErrorSpy.mockClear();
     });
     afterEach(() => {

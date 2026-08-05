@@ -2,7 +2,8 @@ import React from 'react';
 import {render, screen, waitFor, fireEvent, act} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import axios from 'axios';
-import {toHaveNoViolations} from 'jest-axe';
+import {vi, describe, test, expect, beforeEach, afterEach, afterAll} from 'vitest';
+import * as matchers from 'vitest-axe';
 import ClusterOverview from '../Cluster.jsx';
 import {URL_POOL, URL_NETWORK} from '../../config/apiPath.js';
 import {startEventReception} from '../../eventSourceManager';
@@ -13,28 +14,47 @@ import {
 } from '../../hooks/useClusterData';
 import {useKindData} from '../../hooks/useKindData';
 
-expect.extend(toHaveNoViolations);
+expect.extend(matchers);
 
-jest.mock('react-router-dom', () => ({
-    ...jest.requireActual('react-router-dom'),
-    useNavigate: jest.fn(),
+// Hoisted variables for use in mocks
+const {
+    mockNavigate,
+    mockToken,
+} = vi.hoisted(() => ({
+    mockNavigate: vi.fn(),
+    mockToken: 'mock-token',
 }));
 
-jest.mock('axios');
+// ── Mocks ──────────────────────────────────────────────────────────────
+vi.mock('react-router-dom', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        useNavigate: () => mockNavigate,
+    };
+});
 
-jest.mock('../../hooks/useClusterData', () => ({
-    useNodeStats: jest.fn(),
-    useObjectStats: jest.fn(),
-    useHeartbeatStats: jest.fn(),
+vi.mock('axios');
+
+vi.mock('../../hooks/useClusterData', () => ({
+    useNodeStats: vi.fn(),
+    useObjectStats: vi.fn(),
+    useHeartbeatStats: vi.fn(),
 }));
 
-jest.mock('../../hooks/useKindData', () => ({
-    useKindData: jest.fn(),
+vi.mock('../../hooks/useKindData', () => ({
+    useKindData: vi.fn(),
 }));
 
-jest.mock('../../eventSourceManager');
+vi.mock('../../eventSourceManager', () => ({
+    startEventReception: vi.fn(),
+    closeEventSource: vi.fn(),
+    startLoggerReception: vi.fn(),
+    closeLoggerEventSource: vi.fn(),
+    DEFAULT_FILTERS: [],
+}));
 
-jest.mock('../ClusterStatGrids.jsx', () => {
+vi.mock('../ClusterStatGrids.jsx', () => {
     const GridNodes = ({nodeCount, frozenCount, onClick}) => (
         <button aria-label="Nodes stat card" onClick={onClick}>
             <div data-testid="node-count">{nodeCount}</div>
@@ -147,15 +167,13 @@ jest.mock('../ClusterStatGrids.jsx', () => {
     };
 });
 
-jest.useFakeTimers();
-
 describe('ClusterOverview', () => {
-    const mockNavigate = jest.fn();
-    const mockToken = 'mock-token';
-
     beforeEach(() => {
-        jest.clearAllMocks();
-        require('react-router-dom').useNavigate.mockReturnValue(mockNavigate);
+        vi.clearAllMocks();
+        vi.useFakeTimers();
+
+        // Set mocks
+        Storage.prototype.getItem = vi.fn(() => mockToken);
 
         useNodeStats.mockReturnValue({count: 2, frozen: 1});
         useObjectStats.mockReturnValue({
@@ -185,20 +203,20 @@ describe('ClusterOverview', () => {
             kinds: ['Pod', 'Service'],
         });
 
-        Storage.prototype.getItem = jest.fn(() => mockToken);
         axios.get.mockResolvedValue({
-            data: {items: [{id: 'pool1'}, {id: 'pool2'}]},
+            data: {items: [{id: 'pool1'}, {id: 'pool2'}], networks: ['net1', 'net2']},
         });
-        startEventReception.mockImplementation(jest.fn());
+
+        startEventReception.mockImplementation(vi.fn());
     });
 
     afterEach(() => {
-        jest.restoreAllMocks();
-        jest.clearAllTimers();
+        vi.restoreAllMocks();
+        vi.clearAllTimers();
     });
 
     afterAll(() => {
-        jest.useRealTimers();
+        vi.useRealTimers();
     });
 
     test('renders cluster overview with all stat cards and edge-case data', async () => {
@@ -289,7 +307,7 @@ describe('ClusterOverview', () => {
         const clickAndAssert = (role, expectedPath) => {
             fireEvent.click(screen.getByRole('button', {name: new RegExp(role, 'i')}));
             act(() => {
-                jest.advanceTimersByTime(50);
+                vi.advanceTimersByTime(50);
             });
             expect(mockNavigate).toHaveBeenCalledWith(expectedPath);
             mockNavigate.mockClear();
@@ -305,28 +323,28 @@ describe('ClusterOverview', () => {
 
         fireEvent.click(screen.getByTestId('up-status-button'));
         act(() => {
-            jest.advanceTimersByTime(50);
+            vi.advanceTimersByTime(50);
         });
         expect(mockNavigate).toHaveBeenCalledWith('/objects?globalState=up');
         mockNavigate.mockClear();
 
         fireEvent.click(screen.getByTestId('warn-status-button'));
         act(() => {
-            jest.advanceTimersByTime(50);
+            vi.advanceTimersByTime(50);
         });
         expect(mockNavigate).toHaveBeenCalledWith('/objects?globalState=warn');
         mockNavigate.mockClear();
 
         fireEvent.click(screen.getByTestId('beating-status-button'));
         act(() => {
-            jest.advanceTimersByTime(50);
+            vi.advanceTimersByTime(50);
         });
         expect(mockNavigate).toHaveBeenCalledWith('/heartbeats?status=beating');
         mockNavigate.mockClear();
 
         fireEvent.click(screen.getByTestId('running-state-button'));
         act(() => {
-            jest.advanceTimersByTime(50);
+            vi.advanceTimersByTime(50);
         });
         expect(mockNavigate).toHaveBeenCalledWith('/heartbeats?status=beating&state=running');
     });
@@ -345,7 +363,7 @@ describe('ClusterOverview', () => {
             perHeartbeatStats: {beating: 0, stale: 0},
         });
         useKindData.mockReturnValue({statusByKind: {}, kinds: []});
-        axios.get.mockResolvedValue({data: {items: []}});
+        axios.get.mockResolvedValue({data: {items: [], networks: []}});
 
         render(
             <MemoryRouter>
@@ -366,7 +384,7 @@ describe('ClusterOverview', () => {
     });
 
     test('does not fetch data without auth token', async () => {
-        Storage.prototype.getItem = jest.fn(() => null);
+        Storage.prototype.getItem = vi.fn(() => null);
 
         render(
             <MemoryRouter>
@@ -407,7 +425,7 @@ describe('ClusterOverview', () => {
         );
 
         unmount();
-        resolvePromise({data: {items: [{id: 'pool1'}]}});
+        resolvePromise({data: {items: [{id: 'pool1'}], networks: []}});
 
         await act(async () => {
             await slowPromise;

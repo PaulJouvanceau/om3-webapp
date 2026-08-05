@@ -1,50 +1,62 @@
 import React from 'react';
-import {render, screen, fireEvent, waitFor} from '@testing-library/react';
+import {render, screen, fireEvent, waitFor, act} from '@testing-library/react';
 import '@testing-library/jest-dom';
+import {vi, beforeAll, afterAll, beforeEach, afterEach, describe, test, expect} from 'vitest';
 import LogsViewer from '../LogsViewer';
 
-// Suppress intentional console errors during tests
-const originalConsoleError = console.error;
-beforeAll(() => {
-    console.error = jest.fn();
-});
-afterAll(() => {
-    console.error = originalConsoleError;
-});
-
-// --- Mocks ---
-jest.mock('@mui/material', () => ({
-    ...jest.requireActual('@mui/material'),
-    useTheme: () => ({
-        palette: {
-            background: {paper: '#fff', default: '#f5f5f5'},
-            grey: {100: '#f5f5f5'},
-            divider: '#e0e0e0',
-            text: {primary: '#000', secondary: '#666'},
-            error: {main: '#f44336'},
-            warning: {main: '#ff9800'},
-            info: {main: '#2196f3'},
-            action: {hover: '#f0f0f0', selected: '#e0e0e0'},
-        },
-    }),
+// Hoist mocked functions for use in vi.mock factories
+const {
+    mockUseDarkMode,
+    mockLocalStorage,
+    mockLogger,
+} = vi.hoisted(() => ({
+    mockUseDarkMode: vi.fn(() => ({isDarkMode: false, toggleDarkMode: vi.fn()})),
+    mockLocalStorage: {
+        getItem: vi.fn().mockReturnValue('mock-token'),
+    },
+    mockLogger: {
+        warn: vi.fn(),
+        error: vi.fn(),
+    },
 }));
 
-jest.mock('../../context/DarkModeContext', () => ({
-    useDarkMode: () => ({isDarkMode: false, toggleDarkMode: jest.fn()}),
+// ── Mocks ──────────────────────────────────────────────────────────────
+vi.mock('@mui/material', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        useTheme: () => ({
+            palette: {
+                background: {paper: '#fff', default: '#f5f5f5'},
+                grey: {100: '#f5f5f5'},
+                divider: '#e0e0e0',
+                text: {primary: '#000', secondary: '#666'},
+                error: {main: '#f44336'},
+                warning: {main: '#ff9800'},
+                info: {main: '#2196f3'},
+                action: {hover: '#f0f0f0', selected: '#e0e0e0'},
+            },
+        }),
+    };
+});
+
+vi.mock('../../context/DarkModeContext', () => ({
+    useDarkMode: mockUseDarkMode,
 }));
 
-jest.mock('../../config/apiPath.js', () => ({URL_NODE: 'http://mock-api'}));
+vi.mock('../../config/apiPath.js', () => ({
+    URL_NODE: 'http://mock-api',
+}));
 
-const mockLocalStorage = {
-    getItem: jest.fn().mockReturnValue('mock-token'),
-};
+vi.mock('../../utils/logger.js', () => ({
+    default: mockLogger,
+}));
+
 Object.defineProperty(window, 'localStorage', {value: mockLocalStorage});
 
-jest.mock('../../utils/logger.js', () => ({warn: jest.fn(), error: jest.fn()}));
-
-global.Blob = jest.fn();
-global.URL.createObjectURL = jest.fn().mockReturnValue('blob-url');
-global.URL.revokeObjectURL = jest.fn();
+global.Blob = vi.fn();
+global.URL.createObjectURL = vi.fn().mockReturnValue('blob-url');
+global.URL.revokeObjectURL = vi.fn();
 
 // Simulate a readable stream for testing SSE
 class MockReadableStream {
@@ -68,8 +80,8 @@ class MockReadableStream {
                 }
                 return {done: true};
             },
-            releaseLock: jest.fn(),
-            cancel: jest.fn(() => {
+            releaseLock: vi.fn(),
+            cancel: vi.fn(() => {
                 stream.cancelled = true;
                 return Promise.resolve();
             }),
@@ -85,18 +97,19 @@ class MockReadableStream {
 // --- Helpers ---
 const mockSuccessfulFetch = (logData = [], delay = 0) => {
     const streamChunks = logData.map(log => `data: ${JSON.stringify(log)}\n\n`);
-    global.fetch = jest.fn().mockResolvedValue({
-        ok: true, status: 200,
+    global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
         body: new MockReadableStream(streamChunks, delay),
     });
 };
 
 const mockErrorFetch = (status, message) => {
-    global.fetch = jest.fn().mockRejectedValue(new Error(message));
+    global.fetch = vi.fn().mockRejectedValue(new Error(message));
 };
 
 const mockHttpErrorFetch = (status) => {
-    global.fetch = jest.fn().mockResolvedValue({ok: false, status});
+    global.fetch = vi.fn().mockResolvedValue({ok: false, status});
 };
 
 const renderComponent = (props = {}) =>
@@ -113,16 +126,21 @@ const findLogsContainer = (container) => {
     return null;
 };
 
-// --- Tests ---
+const originalConsoleError = console.error;
+
 describe('LogsViewer', () => {
     beforeAll(() => {
-        HTMLElement.prototype.scrollIntoView = jest.fn();
+        console.error = vi.fn();
+        HTMLElement.prototype.scrollIntoView = vi.fn();
     });
+
     afterAll(() => {
+        console.error = originalConsoleError;
         delete HTMLElement.prototype.scrollIntoView;
     });
+
     beforeEach(() => {
-        jest.clearAllMocks();
+        vi.clearAllMocks();
         mockLocalStorage.getItem.mockReturnValue('mock-token');
     });
 
@@ -147,7 +165,7 @@ describe('LogsViewer', () => {
         });
 
         test('shows loading spinner during fetch', async () => {
-            global.fetch = jest.fn(() => new Promise(() => {
+            global.fetch = vi.fn(() => new Promise(() => {
             }));
             renderComponent();
             expect(screen.getByRole('progressbar')).toBeInTheDocument();
@@ -234,7 +252,7 @@ describe('LogsViewer', () => {
         });
 
         test('handles response without body', async () => {
-            global.fetch = jest.fn().mockResolvedValue({ok: true, status: 200, body: null});
+            global.fetch = vi.fn().mockResolvedValue({ok: true, status: 200, body: null});
             renderComponent();
             await screen.findByText('Response has no readable stream');
         });
@@ -292,12 +310,12 @@ describe('LogsViewer', () => {
 
             fireEvent.click(screen.getByRole('button', {name: /pause/i}));
 
-            global.fetch = jest.fn().mockResolvedValue({
-                ok: true, status: 200,
-                body: new MockReadableStream([`data: ${JSON.stringify({
-                    __REALTIME_TIMESTAMP: now + 1000,
-                    MESSAGE: 'Buffered log'
-                })}\n\n`]),
+            global.fetch = vi.fn().mockResolvedValue({
+                ok: true,
+                status: 200,
+                body: new MockReadableStream([
+                    `data: ${JSON.stringify({__REALTIME_TIMESTAMP: now + 1000, MESSAGE: 'Buffered log'})}\n\n`,
+                ]),
             });
             await expect(screen.findByText('Buffered log', {}, {timeout: 1000})).rejects.toThrow();
         });
@@ -316,8 +334,14 @@ describe('LogsViewer', () => {
         test('parses JSON log with all fields', async () => {
             const log = {
                 JSON: JSON.stringify({
-                    time: baseTs, level: 'debug', message: 'JSON msg', method: 'GET', path: '/api/test',
-                    node: 'test-node', request_uuid: 'uuid', pkg: 'test-pkg',
+                    time: baseTs,
+                    level: 'debug',
+                    message: 'JSON msg',
+                    method: 'GET',
+                    path: '/api/test',
+                    node: 'test-node',
+                    request_uuid: 'uuid',
+                    pkg: 'test-pkg',
                 }),
                 __REALTIME_TIMESTAMP: baseTs * 1000,
             };
@@ -348,18 +372,18 @@ describe('LogsViewer', () => {
         });
 
         test('logs warning for invalid JSON line in stream', async () => {
-            const logger = require('../../utils/logger.js');
             const streamChunks = [
                 'data: not json\n\n',
-                'data: {"__REALTIME_TIMESTAMP":1234567890, "MESSAGE": "valid"}\n\n'
+                'data: {"__REALTIME_TIMESTAMP":1234567890, "MESSAGE": "valid"}\n\n',
             ];
-            global.fetch = jest.fn().mockResolvedValue({
-                ok: true, status: 200,
+            global.fetch = vi.fn().mockResolvedValue({
+                ok: true,
+                status: 200,
                 body: new MockReadableStream(streamChunks),
             });
             renderComponent();
             await screen.findByText('valid');
-            expect(logger.warn).toHaveBeenCalledWith(
+            expect(mockLogger.warn).toHaveBeenCalledWith(
                 'Failed to parse log line:',
                 expect.any(Error),
                 'data: not json'
@@ -369,8 +393,10 @@ describe('LogsViewer', () => {
         test('processes partial lines across chunks', async () => {
             const chunk1 = 'data: {"__REALTIME_TIMESTAMP":1234567890, "MESSAGE": "Hello';
             const chunk2 = ' world"}\n\n';
-            global.fetch = jest.fn().mockResolvedValue({
-                ok: true, status: 200, body: new MockReadableStream([chunk1, chunk2]),
+            global.fetch = vi.fn().mockResolvedValue({
+                ok: true,
+                status: 200,
+                body: new MockReadableStream([chunk1, chunk2]),
             });
             renderComponent();
             await screen.findByText('Hello world');
@@ -378,8 +404,9 @@ describe('LogsViewer', () => {
         });
 
         test('ignores non-data lines and empty data', async () => {
-            global.fetch = jest.fn().mockResolvedValue({
-                ok: true, status: 200,
+            global.fetch = vi.fn().mockResolvedValue({
+                ok: true,
+                status: 200,
                 body: new MockReadableStream([
                     'event: log\n',
                     'data: \n\n',
@@ -432,8 +459,8 @@ describe('LogsViewer', () => {
             fireEvent.click(screen.getByText('Debug'));
             await screen.findByText('Debug log');
 
-            fireEvent.click(screen.getByText('Debug log')); // click to clear
-            await screen.findByText('Error log'); // unfiltered, both appear
+            fireEvent.click(screen.getByText('Debug log'));
+            await screen.findByText('Error log');
             expect(screen.queryByText(/Filters active/)).not.toBeInTheDocument();
         });
 
@@ -507,7 +534,7 @@ describe('LogsViewer', () => {
             await screen.findByText('Instance log');
 
             const originalCreateElement = document.createElement.bind(document);
-            const createElementSpy = jest.spyOn(document, 'createElement');
+            const createElementSpy = vi.spyOn(document, 'createElement');
             let anchorElement = null;
             createElementSpy.mockImplementation((tag) => {
                 const element = originalCreateElement(tag);
@@ -532,7 +559,8 @@ describe('LogsViewer', () => {
         test('highlights selected log and scrolls', async () => {
             const ts = Date.now() * 1000;
             const logs = Array.from({length: 10}, (_, i) => ({
-                __REALTIME_TIMESTAMP: ts + i * 1000, MESSAGE: `Log ${i + 1}`,
+                __REALTIME_TIMESTAMP: ts + i * 1000,
+                MESSAGE: `Log ${i + 1}`,
             }));
             mockSuccessfulFetch(logs);
             renderComponent();
@@ -547,11 +575,12 @@ describe('LogsViewer', () => {
         });
 
         test('scrolls to log and resets background after timeout, handles unmount', async () => {
-            jest.useFakeTimers();
+            vi.useFakeTimers();
 
             const ts = Date.now() * 1000;
             const logs = Array.from({length: 5}, (_, i) => ({
-                __REALTIME_TIMESTAMP: ts + i * 1000, MESSAGE: `Log ${i + 1}`,
+                __REALTIME_TIMESTAMP: ts + i * 1000,
+                MESSAGE: `Log ${i + 1}`,
             }));
             mockSuccessfulFetch(logs);
             const {container, unmount} = renderComponent();
@@ -559,21 +588,21 @@ describe('LogsViewer', () => {
 
             const logsContainer = findLogsContainer(container);
             expect(logsContainer).toBeInTheDocument();
-            logsContainer.scrollTo = jest.fn();
+            logsContainer.scrollTo = vi.fn();
 
             fireEvent.change(screen.getByPlaceholderText('Search logs...'), {target: {value: 'Log 3'}});
             await screen.findByText('Log 3');
             fireEvent.click(screen.getByText('Log 3'));
 
-            jest.advanceTimersByTime(100);
+            vi.advanceTimersByTime(100);
             expect(logsContainer.scrollTo).toHaveBeenCalledWith({
                 top: expect.any(Number),
                 behavior: 'smooth',
             });
 
-            jest.advanceTimersByTime(2000);
+            vi.advanceTimersByTime(2000);
             unmount();
-            jest.useRealTimers();
+            vi.useRealTimers();
         });
 
         test('Go to bottom button appears when not at bottom', async () => {
@@ -615,7 +644,8 @@ describe('LogsViewer', () => {
         test('limits logs to maxLogs', async () => {
             const ts = Date.now() * 1000;
             const logs = Array.from({length: 5}, (_, i) => ({
-                __REALTIME_TIMESTAMP: ts + i * 1000, MESSAGE: `Log ${i + 1}`,
+                __REALTIME_TIMESTAMP: ts + i * 1000,
+                MESSAGE: `Log ${i + 1}`,
             }));
             mockSuccessfulFetch(logs);
             renderComponent({maxLogs: 3});

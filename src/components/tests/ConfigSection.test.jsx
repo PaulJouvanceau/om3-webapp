@@ -3,16 +3,33 @@ import {render, screen, waitFor, act, within, fireEvent} from '@testing-library/
 import ConfigSection from '../ConfigSection';
 import userEvent from '@testing-library/user-event';
 import {URL_OBJECT} from '../../config/apiPath.js';
+import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 
-// ── Mocks ─────────────────────────────────────────────────────────────────────
-jest.mock('react-router-dom', () => ({
-    ...jest.requireActual('react-router-dom'),
-    useParams: jest.fn(),
+// ── Hoisted variables ─────────────────────────────────────────────────
+const {
+    mockUseParams,
+    mockLocalStorage,
+} = vi.hoisted(() => ({
+    mockUseParams: vi.fn(),
+    mockLocalStorage: {
+        getItem: vi.fn(),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+    },
 }));
 
-jest.mock('@mui/material', () => {
-    const actual = jest.requireActual('@mui/material');
-    const {useState} = jest.requireActual('react');
+// ── Mocks ──────────────────────────────────────────────────────────────
+vi.mock('react-router-dom', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        useParams: mockUseParams,
+    };
+});
+
+vi.mock('@mui/material', async (importOriginal) => {
+    const actual = await importOriginal();
+    const {useState} = await import('react');
     const mocks = {
         ...actual,
         Dialog: ({children, open, onClose, ...props}) => open ? (
@@ -41,7 +58,6 @@ jest.mock('@mui/material', () => {
                    placeholder={placeholder || label || ''} value={value || ''} onChange={onChange} disabled={disabled}
                    {...inputProps} {...props} />
         ),
-        // Autocomplete mock: always calls getOptionLabel
         Autocomplete: ({options, getOptionLabel, onChange, multiple, renderInput, value, freeSolo, ...props}) => {
             const [inputValue, setInputValue] = useState(
                 multiple
@@ -93,22 +109,29 @@ jest.mock('@mui/material', () => {
     return mocks;
 });
 
-jest.mock('@mui/icons-material/UploadFile', () => () => <span data-testid="UploadFileIcon"/>);
-jest.mock('@mui/icons-material/Edit', () => () => <span data-testid="EditIcon"/>);
-jest.mock('@mui/icons-material/Info', () => () => <span data-testid="InfoIcon"/>);
-jest.mock('@mui/icons-material/Delete', () => () => <span data-testid="DeleteIcon"/>);
+vi.mock('@mui/icons-material/UploadFile', () => ({
+    default: () => <span data-testid="UploadFileIcon"/>,
+}));
+vi.mock('@mui/icons-material/Edit', () => ({
+    default: () => <span data-testid="EditIcon"/>,
+}));
+vi.mock('@mui/icons-material/Info', () => ({
+    default: () => <span data-testid="InfoIcon"/>,
+}));
+vi.mock('@mui/icons-material/Delete', () => ({
+    default: () => <span data-testid="DeleteIcon"/>,
+}));
 
-const mockLocalStorage = {getItem: jest.fn(), setItem: jest.fn(), removeItem: jest.fn()};
 Object.defineProperty(global, 'localStorage', {value: mockLocalStorage});
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────────
 const defaultProps = {
     decodedObjectName: 'root/cfg/cfg1',
     configNode: 'node1',
-    setConfigNode: jest.fn(),
-    openSnackbar: jest.fn(),
+    setConfigNode: vi.fn(),
+    openSnackbar: vi.fn(),
     configDialogOpen: true,
-    setConfigDialogOpen: jest.fn(),
+    setConfigDialogOpen: vi.fn(),
 };
 const renderConfig = (props = {}) => render(<ConfigSection {...defaultProps} {...props} />);
 const getViewConfigButton = () => screen.getByText('View Configuration');
@@ -214,21 +237,20 @@ const defaultFetchMock = (url, options) => {
     });
 };
 
-// ── Tests ──────────────────────────────────────────────────────────────────────
+// ── Tests ───────────────────────────────────────────────────────────────
 describe('ConfigSection Component', () => {
     const user = userEvent.setup();
 
     beforeEach(() => {
-        jest.setTimeout(30000);
-        jest.clearAllMocks();
+        vi.clearAllMocks();
         mockLocalStorage.getItem.mockReturnValue('mock-token');
-        require('react-router-dom').useParams.mockReturnValue({objectName: 'root/cfg/cfg1'});
-        global.fetch = jest.fn(defaultFetchMock);
+        mockUseParams.mockReturnValue({objectName: 'root/cfg/cfg1'});
+        global.fetch = vi.fn(defaultFetchMock);
     });
 
-    afterEach(() => jest.resetAllMocks());
+    afterEach(() => vi.resetAllMocks());
 
-    // ── Basic rendering ────────────────────────────────────────────────────────
+    // ── Basic rendering ──────────────────────────────────────────────────
     test('displays configuration button, no dialog initially', () => {
         renderConfig({configDialogOpen: false});
         expect(getViewConfigButton()).toBeInTheDocument();
@@ -236,7 +258,7 @@ describe('ConfigSection Component', () => {
     });
 
     test('clicking View Configuration calls setConfigDialogOpen(true)', async () => {
-        const setConfigDialogOpen = jest.fn();
+        const setConfigDialogOpen = vi.fn();
         renderConfig({configDialogOpen: false, setConfigDialogOpen});
         await act(() => user.click(getViewConfigButton()));
         expect(setConfigDialogOpen).toHaveBeenCalledWith(true);
@@ -252,7 +274,7 @@ describe('ConfigSection Component', () => {
     });
 
     test('close button calls setConfigDialogOpen(false)', async () => {
-        const setConfigDialogOpen = jest.fn();
+        const setConfigDialogOpen = vi.fn();
         renderConfig({setConfigDialogOpen});
         await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
         await act(() => user.click(screen.getByRole('button', {name: /Close/i})));
@@ -260,7 +282,7 @@ describe('ConfigSection Component', () => {
     });
 
     test('pressing Escape on the configuration dialog triggers onClose', async () => {
-        const setConfigDialogOpen = jest.fn();
+        const setConfigDialogOpen = vi.fn();
         renderConfig({setConfigDialogOpen});
         const dialog = await screen.findByRole('dialog');
         fireEvent.keyDown(dialog, {key: 'Escape', code: 'Escape'});
@@ -278,25 +300,25 @@ describe('ConfigSection Component', () => {
                 ok: true,
                 status: 200,
                 text: () => Promise.resolve(null),
-                headers: new Headers()
+                headers: new Headers(),
             });
             return Promise.resolve({
                 ok: true,
                 status: 200,
                 json: () => Promise.resolve({items: []}),
-                headers: new Headers()
+                headers: new Headers(),
             });
         });
         renderConfig();
         await waitFor(() => expect(screen.getByText(/No configuration available/i)).toBeInTheDocument());
     });
 
-    // ── Fetch error cases ──────────────────────────────────────────────────────
+    // ── Fetch error cases ────────────────────────────────────────────────
     test.each([
         ['HTTP error', () => Promise.resolve({
             ok: false,
             status: 500,
-            text: () => Promise.resolve('Server error')
+            text: () => Promise.resolve('Server error'),
         }), /Failed to fetch config: HTTP 500/i],
         ['network error', () => Promise.reject(new Error('Network failure')), /Failed to fetch config: Network failure/i],
     ])('fetch configuration: %s', async (_, fetchImpl, expected) => {
@@ -313,7 +335,7 @@ describe('ConfigSection Component', () => {
         await waitFor(() => expect(screen.getByRole('progressbar')).toBeInTheDocument());
     });
 
-    // ── Re-fetch triggers ──────────────────────────────────────────────────────
+    // ── Re-fetch triggers ────────────────────────────────────────────────
     test('configNode change triggers config re-fetch', async () => {
         const {rerender} = renderConfig();
         await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('node1'), expect.any(Object)));
@@ -363,9 +385,9 @@ describe('ConfigSection Component', () => {
         await waitFor(() => expect(global.fetch).toHaveBeenCalled());
     });
 
-    // ── Update config dialog ───────────────────────────────────────────────────
+    // ── Update config dialog ─────────────────────────────────────────────
     test('update config: success flow', async () => {
-        const openSnackbar = jest.fn();
+        const openSnackbar = vi.fn();
         renderConfig({openSnackbar});
         const file = await openUpdateDialogWithFile(user);
         await waitFor(() => expect(screen.getByText(file.name)).toBeInTheDocument());
@@ -378,7 +400,7 @@ describe('ConfigSection Component', () => {
                 method: 'PUT',
                 headers: expect.objectContaining({
                     Authorization: 'Bearer mock-token',
-                    'Content-Type': 'application/octet-stream'
+                    'Content-Type': 'application/octet-stream',
                 }),
             })
         );
@@ -400,7 +422,7 @@ describe('ConfigSection Component', () => {
                     ok: false,
                     status: 500,
                     text: () => Promise.resolve('Server error'),
-                    headers: new Headers()
+                    headers: new Headers(),
                 });
                 return defaultFetchMock(url, options);
             });
@@ -413,7 +435,7 @@ describe('ConfigSection Component', () => {
         }, 'Error: Network error', 'error', true],
     ])('update config: %s', async (_, setup, expectedMsg, severity, shouldClose) => {
         setup();
-        const openSnackbar = jest.fn();
+        const openSnackbar = vi.fn();
         renderConfig({openSnackbar});
         await openUpdateDialogWithFile(user);
         await act(() => user.click(screen.getByRole('button', {name: /Update/i})));
@@ -431,11 +453,11 @@ describe('ConfigSection Component', () => {
                 ok: true,
                 status: 200,
                 text: () => Promise.resolve(''),
-                headers: new Headers()
+                headers: new Headers(),
             });
             return defaultFetchMock(url);
         });
-        const openSnackbar = jest.fn();
+        const openSnackbar = vi.fn();
         renderConfig({configNode: '', openSnackbar});
         await openUpdateDialogWithFile(user);
         await act(() => user.click(screen.getByRole('button', {name: /Update/i})));
@@ -450,9 +472,9 @@ describe('ConfigSection Component', () => {
         await waitFor(() => expect(screen.queryByText(/Update Configuration/i)).not.toBeInTheDocument());
     });
 
-    // ── Manage params dialog (add / unset / delete) ────────────────────────────
+    // ── Manage params dialog (add / unset / delete) ──────────────────────
     test('manage params: no selection shows error', async () => {
-        const openSnackbar = jest.fn();
+        const openSnackbar = vi.fn();
         renderConfig({openSnackbar});
         await openManageDialog(user);
         await act(() => user.click(screen.getByRole('button', {name: /Apply/i})));
@@ -469,7 +491,7 @@ describe('ConfigSection Component', () => {
     });
 
     test('manage params: add invalid parameter shows error', async () => {
-        const openSnackbar = jest.fn();
+        const openSnackbar = vi.fn();
         renderConfig({openSnackbar});
         await openManageDialog(user);
         await act(() => user.type(getComboboxes()[0], 'invalid_param{Enter}'));
@@ -478,7 +500,7 @@ describe('ConfigSection Component', () => {
     });
 
     test('manage params: add DEFAULT.orchestrate and apply', async () => {
-        const openSnackbar = jest.fn();
+        const openSnackbar = vi.fn();
         renderConfig({openSnackbar});
         await openManageDialog(user);
         await act(() => user.type(getComboboxes()[0], 'DEFAULT.orchestrate{Enter}'));
@@ -492,7 +514,7 @@ describe('ConfigSection Component', () => {
     });
 
     test('manage params: add fs.size with indexed section and apply', async () => {
-        const openSnackbar = jest.fn();
+        const openSnackbar = vi.fn();
         renderConfig({openSnackbar});
         await openManageDialog(user);
         await act(() => user.type(getComboboxes()[0], 'fs.size{Enter}'));
@@ -510,7 +532,7 @@ describe('ConfigSection Component', () => {
     });
 
     test('manage params: TListLowercase with empty split shows error', async () => {
-        const openSnackbar = jest.fn();
+        const openSnackbar = vi.fn();
         renderConfig({openSnackbar});
         await openManageDialog(user);
         await act(() => user.type(getComboboxes()[0], 'DEFAULT.roles{Enter}'));
@@ -527,7 +549,7 @@ describe('ConfigSection Component', () => {
     });
 
     test('manage params: TListLowercase success', async () => {
-        const openSnackbar = jest.fn();
+        const openSnackbar = vi.fn();
         renderConfig({openSnackbar});
         await openManageDialog(user);
         await act(() => user.type(getComboboxes()[0], 'DEFAULT.roles{Enter}'));
@@ -541,7 +563,7 @@ describe('ConfigSection Component', () => {
     });
 
     test('manage params: modify section of added parameter', async () => {
-        const openSnackbar = jest.fn();
+        const openSnackbar = vi.fn();
         renderConfig({openSnackbar});
         await openManageDialog(user);
         await act(() => user.type(getComboboxes()[0], 'DEFAULT.orchestrate{Enter}'));
@@ -571,7 +593,7 @@ describe('ConfigSection Component', () => {
         ['unset', 1, 'nodes', 'unset=nodes', 'Successfully unset 1 parameter(s)'],
         ['delete', 2, 'fs#1', 'delete=fs%231', 'Successfully deleted 1 section(s)'],
     ])('manage params: %s success', async (_, comboIdx, input, urlFragment, successMsg) => {
-        const openSnackbar = jest.fn();
+        const openSnackbar = vi.fn();
         renderConfig({openSnackbar});
         await openManageDialog(user);
         await act(() => user.type(getComboboxes()[comboIdx], `${input}{Enter}`));
@@ -582,7 +604,7 @@ describe('ConfigSection Component', () => {
             expect.stringContaining(`${URL_OBJECT}/root/cfg/cfg1/config?${urlFragment}`),
             expect.objectContaining({
                 method: 'PATCH',
-                headers: expect.objectContaining({Authorization: 'Bearer mock-token'})
+                headers: expect.objectContaining({Authorization: 'Bearer mock-token'}),
             })
         );
         await waitFor(() => expect(screen.queryByText(/Manage Configuration Parameters/i)).not.toBeInTheDocument());
@@ -598,11 +620,11 @@ describe('ConfigSection Component', () => {
                     ok: false,
                     status: 500,
                     json: () => Promise.resolve({}),
-                    headers: new Headers()
+                    headers: new Headers(),
                 });
             return defaultFetchMock(url, options);
         });
-        const openSnackbar = jest.fn();
+        const openSnackbar = vi.fn();
         renderConfig({openSnackbar});
         await openManageDialog(user);
         await act(() => user.type(getComboboxes()[comboIdx], `${input}{Enter}`));
@@ -616,7 +638,7 @@ describe('ConfigSection Component', () => {
             if (url.includes('/config?set=')) return Promise.reject(new Error('Network failure'));
             return defaultFetchMock(url);
         });
-        const openSnackbar = jest.fn();
+        const openSnackbar = vi.fn();
         renderConfig({openSnackbar});
         await openManageDialog(user);
         await act(() => user.type(getComboboxes()[0], 'DEFAULT.orchestrate{Enter}'));
@@ -638,7 +660,7 @@ describe('ConfigSection Component', () => {
             if (url.includes(`/config?${comboIdx === 1 ? 'unset' : 'delete'}=`)) return Promise.reject(new Error('Network failure'));
             return defaultFetchMock(url);
         });
-        const openSnackbar = jest.fn();
+        const openSnackbar = vi.fn();
         renderConfig({openSnackbar});
         await openManageDialog(user);
         await act(() => user.type(getComboboxes()[comboIdx], `${input}{Enter}`));
@@ -653,11 +675,11 @@ describe('ConfigSection Component', () => {
                     ok: false,
                     status: 500,
                     json: () => Promise.resolve({}),
-                    headers: new Headers()
+                    headers: new Headers(),
                 });
             return defaultFetchMock(url, options);
         });
-        const openSnackbar = jest.fn();
+        const openSnackbar = vi.fn();
         renderConfig({openSnackbar});
         await openManageDialog(user);
         await act(() => user.type(getComboboxes()[0], 'DEFAULT.orchestrate{Enter}'));
@@ -678,7 +700,7 @@ describe('ConfigSection Component', () => {
         ['delete', 2, 'fs#1'],
     ])('manage params: missing token for %s shows error', async (_, comboIdx, input) => {
         mockLocalStorage.getItem.mockReturnValue(null);
-        const openSnackbar = jest.fn();
+        const openSnackbar = vi.fn();
         renderConfig({openSnackbar});
         await openManageDialog(user);
         await act(() => user.type(getComboboxes()[comboIdx], `${input}{Enter}`));
@@ -704,7 +726,7 @@ describe('ConfigSection Component', () => {
             }
             return defaultFetchMock(url, options);
         });
-        const openSnackbar = jest.fn();
+        const openSnackbar = vi.fn();
         renderConfig({openSnackbar});
         await openManageDialog(user);
         await act(() => user.type(getComboboxes()[1], 'standalone.param{Enter}'));
@@ -729,7 +751,7 @@ describe('ConfigSection Component', () => {
             }
             return defaultFetchMock(url, options);
         });
-        const openSnackbar = jest.fn();
+        const openSnackbar = vi.fn();
         renderConfig({openSnackbar});
         await openManageDialog(user);
         await act(() => user.type(getComboboxes()[1], 'lonelyoption{Enter}'));
@@ -742,13 +764,13 @@ describe('ConfigSection Component', () => {
         );
     });
 
-    // ── Fetch existing params edge cases ───────────────────────────────────────
+    // ── Fetch existing params edge cases ─────────────────────────────────
     test.each([
         ['HTTP error', () => ({
             ok: false,
             status: 403,
             json: () => Promise.resolve({}),
-            headers: new Headers()
+            headers: new Headers(),
         }), 'Failed to fetch existing parameters: HTTP 403'],
         ['network error', () => Promise.reject(new Error('Network failure')), 'Failed to fetch existing parameters: Network failure'],
     ])('fetchExistingParams: %s', async (_, fetchImpl, expectedText) => {
@@ -772,7 +794,7 @@ describe('ConfigSection Component', () => {
                     ok: true,
                     status: 200,
                     json: () => Promise.resolve({items: null}),
-                    headers: new Headers()
+                    headers: new Headers(),
                 });
             return defaultFetchMock(url);
         });
@@ -781,7 +803,7 @@ describe('ConfigSection Component', () => {
         await waitFor(() => expect(getComboboxes()[2]).toHaveValue(''));
     });
 
-    // ── Keywords dialog ────────────────────────────────────────────────────────
+    // ── Keywords dialog ──────────────────────────────────────────────────
     test('keywords dialog: displays table with keywords', async () => {
         renderConfig();
         await act(() => user.click(getKeywordsButton()));
@@ -824,7 +846,7 @@ describe('ConfigSection Component', () => {
         await act(() => user.click(getKeywordsButton()));
         const kd = getDialogByTitle('Configuration Keywords');
         const rows = within(kd).getAllByRole('row');
-        expect(rows).toHaveLength(2); // header + 1 unique row
+        expect(rows).toHaveLength(2);
         const cells = within(rows[1]).getAllByRole('cell');
         expect(cells[0]).toHaveTextContent('nodes');
         expect(cells[1]).not.toHaveTextContent('Duplicate nodes entry');
@@ -835,20 +857,20 @@ describe('ConfigSection Component', () => {
             ok: false,
             status: 404,
             json: () => Promise.resolve({}),
-            headers: new Headers()
+            headers: new Headers(),
         }), /Failed to fetch keywords: HTTP 404/i],
         ['invalid format', () => ({
             ok: true,
             status: 200,
             json: () => Promise.resolve({items: 'not-an-array'}),
-            headers: new Headers()
+            headers: new Headers(),
         }), /Invalid response format/i],
         ['AbortError', () => Promise.reject(new DOMException('The operation was aborted', 'AbortError')), /Request timed out after 60 seconds/i],
         ['null items', () => ({
             ok: true,
             status: 200,
             json: () => Promise.resolve({items: null}),
-            headers: new Headers()
+            headers: new Headers(),
         }), /Invalid response format/i],
     ])('keywords dialog: %s shows alert', async (_, fetchImpl, expected) => {
         global.fetch.mockImplementation((url) => {
@@ -877,7 +899,7 @@ describe('ConfigSection Component', () => {
                 ok: true,
                 status: 200,
                 json: () => Promise.resolve({items: null}),
-                headers: new Headers()
+                headers: new Headers(),
             });
             return defaultFetchMock(url);
         });

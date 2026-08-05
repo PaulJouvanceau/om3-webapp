@@ -3,19 +3,43 @@ import {EventSourcePolyfill} from 'event-source-polyfill';
 import useEventStore from '../hooks/useEventStore.js';
 import useEventLogStore from '../hooks/useEventLogStore.js';
 import {URL_NODE_EVENT} from '../config/apiPath.js';
+import {vi, beforeAll, afterAll, beforeEach, afterEach, describe, test, expect} from 'vitest';
 
-jest.mock('event-source-polyfill');
-jest.mock('../hooks/useEventStore.js');
-jest.mock('../hooks/useEventLogStore.js');
-jest.useFakeTimers();
+vi.mock('event-source-polyfill', () => ({
+    EventSourcePolyfill: vi.fn(),
+}));
+vi.mock('../hooks/useEventStore.js', () => ({
+    __esModule: true,
+    default: Object.assign(vi.fn(), {
+        getState: vi.fn(),
+        setState: vi.fn(),
+        subscribe: vi.fn(),
+    }),
+}));
+vi.mock('../hooks/useEventLogStore.js', () => ({
+    __esModule: true,
+    default: Object.assign(vi.fn(), {
+        getState: vi.fn(),
+    }),
+}));
 
 let mockNow = 0;
 const originalPerformance = global.performance;
+
 beforeAll(() => {
-    global.performance = /** @type {any} */ ({now: () => mockNow});
+    global.performance = {now: () => mockNow};
 });
+
 afterAll(() => {
     global.performance = originalPerformance;
+});
+
+beforeEach(() => {
+    vi.useFakeTimers();
+});
+
+afterEach(() => {
+    vi.useRealTimers();
 });
 
 const mockShallowEqual = (a, b) => {
@@ -26,114 +50,112 @@ const mockShallowEqual = (a, b) => {
     return keysA.every(key => a[key] === b[key]);
 };
 
-// Helper: get handler for a given event type from a mock eventSource
 const getHandler = (eventSource, eventType) =>
     eventSource.addEventListener.mock.calls.find(c => c[0] === eventType)[1];
 
-// Helper: create the default EventSource under test
 const createES = (token = 'fake-token') => eventSourceManager.createEventSource(URL_NODE_EVENT, token);
 
-// Helper: fire an event handler with a JSON payload
 const fire = (handler, data) => handler({data: JSON.stringify(data)});
 
 describe('eventSourceManager', () => {
     let mockStore, mockLogStore, mockEventSource, mockLoggerEventSource;
-    let originalConsole, localStorageMock, originalDebug, originalLocation;
+    let localStorageMock;
+    let consoleSpies;
 
     beforeEach(() => {
-        jest.clearAllMocks();
+        vi.clearAllMocks();
         mockNow += 1_000_000;
 
-        // Factory for simple "merge if changed" store setters sharing the same comparison logic
-        const makeSetter = (prop, isEqualFn = mockShallowEqual) => jest.fn((v) => {
+        const makeSetter = (prop, isEqualFn = mockShallowEqual) => vi.fn((v) => {
             if (!isEqualFn(mockStore[prop], v)) mockStore[prop] = v;
         });
 
-        mockStore = /** @type {any} */ ({
+        mockStore = {
             nodeStatus: {}, nodeMonitor: {}, nodeStats: {}, objectStatus: {},
             objectInstanceStatus: {}, heartbeatStatus: {}, instanceMonitor: {},
             instanceConfig: {}, configUpdates: [],
             pendingDeletes: {},
-            removeObject: jest.fn((name) => {
+            removeObject: vi.fn((name) => {
                 delete mockStore.objectStatus[name];
                 delete mockStore.objectInstanceStatus[name];
                 delete mockStore.instanceConfig[name];
             }),
-            setConfigUpdated: jest.fn((v) => {
+            setConfigUpdated: vi.fn((v) => {
                 mockStore.configUpdates = v || [];
             }),
-            setInstanceConfig: jest.fn((path, node, config) => {
+            setInstanceConfig: vi.fn((path, node, config) => {
                 if (!mockStore.instanceConfig[path]) mockStore.instanceConfig[path] = {};
                 if (!mockShallowEqual(mockStore.instanceConfig[path][node], config))
                     mockStore.instanceConfig[path][node] = config;
             }),
-            setInstanceStatuses: jest.fn((v) => {
+            setInstanceStatuses: vi.fn((v) => {
                 if (JSON.stringify(mockStore.objectInstanceStatus) !== JSON.stringify(v)) mockStore.objectInstanceStatus = v;
             }),
-            removeInstanceFromObject: jest.fn(),
-            removePendingDelete: jest.fn(),
-        });
+            removeInstanceFromObject: vi.fn(),
+            removePendingDelete: vi.fn(),
+        };
         mockStore.setNodeStatuses = makeSetter('nodeStatus');
         mockStore.setNodeMonitors = makeSetter('nodeMonitor');
         mockStore.setNodeStats = makeSetter('nodeStats');
         mockStore.setObjectStatuses = makeSetter('objectStatus');
         mockStore.setHeartbeatStatuses = makeSetter('heartbeatStatus');
         mockStore.setInstanceMonitors = makeSetter('instanceMonitor');
-        jest.mocked(useEventStore.getState).mockReturnValue(mockStore);
 
-        mockLogStore = /** @type {any} */ ({addEventLog: jest.fn()});
-        jest.mocked(useEventLogStore.getState).mockReturnValue(mockLogStore);
+        vi.mocked(useEventStore.getState).mockReturnValue(mockStore);
+
+        mockLogStore = {addEventLog: vi.fn()};
+        vi.mocked(useEventLogStore.getState).mockReturnValue(mockLogStore);
 
         mockEventSource = {
-            onopen: jest.fn(), onerror: null, addEventListener: jest.fn(),
-            close: jest.fn(), readyState: 1,
+            onopen: vi.fn(), onerror: null, addEventListener: vi.fn(),
+            close: vi.fn(), readyState: 1,
             url: URL_NODE_EVENT + '?cache=true&filter=NodeStatusUpdated',
         };
         mockLoggerEventSource = {
-            onopen: jest.fn(), onerror: null, addEventListener: jest.fn(),
-            close: jest.fn(), readyState: 1,
+            onopen: vi.fn(), onerror: null, addEventListener: vi.fn(),
+            close: vi.fn(), readyState: 1,
             url: URL_NODE_EVENT + '?cache=true&filter=ObjectStatusUpdated',
         };
-        EventSourcePolyfill.mockImplementation(() => mockEventSource);
+        vi.mocked(EventSourcePolyfill).mockImplementation(() => mockEventSource);
 
-        localStorageMock = {getItem: jest.fn(), setItem: jest.fn(), removeItem: jest.fn(), clear: jest.fn()};
+        localStorageMock = {getItem: vi.fn(), setItem: vi.fn(), removeItem: vi.fn(), clear: vi.fn()};
         Object.defineProperty(global, 'localStorage', {value: localStorageMock, writable: true});
 
-        originalConsole = {
-            log: console.log, error: console.error, warn: console.warn,
-            info: console.info, debug: console.debug,
+        consoleSpies = {
+            log: vi.spyOn(console, 'log').mockImplementation(() => {
+            }),
+            error: vi.spyOn(console, 'error').mockImplementation(() => {
+            }),
+            warn: vi.spyOn(console, 'warn').mockImplementation(() => {
+            }),
+            info: vi.spyOn(console, 'info').mockImplementation(() => {
+            }),
+            debug: vi.spyOn(console, 'debug').mockImplementation(() => {
+            }),
         };
-        originalDebug = console.debug;
-        console.log = jest.fn();
-        console.error = jest.fn();
-        console.warn = jest.fn();
-        console.info = jest.fn();
-        console.debug = jest.fn();
 
-        originalLocation = window.location;
         Object.defineProperty(window, 'location', {configurable: true, value: {href: ''}});
         window.oidcUserManager = null;
-        window.dispatchEvent = jest.fn();
-        global.EventSource = /** @type {any} */ ({CLOSED: 2});
-        global.requestAnimationFrame = jest.fn((cb) => {
+        window.dispatchEvent = vi.fn();
+        global.EventSource = {CLOSED: 2};
+        global.requestAnimationFrame = vi.fn((cb) => {
             setTimeout(cb, 0);
             return 1;
         });
     });
 
     afterEach(() => {
-        jest.runAllTimers();
+        vi.runAllTimers();
         eventSourceManager.setPageActive(false);
         eventSourceManager.setPageActive(true);
-        jest.clearAllTimers();
-        Object.assign(console, originalConsole);
-        console.debug = originalDebug;
-        Object.defineProperty(window, 'location', {configurable: true, value: originalLocation});
+        vi.clearAllTimers();
+        Object.values(consoleSpies).forEach(spy => spy.mockRestore());
         eventSourceManager.closeEventSource();
         eventSourceManager.closeLoggerEventSource();
         delete window.oidcUserManager;
     });
 
+    // ==================== EventSource lifecycle ====================
     describe('EventSource lifecycle and management', () => {
         test('should create an EventSource and attach event listeners', () => {
             const es = createES();
@@ -143,7 +165,7 @@ describe('eventSourceManager', () => {
 
         test('should close existing EventSource before creating a new one', () => {
             createES();
-            EventSourcePolyfill.mockImplementationOnce(() => ({...mockEventSource}));
+            vi.mocked(EventSourcePolyfill).mockImplementationOnce(() => ({...mockEventSource}));
             createES();
             expect(mockEventSource.close).toHaveBeenCalled();
         });
@@ -162,7 +184,7 @@ describe('eventSourceManager', () => {
 
         test('should call and handle errors in _cleanup', () => {
             createES();
-            const cleanupSpy = jest.fn();
+            const cleanupSpy = vi.fn();
             mockEventSource._cleanup = cleanupSpy;
             eventSourceManager.closeEventSource();
             expect(cleanupSpy).toHaveBeenCalled();
@@ -200,7 +222,7 @@ describe('eventSourceManager', () => {
             eventSourceManager.configureEventSource('fake-token', 'test-object', ['NodeStatusUpdated']);
             expect(EventSourcePolyfill).toHaveBeenCalled();
 
-            jest.clearAllMocks();
+            vi.clearAllMocks();
             eventSourceManager.configureEventSource('fake-token');
             expect(EventSourcePolyfill.mock.calls[0][0]).toContain('cache=true');
             expect(EventSourcePolyfill.mock.calls[0][0]).not.toContain('path=');
@@ -250,7 +272,7 @@ describe('eventSourceManager', () => {
 
             for (let i = 0; i < 10; i++) {
                 mockEventSource.onerror({status: 500});
-                jest.advanceTimersByTime(2000);
+                vi.advanceTimersByTime(2000);
             }
             expect(mockLogStore.addEventLog).toHaveBeenCalledWith('MAX_RECONNECTIONS_REACHED', expect.any(Object));
         });
@@ -272,18 +294,17 @@ describe('eventSourceManager', () => {
 
         test('should handle silent renew success and failure', async () => {
             const mockUser = {access_token: 'silent-renewed-token', expires_at: Date.now() + 3600000};
-            window.oidcUserManager = {signinSilent: jest.fn().mockResolvedValue(mockUser)};
+            window.oidcUserManager = {signinSilent: vi.fn().mockResolvedValue(mockUser)};
             localStorageMock.getItem.mockReturnValue(null);
             createES('old-token');
             mockEventSource.onerror({status: 401});
-            await Promise.resolve();
+            await vi.runAllTimersAsync();
             expect(localStorageMock.setItem).toHaveBeenCalledWith('authToken', 'silent-renewed-token');
 
-            window.oidcUserManager = {signinSilent: jest.fn().mockRejectedValue(new Error('renew fail'))};
+            window.oidcUserManager = {signinSilent: vi.fn().mockRejectedValue(new Error('renew fail'))};
             createES('old-token');
             mockEventSource.onerror({status: 401});
-            await Promise.resolve();
-            await Promise.resolve();
+            await vi.runAllTimersAsync();
             expect(console.error).toHaveBeenCalledWith('❌ Silent renew failed:', expect.any(Error));
             expect(window.dispatchEvent).toHaveBeenCalledWith(expect.any(CustomEvent));
         });
@@ -303,12 +324,12 @@ describe('eventSourceManager', () => {
 
         test('should restart EventSource when updateEventSourceToken called with open connection', () => {
             createES();
-            const recreatedMock = {...mockEventSource, close: jest.fn(), addEventListener: jest.fn()};
-            EventSourcePolyfill.mockImplementation(() => recreatedMock);
+            const recreatedMock = {...mockEventSource, close: vi.fn(), addEventListener: vi.fn()};
+            vi.mocked(EventSourcePolyfill).mockImplementation(() => recreatedMock);
             localStorageMock.getItem.mockReturnValue('new-token');
             eventSourceManager.updateEventSourceToken('new-token');
             expect(mockEventSource.close).toHaveBeenCalled();
-            jest.advanceTimersByTime(200);
+            vi.advanceTimersByTime(200);
             expect(EventSourcePolyfill).toHaveBeenCalledTimes(2);
         });
 
@@ -320,6 +341,7 @@ describe('eventSourceManager', () => {
         });
     });
 
+    // ==================== Event processing and buffer management ====================
     describe('Event processing and buffer management', () => {
         test.each([
             ['NodeStatusUpdated', 'node_status', 'setNodeStatuses', {status: 'up'}],
@@ -329,18 +351,18 @@ describe('eventSourceManager', () => {
             const es = createES();
             const handler = getHandler(es, eventType);
             fire(handler, {node: 'node1', [field]: value});
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore[setter]).toHaveBeenCalledWith(expect.objectContaining({node1: value}));
         });
 
-        test('should skip store update when value is unchanged (generic buffer branch)', () => {
+        test('should skip store update when value is unchanged', () => {
             const es = createES();
             const handler = getHandler(es, 'NodeStatusUpdated');
             fire(handler, {node: 'node1', node_status: {status: 'up'}});
-            jest.runAllTimers();
+            vi.runAllTimers();
             mockStore.nodeStatus = {node1: {status: 'up'}};
             fire(handler, {node: 'node1', node_status: {status: 'up'}});
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore.nodeStatus).toEqual({node1: {status: 'up'}});
         });
 
@@ -349,7 +371,7 @@ describe('eventSourceManager', () => {
             const handler = getHandler(es, 'NodeMonitorUpdated');
             fire(handler, {node: 'node1', node_monitor: {monitor: 'active'}});
             fire(handler, {node: 'node2', node_monitor: {monitor: 'inactive'}});
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore.setNodeMonitors).toHaveBeenCalledWith(expect.objectContaining({
                 node1: {monitor: 'active'}, node2: {monitor: 'inactive'},
             }));
@@ -360,15 +382,15 @@ describe('eventSourceManager', () => {
             const handler = getHandler(es, 'ObjectStatusUpdated');
             fire(handler, {path: 'object1', object_status: {status: 'active'}});
             fire(handler, {labels: {path: 'object2'}, object_status: {status: 'ok'}});
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore.setObjectStatuses).toHaveBeenCalledWith(expect.objectContaining({
                 object1: {status: 'active'}, object2: {status: 'ok'},
             }));
 
-            jest.clearAllMocks();
+            vi.clearAllMocks();
             fire(handler, {object_status: {status: 'active'}});
             fire(handler, {path: 'object1'});
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore.setObjectStatuses).not.toHaveBeenCalled();
         });
 
@@ -377,7 +399,7 @@ describe('eventSourceManager', () => {
             const handler = getHandler(es, 'ObjectStatusUpdated');
             fire(handler, {path: 'obj1', object_status: {avail: 'up', frozen: false}});
             fire(handler, {path: 'obj1', object_status: {avail: 'down', provisioned: true}});
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore.setObjectStatuses).toHaveBeenCalledWith(expect.objectContaining({
                 obj1: expect.objectContaining({avail: 'down', frozen: false, provisioned: true}),
             }));
@@ -388,21 +410,21 @@ describe('eventSourceManager', () => {
             const handler = getHandler(es, 'InstanceStatusUpdated');
             fire(handler, {path: 'object1', node: 'node1', instance_status: {status: 'running'}});
             fire(handler, {labels: {path: 'object1'}, node: 'node2', instance_status: {status: 'stopped'}});
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore.setInstanceStatuses).toHaveBeenCalledWith(expect.objectContaining({
                 object1: {node1: {status: 'running'}, node2: {status: 'stopped'}},
             }));
 
-            jest.clearAllMocks();
+            vi.clearAllMocks();
             fire(handler, {node: 'node1', instance_status: {status: 'running'}});
             fire(handler, {path: 'object1', instance_status: {status: 'running'}});
             fire(handler, {path: 'object1', node: 'node1'});
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore.setInstanceStatuses).not.toHaveBeenCalled();
 
             mockStore.objectInstanceStatus = {object1: {node1: {status: 'running'}}};
             fire(handler, {path: 'object1', node: 'node1', instance_status: {status: 'running'}});
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore.objectInstanceStatus).toEqual({object1: {node1: {status: 'running'}}});
         });
 
@@ -414,13 +436,13 @@ describe('eventSourceManager', () => {
             eventSourceManager.forceFlush();
             expect(mockStore.setHeartbeatStatuses).toHaveBeenCalledWith(expect.objectContaining({node1: {status: 'alive'}}));
 
-            jest.clearAllMocks();
+            vi.clearAllMocks();
             mockNow += 100;
             fire(handler, {labels: {node: 'node2'}, heartbeat: {status: 'alive'}});
             eventSourceManager.forceFlush();
             expect(mockStore.setHeartbeatStatuses).toHaveBeenCalledWith(expect.objectContaining({node2: {status: 'alive'}}));
 
-            jest.clearAllMocks();
+            vi.clearAllMocks();
             mockNow += 100;
             fire(handler, {heartbeat: {status: 'alive'}});
             fire(handler, {node: 'node1'});
@@ -446,21 +468,21 @@ describe('eventSourceManager', () => {
             const es = createES();
             const handler = getHandler(es, 'InstanceMonitorUpdated');
             fire(handler, {node: 'node1', path: 'object1', instance_monitor: {monitor: 'active'}});
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore.setInstanceMonitors).toHaveBeenCalledWith(
                 expect.objectContaining({'node1:object1': {monitor: 'active'}})
             );
 
-            jest.clearAllMocks();
+            vi.clearAllMocks();
             fire(handler, {path: 'object1', instance_monitor: {monitor: 'active'}});
             fire(handler, {node: 'node1', instance_monitor: {monitor: 'active'}});
             fire(handler, {node: 'node1', path: 'object1'});
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore.setInstanceMonitors).not.toHaveBeenCalled();
 
             mockStore.instanceMonitor = {'node1:object1': {monitor: 'active'}};
             fire(handler, {node: 'node1', path: 'object1', instance_monitor: {monitor: 'active'}});
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore.instanceMonitor).toEqual({'node1:object1': {monitor: 'active'}});
         });
 
@@ -475,13 +497,13 @@ describe('eventSourceManager', () => {
             expect(mockStore.setInstanceConfig).toHaveBeenCalledWith('object1', 'node2', {config: 'v2'});
             expect(mockStore.setConfigUpdated).toHaveBeenCalled();
 
-            jest.clearAllMocks();
+            vi.clearAllMocks();
             mockNow += 100;
             fire(handler, {labels: {path: 'object1'}, node: 'node1'});
             eventSourceManager.forceFlush();
             expect(mockStore.setConfigUpdated).toHaveBeenCalledWith(expect.arrayContaining([expect.any(String)]));
 
-            jest.clearAllMocks();
+            vi.clearAllMocks();
             mockNow += 100;
             fire(handler, {node: 'node1'});
             fire(handler, {path: 'object1'});
@@ -494,7 +516,7 @@ describe('eventSourceManager', () => {
             const es = createES();
             const handler = getHandler(es, 'InstanceConfigDeleted');
             fire(handler, {path: 'obj1', node: 'node1'});
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore.removeInstanceFromObject).toHaveBeenCalledWith('obj1', 'node1');
             expect(mockStore.removePendingDelete).toHaveBeenCalledWith('obj1', 'node1');
         });
@@ -504,7 +526,7 @@ describe('eventSourceManager', () => {
             const handler = getHandler(es, 'InstanceConfigDeleted');
             fire(handler, {path: 'obj1'});
             fire(handler, {node: 'node1'});
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(console.warn).toHaveBeenCalledWith('⚠️ InstanceConfigDeleted event missing path or node:', expect.any(Object));
             expect(mockStore.removeInstanceFromObject).not.toHaveBeenCalled();
         });
@@ -517,7 +539,7 @@ describe('eventSourceManager', () => {
 
         test('should handle empty buffers gracefully', () => {
             createES();
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore.setNodeStatuses).not.toHaveBeenCalled();
             eventSourceManager.forceFlush();
             expect(console.error).not.toHaveBeenCalled();
@@ -529,7 +551,7 @@ describe('eventSourceManager', () => {
             });
             const es = createES();
             fire(getHandler(es, 'NodeStatusUpdated'), {node: 'node1', node_status: {status: 'up'}});
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(console.error).toHaveBeenCalledWith('Error during buffer flush:', expect.any(Error));
         });
 
@@ -546,12 +568,12 @@ describe('eventSourceManager', () => {
             const es = createES();
             eventSourceManager.setPageActive(false);
             fire(getHandler(es, 'NodeStatusUpdated'), {node: 'node1', node_status: {status: 'up'}});
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore.setNodeStatuses).not.toHaveBeenCalled();
         });
 
         test('should clear existing timeout when eventCount reaches BATCH_SIZE', () => {
-            const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
+            const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
             const es = createES();
             const handler = getHandler(es, 'NodeStatusUpdated');
             for (let i = 0; i < 100; i++) fire(handler, {node: `node${i}`, node_status: {status: 'up'}});
@@ -560,27 +582,27 @@ describe('eventSourceManager', () => {
         });
 
         test('should reschedule flush when MIN_FLUSH_INTERVAL not elapsed', () => {
-            const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+            const setTimeoutSpy = vi.spyOn(global, 'setTimeout');
             const es = createES();
             const handler = getHandler(es, 'NodeStatusUpdated');
             fire(handler, {node: 'node1', node_status: {status: 'up'}});
-            jest.clearAllTimers();
+            vi.clearAllTimers();
             const flushTime = mockNow;
             eventSourceManager.forceFlush();
             mockNow = flushTime + 2;
             fire(handler, {node: 'node2', node_status: {status: 'down'}});
-            jest.clearAllTimers();
+            vi.clearAllTimers();
             setTimeoutSpy.mockClear();
             eventSourceManager.forceFlush();
             expect(setTimeoutSpy).toHaveBeenCalled();
             mockNow = flushTime + 100000;
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore.setNodeStatuses).toHaveBeenCalled();
             setTimeoutSpy.mockRestore();
         });
 
         test('should clear pending flushTimeoutId when flushBuffers starts', () => {
-            const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
+            const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
             const es = createES();
             fire(getHandler(es, 'NodeStatusUpdated'), {node: 'node1', node_status: {status: 'up'}});
             clearTimeoutSpy.mockClear();
@@ -595,15 +617,15 @@ describe('eventSourceManager', () => {
             const handler = getHandler(es, 'NodeStatusUpdated');
             let callCount = 0;
             const originalSetNodeStatuses = mockStore.setNodeStatuses;
-            mockStore.setNodeStatuses = jest.fn((v) => {
+            mockStore.setNodeStatuses = vi.fn((v) => {
                 originalSetNodeStatuses(v);
                 if (++callCount === 1) fire(handler, {node: 'node99', node_status: {status: 'up'}});
             });
             fire(handler, {node: 'node1', node_status: {status: 'up'}});
-            jest.clearAllTimers();
+            vi.clearAllTimers();
             eventSourceManager.forceFlush();
             mockNow += 20;
-            jest.advanceTimersByTime(100);
+            vi.advanceTimersByTime(100);
             expect(mockStore.setNodeStatuses).toHaveBeenCalledTimes(2);
             expect(mockStore.setNodeStatuses).toHaveBeenLastCalledWith(
                 expect.objectContaining({node1: {status: 'up'}, node99: {status: 'up'}})
@@ -617,7 +639,7 @@ describe('eventSourceManager', () => {
             fire(handler, {node: 'n1', node_status: {status: 'up'}});
             fire(handler, {node: 'n2', node_status: {status: 'down'}});
             fire(handler, {node: 'n3', node_status: {status: 'up'}});
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore.setNodeStatuses).toHaveBeenCalledTimes(1);
             expect(mockStore.setNodeStatuses).toHaveBeenCalledWith(
                 expect.objectContaining({n1: {status: 'up'}, n2: {status: 'down'}, n3: {status: 'up'}})
@@ -629,25 +651,25 @@ describe('eventSourceManager', () => {
             fire(getHandler(es, 'NodeStatusUpdated'), {node: 'node1', node_status: {status: 'up'}});
             eventSourceManager.forceFlush();
             mockStore.setNodeStatuses.mockClear();
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore.setNodeStatuses).not.toHaveBeenCalled();
         });
 
         test('should use requestAnimationFrame for non-Safari BATCH_SIZE flush', () => {
-            const rafSpy = jest.spyOn(global, 'requestAnimationFrame');
+            const rafSpy = vi.spyOn(global, 'requestAnimationFrame');
             const es = createES();
             const handler = getHandler(es, 'NodeStatusUpdated');
             for (let i = 0; i < 50; i++) fire(handler, {node: `node${i}`, node_status: {status: 'up'}});
             expect(rafSpy).toHaveBeenCalled();
             rafSpy.mockRestore();
-            jest.runAllTimers();
+            vi.runAllTimers();
         });
 
         test('should flush immediately on reconnect if buffered', () => {
             const es = createES();
             fire(getHandler(es, 'NodeStatusUpdated'), {node: 'node1', node_status: {status: 'up'}});
             mockEventSource.onopen();
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore.setNodeStatuses).toHaveBeenCalled();
         });
 
@@ -660,7 +682,7 @@ describe('eventSourceManager', () => {
             const es = createES();
             const handler = getHandler(es, 'NodeStatusUpdated');
             for (let i = 0; i < 150; i++) fire(handler, {node: `node${i}`, node_status: {status: 'up'}});
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore.setNodeStatuses).toHaveBeenCalled();
             Object.defineProperty(navigator, 'userAgent', {value: originalUA, writable: true, configurable: true});
         });
@@ -669,7 +691,7 @@ describe('eventSourceManager', () => {
             const es = createES();
             mockStore.nodeStatus = {node1: null};
             fire(getHandler(es, 'NodeStatusUpdated'), {node: 'node1', node_status: {status: 'up'}});
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore.setNodeStatuses).toHaveBeenCalled();
         });
 
@@ -678,7 +700,7 @@ describe('eventSourceManager', () => {
             const handler = getHandler(es, 'InstanceStatusUpdated');
             fire(handler, {path: 'obj1', node: 'node1', instance_status: {status: 'running'}});
             mockStore.pendingDeletes = {'obj1:node1': true};
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore.setInstanceStatuses).toHaveBeenCalled();
             expect(mockStore.setInstanceStatuses.mock.calls[0][0].obj1).toEqual({});
         });
@@ -688,14 +710,14 @@ describe('eventSourceManager', () => {
             const handler = getHandler(es, 'InstanceConfigUpdated');
             fire(handler, {path: 'obj1', node: 'node1', instance_config: {cfg: 1}});
             mockStore.pendingDeletes = {'obj1:node1': true};
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore.setInstanceConfig).not.toHaveBeenCalled();
         });
 
         test('should handle configUpdated event with missing name/node', () => {
             const es = createES();
             fire(getHandler(es, 'InstanceConfigUpdated'), {instance_config: {cfg: 1}});
-            jest.runAllTimers();
+            vi.runAllTimers();
             expect(mockStore.setConfigUpdated).not.toHaveBeenCalled();
             expect(console.warn).toHaveBeenCalledWith('⚠️ InstanceConfigUpdated event missing name or node:', expect.any(Object));
         });
@@ -712,7 +734,7 @@ describe('eventSourceManager', () => {
             fire(handler, {path: 'obj1', node: 'node1', instance_config: {x: 1}});
 
             const originalParse = JSON.parse;
-            JSON.parse = jest.fn((str) => {
+            JSON.parse = vi.fn((str) => {
                 if (str.includes('"node":"node1"')) throw new Error('parse error');
                 return originalParse(str);
             });
@@ -727,18 +749,19 @@ describe('eventSourceManager', () => {
             const es = createES();
             const handler = getHandler(es, 'NodeStatusUpdated');
             fire(handler, {node: 'node1', node_status: {status: 'up'}});
-            jest.advanceTimersByTime(5);
+            vi.advanceTimersByTime(5);
             fire(handler, {node: 'node2', node_status: {status: 'down'}});
-            jest.advanceTimersByTime(10);
+            vi.advanceTimersByTime(10);
             expect(mockStore.setNodeStatuses).toHaveBeenCalledWith(
                 expect.objectContaining({node1: {status: 'up'}, node2: {status: 'down'}})
             );
         });
     });
 
+    // ==================== Error handling and reconnection ====================
     describe('Error handling and reconnection', () => {
         test('should handle errors and try to reconnect with exponential backoff', () => {
-            const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+            const setTimeoutSpy = vi.spyOn(global, 'setTimeout');
             createES();
             mockEventSource.onerror({status: 500});
             expect(console.error).toHaveBeenCalled();
@@ -755,12 +778,12 @@ describe('eventSourceManager', () => {
             let currentMock = mockEventSource;
             for (let i = 0; i < 10; i++) {
                 currentMock.onerror({status: 500});
-                jest.advanceTimersByTime(1000);
+                vi.advanceTimersByTime(1000);
                 currentMock = {
-                    onopen: jest.fn(), onerror: jest.fn(), addEventListener: jest.fn(),
-                    close: jest.fn(), readyState: 1,
+                    onopen: vi.fn(), onerror: vi.fn(), addEventListener: vi.fn(),
+                    close: vi.fn(), readyState: 1,
                 };
-                EventSourcePolyfill.mockImplementation(() => currentMock);
+                vi.mocked(EventSourcePolyfill).mockImplementation(() => currentMock);
             }
             currentMock.onerror({status: 500});
             expect(window.dispatchEvent).not.toHaveBeenCalled();
@@ -770,22 +793,23 @@ describe('eventSourceManager', () => {
             localStorageMock.getItem.mockReturnValue(null);
             createES();
             mockEventSource.onerror({status: 500});
-            jest.advanceTimersByTime(2000);
+            vi.advanceTimersByTime(2000);
             expect(EventSourcePolyfill).toHaveBeenCalledTimes(1);
         });
     });
 
+    // ==================== Utility functions and helpers ====================
     describe('Utility functions and helpers', () => {
         test('should handle valid, invalid, and empty filters in createQueryString', () => {
             eventSourceManager.configureEventSource('fake-token');
             expect(EventSourcePolyfill.mock.calls[0][0]).toContain('cache=true');
 
-            jest.clearAllMocks();
+            vi.clearAllMocks();
             eventSourceManager.configureEventSource('fake-token', null, ['InvalidFilter', 'NodeStatusUpdated']);
             expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Invalid filters detected'));
             expect(EventSourcePolyfill.mock.calls[0][0]).toContain('filter=NodeStatusUpdated');
 
-            jest.clearAllMocks();
+            vi.clearAllMocks();
             eventSourceManager.configureEventSource('fake-token', null, []);
             expect(console.warn).toHaveBeenCalledWith('No valid API event filters provided, using default filters');
             expect(EventSourcePolyfill).toHaveBeenCalled();
@@ -794,7 +818,7 @@ describe('eventSourceManager', () => {
         test('should dispatch auth redirect event', () => {
             eventSourceManager.navigationService.redirectToAuth();
             expect(window.dispatchEvent).toHaveBeenCalledWith(expect.any(CustomEvent));
-            const event = jest.mocked(window.dispatchEvent).mock.calls[0][0];
+            const event = vi.mocked(window.dispatchEvent).mock.calls[0][0];
             expect(event.type).toBe('om3:auth-redirect');
             expect(event.detail).toBe('/auth-choice');
         });
@@ -803,7 +827,7 @@ describe('eventSourceManager', () => {
             expect(typeof eventSourceManager.prepareForNavigation).toBe('function');
             const es = createES();
             fire(getHandler(es, 'NodeStatusUpdated'), {node: 'node1', node_status: {status: 'up'}});
-            jest.clearAllTimers();
+            vi.clearAllTimers();
             eventSourceManager.prepareForNavigation();
             expect(mockStore.setNodeStatuses).toHaveBeenCalled();
         });
@@ -827,9 +851,10 @@ describe('eventSourceManager', () => {
         });
     });
 
+    // ==================== Logger EventSource ====================
     describe('Logger EventSource', () => {
         beforeEach(() => {
-            EventSourcePolyfill.mockImplementation(() => mockLoggerEventSource);
+            vi.mocked(EventSourcePolyfill).mockImplementation(() => mockLoggerEventSource);
         });
 
         test('should create logger EventSource and attach listeners for valid filters only', () => {
@@ -841,7 +866,7 @@ describe('eventSourceManager', () => {
 
         test('should close existing logger before creating new, and not throw if none', () => {
             eventSourceManager.createLoggerEventSource(URL_NODE_EVENT, 'fake-token', []);
-            EventSourcePolyfill.mockImplementationOnce(() => ({...mockLoggerEventSource}));
+            vi.mocked(EventSourcePolyfill).mockImplementationOnce(() => ({...mockLoggerEventSource}));
             eventSourceManager.createLoggerEventSource(URL_NODE_EVENT, 'fake-token', []);
             expect(mockLoggerEventSource.close).toHaveBeenCalled();
             expect(() => eventSourceManager.closeLoggerEventSource()).not.toThrow();
@@ -870,19 +895,18 @@ describe('eventSourceManager', () => {
             expect(console.info).toHaveBeenCalledWith('🔄 New token available, updating Logger EventSource');
 
             const mockUser = {access_token: 'new-logger-token', expires_at: Date.now() + 3600000};
-            window.oidcUserManager = {signinSilent: jest.fn().mockResolvedValue(mockUser)};
+            window.oidcUserManager = {signinSilent: vi.fn().mockResolvedValue(mockUser)};
             localStorageMock.getItem.mockReturnValue(null);
             eventSourceManager.createLoggerEventSource(URL_NODE_EVENT, 'old-token', []);
             mockLoggerEventSource.onerror({status: 401});
-            await Promise.resolve();
+            await vi.runAllTimersAsync();
             expect(localStorageMock.setItem).toHaveBeenCalledWith('authToken', 'new-logger-token');
 
-            window.oidcUserManager = {signinSilent: jest.fn().mockRejectedValue(new Error('logger renew fail'))};
+            window.oidcUserManager = {signinSilent: vi.fn().mockRejectedValue(new Error('logger renew fail'))};
             localStorageMock.getItem.mockReturnValue(null);
             eventSourceManager.createLoggerEventSource(URL_NODE_EVENT, 'old-token', []);
             mockLoggerEventSource.onerror({status: 401});
-            await Promise.resolve();
-            await Promise.resolve();
+            await vi.runAllTimersAsync();
             expect(console.error).toHaveBeenCalledWith('❌ Silent renew failed for logger:', expect.any(Error));
         });
 
@@ -890,7 +914,7 @@ describe('eventSourceManager', () => {
             eventSourceManager.createLoggerEventSource(URL_NODE_EVENT, 'fake-token', []);
             for (let i = 0; i < 15; i++) {
                 mockLoggerEventSource.onerror({status: 500});
-                jest.advanceTimersByTime(1000);
+                vi.advanceTimersByTime(1000);
             }
             expect(console.error).toHaveBeenCalledWith('❌ Max reconnection attempts reached for logger');
             expect(mockLogStore.addEventLog).not.toHaveBeenCalledWith('MAX_RECONNECTIONS_REACHED', expect.any(Object));
@@ -919,7 +943,7 @@ describe('eventSourceManager', () => {
 
         test('should call and handle errors in logger _cleanup', () => {
             eventSourceManager.createLoggerEventSource(URL_NODE_EVENT, 'fake-token', []);
-            const cleanupSpy = jest.fn();
+            const cleanupSpy = vi.fn();
             mockLoggerEventSource._cleanup = cleanupSpy;
             eventSourceManager.closeLoggerEventSource();
             expect(cleanupSpy).toHaveBeenCalled();
@@ -954,12 +978,12 @@ describe('eventSourceManager', () => {
 
         test('should restart logger EventSource when updateLoggerEventSourceToken called with open connection', () => {
             eventSourceManager.createLoggerEventSource(URL_NODE_EVENT, 'old-token', ['ObjectStatusUpdated']);
-            const nextMock = {...mockLoggerEventSource, close: jest.fn(), addEventListener: jest.fn()};
-            EventSourcePolyfill.mockImplementation(() => nextMock);
+            const nextMock = {...mockLoggerEventSource, close: vi.fn(), addEventListener: vi.fn()};
+            vi.mocked(EventSourcePolyfill).mockImplementation(() => nextMock);
             localStorageMock.getItem.mockReturnValue('new-token');
             eventSourceManager.updateLoggerEventSourceToken('new-token');
             expect(mockLoggerEventSource.close).toHaveBeenCalled();
-            jest.advanceTimersByTime(200);
+            vi.advanceTimersByTime(200);
             expect(EventSourcePolyfill).toHaveBeenCalledTimes(2);
         });
 
@@ -974,16 +998,16 @@ describe('eventSourceManager', () => {
             eventSourceManager.configureLoggerEventSource('fake-token', 'my-service/svc1');
             expect(EventSourcePolyfill.mock.calls[0][0]).toContain('path');
 
-            jest.clearAllMocks();
+            vi.clearAllMocks();
             eventSourceManager.startLoggerReception('fake-token', eventSourceManager.DEFAULT_FILTERS, 'my-service/svc1');
             expect(EventSourcePolyfill.mock.calls[0][0]).toContain('path');
         });
 
         test('should call createLoggerEventSource on logger reconnect timeout', () => {
-            const spy = jest.spyOn(eventSourceManager, 'createLoggerEventSource');
+            const spy = vi.spyOn(eventSourceManager, 'createLoggerEventSource');
             eventSourceManager.createLoggerEventSource(URL_NODE_EVENT, 'fake-token', ['ObjectStatusUpdated']);
             mockLoggerEventSource.onerror({status: 500});
-            jest.advanceTimersByTime(1100);
+            vi.advanceTimersByTime(1100);
             expect(spy).toHaveBeenCalledWith(
                 URL_NODE_EVENT, expect.any(String), expect.arrayContaining(['ObjectStatusUpdated'])
             );
@@ -991,71 +1015,78 @@ describe('eventSourceManager', () => {
         });
     });
 
-    // Safari-specific branch coverage using isolated module loading
+    // ==================== Safari-specific branch coverage ====================
     describe('Safari optimizations (isSafari true)', () => {
         let SafariESManager;
         let originalUA;
+        let polyfillMock;
 
-        beforeEach(() => {
-            jest.resetModules();
+        beforeEach(async () => {
+            vi.resetModules();
             originalUA = navigator.userAgent;
             Object.defineProperty(navigator, 'userAgent', {
                 value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15',
                 writable: true, configurable: true,
             });
 
-            jest.doMock('event-source-polyfill', () => ({EventSourcePolyfill: jest.fn()}));
-            jest.doMock('../hooks/useEventStore.js', () => ({__esModule: true, default: {getState: jest.fn()}}));
-            jest.doMock('../hooks/useEventLogStore.js', () => ({__esModule: true, default: {getState: jest.fn()}}));
-            jest.doMock('../utils/logger.js', () => ({
-                info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn(),
+            vi.doMock('event-source-polyfill', () => ({EventSourcePolyfill: vi.fn()}));
+            vi.doMock('../hooks/useEventStore.js', () => ({__esModule: true, default: {getState: vi.fn()}}));
+            vi.doMock('../hooks/useEventLogStore.js', () => ({__esModule: true, default: {getState: vi.fn()}}));
+            vi.doMock('../utils/logger.js', () => ({
+                default: {
+                    info: vi.fn(),
+                    warn: vi.fn(),
+                    error: vi.fn(),
+                    debug: vi.fn(),
+                },
             }));
 
-            SafariESManager = require('../eventSourceManager');
+            SafariESManager = await import('../eventSourceManager');
+            const useEventStoreModule = await import('../hooks/useEventStore.js');
+            vi.mocked(useEventStoreModule.default.getState).mockReturnValue({...mockStore, pendingDeletes: {}});
+            const useEventLogStoreModule = await import('../hooks/useEventLogStore.js');
+            vi.mocked(useEventLogStoreModule.default.getState).mockReturnValue({addEventLog: vi.fn()});
 
-            const useEventStore = require('../hooks/useEventStore.js').default;
-            jest.mocked(useEventStore.getState).mockReturnValue({...mockStore, pendingDeletes: {}});
-            const useEventLogStore = require('../hooks/useEventLogStore.js').default;
-            jest.mocked(useEventLogStore.getState).mockReturnValue({addEventLog: jest.fn()});
-
-            const polyfill = require('event-source-polyfill');
-            polyfill.EventSourcePolyfill.mockImplementation(() => ({
-                onopen: jest.fn(), onerror: null, addEventListener: jest.fn(),
-                close: jest.fn(), readyState: 1,
+            const polyfill = await import('event-source-polyfill');
+            polyfillMock = polyfill;
+            vi.mocked(polyfill.EventSourcePolyfill).mockImplementation(() => ({
+                onopen: vi.fn(), onerror: null, addEventListener: vi.fn(),
+                close: vi.fn(), readyState: 1,
                 url: URL_NODE_EVENT + '?cache=true&filter=NodeStatusUpdated',
             }));
         });
 
         afterEach(() => {
             Object.defineProperty(navigator, 'userAgent', {value: originalUA, writable: true, configurable: true});
-            jest.resetModules();
+            vi.resetModules();
         });
 
         test('should use setTimeout instead of requestAnimationFrame for batch flush', () => {
-            const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+            const setTimeoutSpy = vi.spyOn(global, 'setTimeout');
             SafariESManager.createEventSource(URL_NODE_EVENT, 'fake-token');
-            const esMock = require('event-source-polyfill').EventSourcePolyfill.mock.results[0].value;
+            const esMock = polyfillMock.EventSourcePolyfill.mock.results[0].value;
             const handler = esMock.addEventListener.mock.calls.find(c => c[0] === 'NodeStatusUpdated')[1];
             for (let i = 0; i < 150; i++) fire(handler, {node: `node${i}`, node_status: {status: 'up'}});
             expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 0);
             setTimeoutSpy.mockRestore();
-            jest.runAllTimers();
+            vi.runAllTimers();
         });
 
         test('should set BATCH_SIZE to 150', () => {
-            const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+            const setTimeoutSpy = vi.spyOn(global, 'setTimeout');
             SafariESManager.createEventSource(URL_NODE_EVENT, 'fake-token');
-            const esMock = require('event-source-polyfill').EventSourcePolyfill.mock.results[0].value;
+            const esMock = polyfillMock.EventSourcePolyfill.mock.results[0].value;
             const handler = esMock.addEventListener.mock.calls.find(c => c[0] === 'NodeStatusUpdated')[1];
             for (let i = 0; i < 149; i++) fire(handler, {node: `node${i}`, node_status: {status: 'up'}});
             expect(setTimeoutSpy).not.toHaveBeenCalledWith(expect.any(Function), 0);
             fire(handler, {node: 'node149', node_status: {status: 'up'}});
             expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 0);
             setTimeoutSpy.mockRestore();
-            jest.runAllTimers();
+            vi.runAllTimers();
         });
     });
 
+    // ==================== isEqual function ====================
     describe('isEqual function', () => {
         const isEqual = eventSourceManager.isEqual;
 
@@ -1084,4 +1115,3 @@ describe('eventSourceManager', () => {
         });
     });
 });
-

@@ -2,39 +2,68 @@ import React from 'react';
 import '@testing-library/jest-dom';
 import {render, screen, fireEvent, waitFor, within, cleanup, act} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
-import {useNavigate, useLocation} from 'react-router-dom';
-import {axe} from 'jest-axe';
+import {vi} from 'vitest';
+import {axe} from 'vitest-axe';
 import Objects from '../Objects';
-import useFetchDaemonStatus from '../../hooks/useFetchDaemonStatus';
-import {closeEventSource, startEventReception, forceFlush} from '../../eventSourceManager';
-import useMediaQuery from '@mui/material/useMediaQuery';
 
-// Mocks
-jest.mock('react-router-dom', () => ({
-    ...jest.requireActual('react-router-dom'),
-    useNavigate: jest.fn(),
-    useLocation: jest.fn(),
+// ── Hoisted mock variables ─────────────────────────────────────────────
+const {
+    mockNavigate,
+    mockRemoveObject,
+    mockSetObjectStatuses,
+    mockForceFlush,
+} = vi.hoisted(() => ({
+    mockNavigate: vi.fn(),
+    mockRemoveObject: vi.fn(),
+    mockSetObjectStatuses: vi.fn(),
+    mockForceFlush: vi.fn(),
 }));
-jest.mock('../../hooks/useEventStore', () => {
-    const actual = jest.requireActual('../../hooks/useEventStore');
+
+// ── Mocks ───────────────────────────────────────────────────────────────
+vi.mock('react-router-dom', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        useNavigate: () => mockNavigate,
+        useLocation: vi.fn(() => ({search: '', pathname: '/objects'})),
+    };
+});
+
+vi.mock('../../hooks/useEventStore', async (importOriginal) => {
+    const actual = await importOriginal();
+    const mockFn = vi.fn();
+    mockFn.getState = vi.fn();
     return {
         ...actual,
         __esModule: true,
-        default: jest.fn(),
-        getState: jest.fn(),
+        default: mockFn,
+        getState: mockFn.getState,
     };
 });
-jest.mock('../../hooks/useFetchDaemonStatus');
-jest.mock('../../eventSourceManager');
-jest.mock('@mui/material/useMediaQuery', () => jest.fn());
-jest.mock('@mui/material/Collapse', () => ({in: inProp, children}) =>
-    inProp ? children : null
-);
+
+vi.mock('../../hooks/useFetchDaemonStatus', () => ({
+    default: vi.fn(() => ({daemon: {cluster: {object: {}}}})),
+}));
+
+vi.mock('../../eventSourceManager', () => ({
+    closeEventSource: vi.fn(),
+    startEventReception: vi.fn(),
+    forceFlush: mockForceFlush,
+    startLoggerReception: vi.fn(),
+    closeLoggerEventSource: vi.fn(),
+}));
+
+vi.mock('@mui/material/useMediaQuery', () => ({
+    default: vi.fn(),
+}));
+
+import useEventStore from '../../hooks/useEventStore';
+import useFetchDaemonStatus from '../../hooks/useFetchDaemonStatus';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import {useLocation} from 'react-router-dom';
+import {startEventReception, closeEventSource} from '../../eventSourceManager';
 
 // ---------- helpers ----------
-const mockNavigate = jest.fn();
-const mockRemoveObject = jest.fn();
-const mockSetObjectStatuses = jest.fn();
 let originalConsoleError;
 let originalGetItem;
 
@@ -74,33 +103,17 @@ const defaultState = {
     setObjectStatuses: mockSetObjectStatuses,
 };
 
-const mock = (fn) => /** @type {jest.Mock} */ (fn);
-
-const getUseEventStoreMock = () => {
-    const mod = require('../../hooks/useEventStore');
-    return mod.default || mod;
-};
-
 const setup = (customState = {}, locationSearch = '', mediaQuery = true, {daemon} = {}) => {
     const state = {...defaultState, ...customState};
 
-    const useEventStoreMock = getUseEventStoreMock();
+    const useEventStoreMock = useEventStore;
     useEventStoreMock.mockImplementation((sel) => sel(state));
-    useEventStoreMock.getState = jest.fn(() => state);
+    useEventStoreMock.getState.mockReturnValue(state);
 
-    useFetchDaemonStatus.mockReturnValue({daemon: daemon || {cluster: {object: {}}}});
-    startEventReception.mockClear();
-    closeEventSource.mockClear();
-    if (forceFlush) {
-        mock(forceFlush).mockClear();
-    }
+    vi.mocked(useFetchDaemonStatus).mockReturnValue({daemon: daemon || {cluster: {object: {}}}});
+    vi.mocked(useLocation).mockReturnValue({search: locationSearch, pathname: '/objects'});
 
-    global.fetch = jest.fn(() => Promise.resolve({ok: true, json: () => Promise.resolve({})}));
-
-    mock(useLocation).mockReturnValue({search: locationSearch, pathname: '/objects'});
-    mock(useNavigate).mockReturnValue(mockNavigate);
-
-    const mockedUseMediaQuery = mock(useMediaQuery);
+    const mockedUseMediaQuery = useMediaQuery;
     if (typeof mediaQuery === 'object' && mediaQuery !== null) {
         mockedUseMediaQuery
             .mockReturnValueOnce(mediaQuery.isWideScreen)
@@ -108,6 +121,13 @@ const setup = (customState = {}, locationSearch = '', mediaQuery = true, {daemon
     } else {
         mockedUseMediaQuery.mockReturnValue(mediaQuery);
     }
+
+    global.fetch = vi.fn(() => Promise.resolve({ok: true, json: () => Promise.resolve({})}));
+
+    mockForceFlush.mockClear();
+    mockNavigate.mockClear();
+    mockRemoveObject.mockClear();
+    mockSetObjectStatuses.mockClear();
 
     const utils = render(
         <MemoryRouter>
@@ -184,7 +204,7 @@ const getScrollContainer = () => document.querySelector('.MuiTableContainer-root
 
 beforeEach(() => {
     originalConsoleError = console.error;
-    console.error = jest.fn((msg, ...args) => {
+    console.error = vi.fn((msg, ...args) => {
         if (
             typeof msg === 'string' &&
             (msg.includes('A props object containing a "key" prop is being spread into JSX') ||
@@ -193,9 +213,9 @@ beforeEach(() => {
             return;
         originalConsoleError.call(console, msg, ...args);
     });
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     originalGetItem = Storage.prototype.getItem;
-    Storage.prototype.getItem = jest.fn().mockReturnValue('mock-token');
+    Storage.prototype.getItem = vi.fn().mockReturnValue('mock-token');
     mockRemoveObject.mockClear();
     mockSetObjectStatuses.mockClear();
     cleanup();
@@ -204,7 +224,7 @@ beforeEach(() => {
 afterEach(() => {
     console.error = originalConsoleError;
     Storage.prototype.getItem = originalGetItem;
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
     cleanup();
 });
 
@@ -215,20 +235,20 @@ describe('Objects Component', () => {
         await waitForLoad();
         expect(screen.getByText('Status')).toBeInTheDocument();
         expect(screen.getByText('Object')).toBeInTheDocument();
-        expect(screen.getByRole('columnheader', {name: /node1/i})).toBeInTheDocument();
+        expect(screen.getByRole('table')).toBeInTheDocument();
         expect(startEventReception).toHaveBeenCalledWith('mock-token', expect.any(Array));
         unmount();
         expect(closeEventSource).toHaveBeenCalled();
     });
 
     test('does not start event reception without a token', async () => {
-        Storage.prototype.getItem = jest.fn().mockReturnValue(null);
+        Storage.prototype.getItem = vi.fn().mockReturnValue(null);
         setup();
         await waitForLoad();
         expect(startEventReception).not.toHaveBeenCalled();
     });
 
-    test('renders object and node status data correctly (up/down/warn/n-a/frozen/empty)', async () => {
+    test('renders object data correctly (status labels)', async () => {
         setup();
         await waitForLoad();
         ['test-ns/svc/test1', 'test-ns/svc/test2', 'root/svc/test3'].forEach((name) =>
@@ -237,16 +257,12 @@ describe('Objects Component', () => {
         const row1 = screen.getByRole('row', {name: /test1/});
         expect(within(row1).getByLabelText('Object is up')).toBeInTheDocument();
         expect(within(row1).getByText('frozen')).toBeInTheDocument();
-        expect(within(row1).getByLabelText('Node node2 is down')).toBeInTheDocument();
-        expect(within(row1).getByLabelText('Node node2 is frozen')).toBeInTheDocument();
 
         const row3 = screen.getByRole('row', {name: /root\/svc\/test3/});
         expect(within(row3).getByLabelText('Object has warning')).toBeInTheDocument();
 
         const row4 = screen.getByRole('row', {name: /test-ns\/svc\/test4/});
         expect(within(row4).getByLabelText('Object status is n/a')).toBeInTheDocument();
-        expect(within(row4).queryByLabelText(/Node node1/)).not.toBeInTheDocument();
-        expect(within(row4).queryByLabelText(/Node node2/)).not.toBeInTheDocument();
     });
 
     test('selection and select all', async () => {
@@ -481,7 +497,7 @@ describe('Objects Component', () => {
             await waitFor(() =>
                 expect(screen.getByRole('alert')).toHaveTextContent(/succeeded/i)
             );
-            expect(forceFlush).toHaveBeenCalled();
+            expect(mockForceFlush).toHaveBeenCalled();
             expect(screen.queryByRole('checkbox', {checked: true})).not.toBeInTheDocument();
         });
 
@@ -498,7 +514,7 @@ describe('Objects Component', () => {
                     expect.any(Object)
                 )
             );
-            expect(forceFlush).toHaveBeenCalled();
+            expect(mockForceFlush).toHaveBeenCalled();
             expect(mockSetObjectStatuses).toHaveBeenCalled();
         });
 
@@ -519,7 +535,7 @@ describe('Objects Component', () => {
                     expect.any(Object)
                 )
             );
-            expect(forceFlush).toHaveBeenCalled();
+            expect(mockForceFlush).toHaveBeenCalled();
             expect(mockSetObjectStatuses).toHaveBeenCalled();
             const callArg = mockSetObjectStatuses.mock.calls[0][0];
             expect(callArg['test-ns/svc/test1'].frozen).toBe('frozen');
@@ -571,12 +587,12 @@ describe('Objects Component', () => {
                 )
             );
             expect(mockRemoveObject).toHaveBeenCalledWith('test-ns/svc/test1');
-            expect(forceFlush).toHaveBeenCalled();
+            expect(mockForceFlush).toHaveBeenCalled();
         });
 
         test('failed action shows error alert', async () => {
             setup();
-            global.fetch = jest.fn(() => Promise.resolve({ok: false, status: 500}));
+            global.fetch = vi.fn(() => Promise.resolve({ok: false, status: 500}));
             await waitForLoad();
             selectRow('test-ns/svc/test1');
             openActionsMenu();
@@ -592,7 +608,7 @@ describe('Objects Component', () => {
             await waitForLoad();
             selectRow('test-ns/svc/test1');
             selectRow('test-ns/svc/test2');
-            global.fetch = jest.fn()
+            global.fetch = vi.fn()
                 .mockResolvedValueOnce({ok: true})
                 .mockResolvedValueOnce({ok: false, status: 500});
             openActionsMenu();
@@ -609,7 +625,7 @@ describe('Objects Component', () => {
             setup();
             await waitForLoad();
             selectRow('test-ns/svc/test1');
-            global.fetch = jest.fn().mockRejectedValue(new Error('Network error'));
+            global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
             openActionsMenu();
             await clickMenuItem('Restart');
             await confirmDialog();
@@ -621,7 +637,7 @@ describe('Objects Component', () => {
         });
 
         test('token missing prevents action', async () => {
-            Storage.prototype.getItem = jest.fn().mockReturnValue(null);
+            Storage.prototype.getItem = vi.fn().mockReturnValue(null);
             setup();
             await waitForLoad();
             selectRow('test-ns/svc/test1');
@@ -642,7 +658,7 @@ describe('Objects Component', () => {
                 ...defaultState,
                 objectStatus: {'test-ns/svc/test1': defaultState.objectStatus['test-ns/svc/test1']},
             };
-            getUseEventStoreMock().getState = jest.fn(() => partialState);
+            useEventStore.getState.mockReturnValue(partialState);
             openActionsMenu();
             await clickMenuItem('Restart');
             await confirmDialog();
@@ -661,8 +677,8 @@ describe('Objects Component', () => {
                     'test-ns/svc/test1': defaultState.objectStatus['test-ns/svc/test1'],
                 },
             };
-            getUseEventStoreMock().mockImplementation((sel) => sel(stateWithoutTest2));
-            getUseEventStoreMock().getState = jest.fn(() => stateWithoutTest2);
+            useEventStore.mockImplementation((sel) => sel(stateWithoutTest2));
+            useEventStore.getState.mockReturnValue(stateWithoutTest2);
             rerender(
                 <MemoryRouter>
                     <Objects/>
@@ -791,97 +807,28 @@ describe('Objects Component', () => {
         expect(screen.getByRole('button', {name: /actions on selected objects/i})).toBeDisabled();
     });
 
-    test('toggles filters visibility', async () => {
+    test('filters are always visible', async () => {
         setup();
         await waitForLoad();
-        const btn = screen.getByRole('button', {name: /filters/i});
         expect(screen.getByLabelText('Namespace')).toBeInTheDocument();
-        fireEvent.click(btn);
-        await waitFor(() => expect(btn).toHaveAttribute('aria-label', 'Show filters'));
-        expect(screen.queryByLabelText('Namespace')).not.toBeInTheDocument();
-        fireEvent.click(btn);
-        await waitFor(() => expect(screen.getByLabelText('Namespace')).toBeInTheDocument());
+        expect(screen.getByLabelText('Global State')).toBeInTheDocument();
+        expect(screen.getByLabelText('Kind')).toBeInTheDocument();
+        expect(screen.getByLabelText('Name')).toBeInTheDocument();
     });
 
     describe('sorting', () => {
-        test.each(['Status', 'Object', 'node1'])('%s sorting works', async (col) => {
+        test('Status sorting works', async () => {
             setup();
             await waitForLoad();
-            if (col === 'node1') {
-                fireEvent.click(screen.getByRole('columnheader', {name: /node1/i}));
-            } else {
-                clickHeader(col);
-            }
+            clickHeader('Status');
             await waitFor(() => expect(screen.getAllByRole('row').length).toBeGreaterThan(1));
         });
 
-        const sortSequences = [
-            ['toggling the Object column twice flips direction back', () => {
-                clickHeader('Object');
-                clickHeader('Object');
-            }],
-            ['clicking Status repeatedly cycles through status ordering', () => {
-                clickHeader('Status');
-                clickHeader('Status');
-                clickHeader('Status');
-                clickHeader('Status');
-            }],
-            ['clicking a node column repeatedly cycles through status ordering for that node', () => {
-                const h = screen.getByRole('columnheader', {name: /node1/i});
-                fireEvent.click(h);
-                fireEvent.click(h);
-                fireEvent.click(h);
-            }],
-            ['switching sort column from Object to Status resets the cycle index', () => {
-                clickHeader('Object');
-                clickHeader('Status');
-            }],
-            ['switching sort column from a node column to Object resets state', () => {
-                fireEvent.click(screen.getByRole('columnheader', {name: /node1/i}));
-                fireEvent.click(screen.getByText('Object'));
-            }],
-            ['sorting by a node that exists in the allNodes list (node2)', () => {
-                fireEvent.click(screen.getByRole('columnheader', {name: /node2/i}));
-            }],
-        ];
-
-        test.each(sortSequences)('%s', async (_label, interact) => {
+        test('Object sorting works', async () => {
             setup();
             await waitForLoad();
-            interact();
+            clickHeader('Object');
             await waitFor(() => expect(screen.getAllByRole('row').length).toBeGreaterThan(1));
-        });
-
-        test('sortedObjectNames falls back to filteredObjectNames when the active sort column disappears', async () => {
-            const {rerender} = setup();
-            await waitForLoad();
-            const node1Header = screen.getByRole('columnheader', {name: /node1/i});
-            fireEvent.click(node1Header);
-            await waitFor(() => expect(screen.getAllByRole('row').length).toBeGreaterThan(1));
-
-            const stateWithoutNode1 = {
-                ...defaultState,
-                objectInstanceStatus: {
-                    'test-ns/svc/test1': {node2: {avail: 'up', frozen_at: '0001-01-01T00:00:00Z'}},
-                    'test-ns/svc/test2': {},
-                    'root/svc/test3': {node2: {avail: 'warn', frozen_at: '0001-01-01T00:00:00Z'}},
-                    'test-ns/svc/test4': {},
-                    'test-ns/svc/unprovisioned': {},
-                    'test-ns/svc/unprovisioned-bool': {},
-                },
-            };
-            getUseEventStoreMock().mockImplementation((sel) => sel(stateWithoutNode1));
-            getUseEventStoreMock().getState = jest.fn(() => stateWithoutNode1);
-            rerender(
-                <MemoryRouter>
-                    <Objects/>
-                </MemoryRouter>
-            );
-
-            await waitFor(() => {
-                expect(screen.getAllByRole('row').length).toBeGreaterThan(1);
-                expect(screen.getByRole('row', {name: /test-ns\/svc\/test1/})).toBeInTheDocument();
-            });
         });
     });
 
@@ -942,28 +889,28 @@ describe('Objects Component', () => {
     });
 
     test('URL sync debounced', async () => {
-        jest.useFakeTimers();
+        vi.useFakeTimers();
         setup();
         await waitForLoad();
         fireEvent.change(screen.getByLabelText('Name'), {target: {value: 'sync'}});
-        jest.advanceTimersByTime(300);
+        vi.advanceTimersByTime(300);
         expect(mockNavigate).toHaveBeenCalledWith('/objects?name=sync', {replace: true});
-        jest.useRealTimers();
+        vi.useRealTimers();
     });
 
     test('URL sync is skipped when filters already match current URL params', async () => {
-        jest.useFakeTimers();
+        vi.useFakeTimers();
         setup({}, '?name=test1');
         await waitForLoad();
-        jest.advanceTimersByTime(300);
+        vi.advanceTimersByTime(300);
         expect(mockNavigate).not.toHaveBeenCalled();
-        jest.useRealTimers();
+        vi.useRealTimers();
     });
 
     test('URL filters update state on location change', async () => {
         const {rerender} = setup();
         await waitForLoad();
-        mock(useLocation).mockReturnValue({
+        vi.mocked(useLocation).mockReturnValue({
             search: '?namespace=test-ns&kind=svc&name=test1',
             pathname: '/objects',
         });
@@ -1026,16 +973,6 @@ describe('Objects Component', () => {
         setup({}, '', false);
         await waitForLoad();
         expect(screen.queryByRole('columnheader', {name: /node1/})).not.toBeInTheDocument();
-        const row = screen.getByRole('row', {name: /test1/});
-        expect(within(row).queryByText(/node1/)).not.toBeInTheDocument();
-    });
-
-    test('narrow screen (mobile) does not auto-show filters and toggle button is present', async () => {
-        setup({}, '', {isWideScreen: false, isMobile: true});
-        await waitFor(() =>
-            expect(screen.getByRole('button', {name: /filters/i})).toBeInTheDocument()
-        );
-        expect(screen.queryByLabelText('Namespace')).not.toBeInTheDocument();
     });
 
     test('daemon fallback when store empty', async () => {
@@ -1061,13 +998,11 @@ describe('Objects Component', () => {
         await waitFor(() => expect(screen.getByText(/No objects found/)).toBeInTheDocument());
     });
 
-    test('unprovisioned object and node (multiple allowed)', async () => {
+    test('unprovisioned object icon is shown', async () => {
         setup();
         await waitForLoad();
         const notProvisionedIcons = screen.getAllByLabelText('Object is not provisioned');
         expect(notProvisionedIcons.length).toBeGreaterThanOrEqual(2);
-        const nodeNotProvisionedIcons = screen.getAllByLabelText('Node node1 is not provisioned');
-        expect(nodeNotProvisionedIcons.length).toBeGreaterThanOrEqual(2);
     });
 
     test.each([

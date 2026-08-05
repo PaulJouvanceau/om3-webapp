@@ -1,5 +1,6 @@
 import React from 'react';
 import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {vi, beforeEach, afterEach, describe, test, expect} from 'vitest';
 import {
     AuthProvider,
     Login,
@@ -10,38 +11,71 @@ import {
     useAuth,
     useAuthDispatch,
 } from '../AuthProvider';
+import {updateEventSourceToken} from '../../eventSourceManager';
+import {decodeToken, refreshToken} from '../../components/Login';
+import logger from '../../utils/logger.js';
 
-// --- Mocks ---
-jest.mock('../../eventSourceManager', () => ({updateEventSourceToken: jest.fn()}));
-jest.mock('../../components/Login', () => ({decodeToken: jest.fn(), refreshToken: jest.fn()}));
-jest.mock('../../utils/logger.js', () => ({
-    info: jest.fn(),
-    debug: jest.fn(),
-    error: jest.fn(),
-    warn: jest.fn(),
-    log: jest.fn()
+// ── Mocks ──────────────────────────────────────────────────────────────
+vi.mock('../../eventSourceManager', () => ({
+    updateEventSourceToken: vi.fn(),
+}));
+vi.mock('../../components/Login', () => ({
+    decodeToken: vi.fn(),
+    refreshToken: vi.fn(),
+}));
+vi.mock('../../utils/logger.js', () => ({
+    default: {
+        info: vi.fn(),
+        debug: vi.fn(),
+        error: vi.fn(),
+        warn: vi.fn(),
+        log: vi.fn(),
+    },
 }));
 
-const {updateEventSourceToken} = require('../../eventSourceManager');
-const {decodeToken, refreshToken} = require('../../components/Login');
-const logger = require('../../utils/logger.js');
+// ── OIDC mock variables (hoisted) ──────────────────────────────────────
+const {
+    mockSigninSilent,
+    mockAddAccessTokenExpired,
+    mockRemoveAccessTokenExpired,
+    tokenExpiredCallbackRef,
+} = vi.hoisted(() => {
+    let tokenExpiredCallback = null;
+    const mockSigninSilent = vi.fn();
+    const mockAddAccessTokenExpired = vi.fn(cb => {
+        tokenExpiredCallback = cb;
+    });
+    const mockRemoveAccessTokenExpired = vi.fn(cb => {
+        if (cb === tokenExpiredCallback) tokenExpiredCallback = null;
+    });
+    return {
+        mockSigninSilent,
+        mockAddAccessTokenExpired,
+        mockRemoveAccessTokenExpired,
+        tokenExpiredCallbackRef: {
+            get current() {
+                return tokenExpiredCallback;
+            },
+            set current(v) {
+                tokenExpiredCallback = v;
+            },
+        },
+    };
+});
 
-// --- OIDC mock ---
-let tokenExpiredCallback = null;
-const mockSigninSilent = jest.fn();
-const mockAddAccessTokenExpired = jest.fn(cb => {
-    tokenExpiredCallback = cb;
-});
-const mockRemoveAccessTokenExpired = jest.fn(cb => {
-    if (cb === tokenExpiredCallback) tokenExpiredCallback = null;
-});
+// ── Globals ────────────────────────────────────────────────────────────
 const mockUserManager = {
     signinSilent: mockSigninSilent,
-    events: {addAccessTokenExpired: mockAddAccessTokenExpired, removeAccessTokenExpired: mockRemoveAccessTokenExpired},
+    events: {
+        addAccessTokenExpired: mockAddAccessTokenExpired,
+        removeAccessTokenExpired: mockRemoveAccessTokenExpired,
+    },
 };
-Object.defineProperty(window, 'oidcUserManager', {value: mockUserManager, writable: true});
+Object.defineProperty(window, 'oidcUserManager', {
+    value: mockUserManager,
+    writable: true,
+});
 
-// --- BroadcastChannel mock ---
 global.BroadcastChannel = class {
     constructor() {
         this.onmessage = null;
@@ -56,7 +90,7 @@ global.BroadcastChannel = class {
     }
 };
 
-// --- Test components ---
+// ── Test components ─────────────────────────────────────────────────────
 const TestAuth = () => {
     const auth = useAuth();
     return (
@@ -99,32 +133,31 @@ const ErrorTest = ({hook}) => {
     return null;
 };
 
-// --- Helpers ---
+// ── Helpers ─────────────────────────────────────────────────────────────
 let broadcastInstance;
 beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     localStorage.clear();
-    jest.useFakeTimers();
-    tokenExpiredCallback = null;
+    vi.useFakeTimers();
+    tokenExpiredCallbackRef.current = null;
     global.BroadcastChannel = class extends global.BroadcastChannel {
         constructor() {
             super();
             broadcastInstance = this;
-
         }
     };
     mockSigninSilent.mockReset();
     mockAddAccessTokenExpired.mockReset().mockImplementation(cb => {
-        tokenExpiredCallback = cb;
+        tokenExpiredCallbackRef.current = cb;
     });
     mockRemoveAccessTokenExpired.mockReset().mockImplementation(cb => {
-        if (cb === tokenExpiredCallback) tokenExpiredCallback = null;
+        if (cb === tokenExpiredCallbackRef.current) tokenExpiredCallbackRef.current = null;
     });
 });
 
 afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
 });
 
 const renderProvider = () =>
@@ -138,7 +171,7 @@ const renderProvider = () =>
 const click = (testId) => fireEvent.click(screen.getByTestId(testId));
 const getText = (id) => screen.getByTestId(id).textContent;
 
-// --- Tests ---
+// ── Tests ───────────────────────────────────────────────────────────────
 describe('AuthProvider', () => {
     test('initial state', () => {
         renderProvider();
@@ -150,18 +183,23 @@ describe('AuthProvider', () => {
     });
 
     test('renders children', () => {
-        render(<AuthProvider>
-            <div data-testid="child">Child</div>
-        </AuthProvider>);
+        render(
+            <AuthProvider>
+                <div data-testid="child">Child</div>
+            </AuthProvider>
+        );
         expect(screen.getByTestId('child').textContent).toBe('Child');
     });
 
     test('useAuth and useAuthDispatch throw outside provider', () => {
-        const spy = jest.spyOn(console, 'error').mockImplementation(() => {
+        const spy = vi.spyOn(console, 'error').mockImplementation(() => {
         });
-        expect(() => render(<ErrorTest hook={useAuth}/>)).toThrow('useAuth must be used within an AuthProvider');
-        expect(() => render(<ErrorTest
-            hook={useAuthDispatch}/>)).toThrow('useAuthDispatch must be used within an AuthProvider');
+        expect(() => render(<ErrorTest hook={useAuth}/>)).toThrow(
+            'useAuth must be used within an AuthProvider'
+        );
+        expect(() => render(<ErrorTest hook={useAuthDispatch}/>)).toThrow(
+            'useAuthDispatch must be used within an AuthProvider'
+        );
         spy.mockRestore();
     });
 
@@ -192,7 +230,6 @@ describe('AuthProvider', () => {
 
         test('unknown action does not modify state', () => {
             renderProvider();
-            // State should remain initial
             click('unknownAction');
             expect(getText('user')).toBe('null');
             expect(getText('isAuthenticated')).toBe('false');
@@ -214,7 +251,6 @@ describe('AuthProvider', () => {
 
     describe('token refresh (non-OpenID)', () => {
         beforeEach(() => {
-            // Default for most tests: valid token expiring in 60s
             decodeToken.mockReturnValue({exp: Math.floor(Date.now() / 1000) + 60});
             refreshToken.mockResolvedValue('new-token');
         });
@@ -229,20 +265,19 @@ describe('AuthProvider', () => {
             expect(updateEventSourceToken).toHaveBeenCalledWith('mock-token');
 
             await act(async () => {
-                jest.runAllTimers();
+                vi.runAllTimers();
                 await Promise.resolve();
             });
             expect(refreshToken).toHaveBeenCalled();
         });
 
         test('broadcasts tokenUpdated on successful refresh', async () => {
-            // Override decodeToken to expire in 10s so we can trigger with advanceTimersByTime
             decodeToken.mockReturnValue({exp: Math.floor(Date.now() / 1000) + 10});
             renderProvider();
             setValidToken();
 
             await act(async () => {
-                jest.advanceTimersByTime(5100);
+                vi.advanceTimersByTime(5100);
                 await Promise.resolve();
             });
             expect(refreshToken).toHaveBeenCalled();
@@ -257,7 +292,7 @@ describe('AuthProvider', () => {
             expect(getText('accessToken')).toBe('"mock-token"');
 
             await act(async () => {
-                jest.advanceTimersByTime(5100);
+                vi.advanceTimersByTime(5100);
                 await Promise.resolve();
             });
             await act(async () => {
@@ -274,7 +309,7 @@ describe('AuthProvider', () => {
             setValidToken();
             localStorage.setItem('authToken', 'different-token');
             await act(async () => {
-                jest.runAllTimers();
+                vi.runAllTimers();
                 await Promise.resolve();
             });
             expect(logger.debug).toHaveBeenCalledWith('Refresh skipped, token already updated by another tab');
@@ -282,7 +317,7 @@ describe('AuthProvider', () => {
         });
 
         test('clears timeout on unmount', () => {
-            const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
+            const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
             const {unmount} = renderProvider();
             setValidToken();
             unmount();
@@ -407,7 +442,7 @@ describe('AuthProvider', () => {
             await waitFor(() => expect(mockAddAccessTokenExpired).toHaveBeenCalled());
 
             await act(async () => {
-                tokenExpiredCallback();
+                tokenExpiredCallbackRef.current();
             });
             expect(logger.warn).toHaveBeenCalledWith('OpenID token expired, attempting silent renew...');
             expect(mockSigninSilent).toHaveBeenCalled();
@@ -423,7 +458,7 @@ describe('AuthProvider', () => {
             await waitFor(() => expect(mockAddAccessTokenExpired).toHaveBeenCalled());
 
             await act(async () => {
-                tokenExpiredCallback();
+                tokenExpiredCallbackRef.current();
             });
             expect(logger.warn).toHaveBeenCalledWith('OpenID token expired, attempting silent renew...');
             expect(logger.error).toHaveBeenCalledWith('Silent renew failed:', expect.any(Error));

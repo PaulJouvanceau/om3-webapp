@@ -1,4 +1,5 @@
-import logger from '../logger';
+import {vi, describe, beforeAll, afterAll, beforeEach, afterEach, test, expect} from 'vitest';
+import loggerDefault from '../logger';
 
 describe('logger', () => {
     let originalEnv;
@@ -12,7 +13,7 @@ describe('logger', () => {
     });
 
     beforeEach(() => {
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     describe('in development mode', () => {
@@ -21,103 +22,108 @@ describe('logger', () => {
         });
 
         test('log calls console.log with arguments', () => {
-            const spy = jest.spyOn(console, 'log').mockImplementation();
-            logger.log('test message', 123);
+            const spy = vi.spyOn(console, 'log').mockImplementation(() => {
+            });
+            loggerDefault.log('test message', 123);
             expect(spy).toHaveBeenCalledWith('test message', 123);
         });
 
         test('info calls console.info with arguments', () => {
-            const infoSpy = jest.spyOn(console, 'info').mockImplementation();
-            logger.info('info message', {key: 'value'});
+            const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {
+            });
+            loggerDefault.info('info message', {key: 'value'});
             expect(infoSpy).toHaveBeenCalledWith('info message', {key: 'value'});
         });
 
         test('warn calls console.warn with arguments', () => {
-            const spy = jest.spyOn(console, 'warn').mockImplementation();
-            logger.warn('warn message');
+            const spy = vi.spyOn(console, 'warn').mockImplementation(() => {
+            });
+            loggerDefault.warn('warn message');
             expect(spy).toHaveBeenCalledWith('warn message');
         });
 
         test('error calls console.error with arguments', () => {
-            const errorSpy = jest.spyOn(console, 'error').mockImplementation();
+            const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+            });
             const error = new Error('test error');
-            logger.error('error message', error);
+            loggerDefault.error('error message', error);
             expect(errorSpy).toHaveBeenCalledWith('error message', error);
         });
 
         test('debug calls console.debug with arguments', () => {
-            const debugSpy = jest.spyOn(console, 'debug').mockImplementation();
-            logger.debug('debug message');
+            const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {
+            });
+            loggerDefault.debug('debug message');
             expect(debugSpy).toHaveBeenCalledWith('debug message');
         });
 
         test('info handles missing console.info', () => {
-            const logSpy = jest.spyOn(console, 'log').mockImplementation();
+            const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {
+            });
             const originalInfo = console.info;
             console.info = undefined;
-
-            logger.info('info message');
+            loggerDefault.info('info message');
             expect(logSpy).toHaveBeenCalledWith('info message');
-
             console.info = originalInfo;
         });
 
         test('error handles missing console.error', () => {
-            const logSpy = jest.spyOn(console, 'log').mockImplementation();
+            const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {
+            });
             const originalError = console.error;
             console.error = undefined;
-
-            logger.error('error message');
+            loggerDefault.error('error message');
             expect(logSpy).toHaveBeenCalledWith('error message');
-
             console.error = originalError;
         });
 
         test('debug handles missing console.debug', () => {
-            const logSpy = jest.spyOn(console, 'log').mockImplementation();
+            const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {
+            });
             const originalDebug = console.debug;
             console.debug = undefined;
-
-            // eslint-disable-next-line testing-library/no-debugging-utils
-            logger.debug('debug message');
+            loggerDefault.debug('debug message');
             expect(logSpy).toHaveBeenCalledWith('debug message');
-
             console.debug = originalDebug;
         });
     });
 
     describe('in production mode', () => {
         beforeEach(() => {
-            jest.resetModules();
+            vi.resetModules();
             process.env.NODE_ENV = 'production';
         });
 
         afterEach(() => {
-            jest.resetModules();
+            vi.resetModules();
         });
 
-        test('log does not call console.log', () => {
-            const loggerProduction = require('../logger').default;
-            const spy = jest.spyOn(console, 'log').mockImplementation();
-            loggerProduction.log('test message');
+        test('log does not call console.log', async () => {
+            const loggerProd = (await import('../logger')).default;
+            const spy = vi.spyOn(console, 'log').mockImplementation(() => {
+            });
+            loggerProd.log('test message');
             expect(spy).not.toHaveBeenCalled();
         });
 
-        test('info does not call console methods', () => {
-            const loggerProduction = require('../logger').default;
-            const logSpy = jest.spyOn(console, 'log').mockImplementation();
-            const infoSpy = jest.spyOn(console, 'info').mockImplementation();
-            loggerProduction.info('info message');
+        test('info does not call console methods', async () => {
+            const loggerProd = (await import('../logger')).default;
+            const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {
+            });
+            const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {
+            });
+            loggerProd.info('info message');
             expect(logSpy).not.toHaveBeenCalled();
             expect(infoSpy).not.toHaveBeenCalled();
         });
 
-        test('debug does not call console methods', () => {
-            const loggerProduction = require('../logger').default;
-            const logSpy = jest.spyOn(console, 'log').mockImplementation();
-            const debugSpy = jest.spyOn(console, 'debug').mockImplementation();
-            // eslint-disable-next-line testing-library/no-debugging-utils
-            loggerProduction.debug('debug message');
+        test('debug does not call console methods', async () => {
+            const loggerProd = (await import('../logger')).default;
+            const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {
+            });
+            const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {
+            });
+            loggerProd.debug('debug message');
             expect(logSpy).not.toHaveBeenCalled();
             expect(debugSpy).not.toHaveBeenCalled();
         });
@@ -125,87 +131,78 @@ describe('logger', () => {
 
     describe('serialize', () => {
         test('returns string as is', () => {
-            expect(logger.serialize('hello')).toBe('hello');
+            expect(loggerDefault.serialize('hello')).toBe('hello');
         });
 
         test('stringifies JSON-serializable values', () => {
-            expect(logger.serialize({a: 1, b: 'test'})).toBe('{"a":1,"b":"test"}');
-            expect(logger.serialize([1, 2, 3])).toBe('[1,2,3]');
+            expect(loggerDefault.serialize({a: 1, b: 'test'})).toBe('{"a":1,"b":"test"}');
+            expect(loggerDefault.serialize([1, 2, 3])).toBe('[1,2,3]');
         });
 
         test('handles circular references', () => {
             const circular = {};
             circular.self = circular;
-            const result = logger.serialize(circular);
+            const result = loggerDefault.serialize(circular);
             expect(result).toContain('[object Object]');
         });
 
         test('handles non-serializable objects', () => {
-            // Create an object that will throw when serialized
             const specialObj = {};
             Object.defineProperty(specialObj, 'toJSON', {
                 value: () => {
                     throw new Error('Not serializable');
                 },
                 writable: true,
-                configurable: true
+                configurable: true,
             });
-
-            const result = logger.serialize(specialObj);
+            const result = loggerDefault.serialize(specialObj);
             expect(result).toBe(String(specialObj));
         });
 
-
         test('handles undefined and null', () => {
-            expect(logger.serialize(undefined)).toBe('undefined');
-            expect(logger.serialize(null)).toBe('null');
+            expect(loggerDefault.serialize(undefined)).toBe('undefined');
+            expect(loggerDefault.serialize(null)).toBe('null');
         });
     });
 
     describe('environment handling', () => {
-        test('works without process object', () => {
+        test('works without process object', async () => {
             const originalProcess = global.process;
             delete global.process;
-
-            jest.resetModules();
-            const loggerWithoutProcess = require('../logger').default;
-
-            const spy = jest.spyOn(console, 'log').mockImplementation();
+            vi.resetModules();
+            const loggerWithoutProcess = (await import('../logger')).default;
+            const spy = vi.spyOn(console, 'log').mockImplementation(() => {
+            });
             loggerWithoutProcess.log('test');
             expect(spy).toHaveBeenCalledWith('test');
-
             global.process = originalProcess;
-            jest.resetModules();
+            vi.resetModules();
         });
 
-        test('handles missing process.env', () => {
+        test('handles missing process.env', async () => {
             const originalEnv = process.env;
-            process.env = undefined;
-
-            jest.resetModules();
-            const loggerWithoutEnv = require('../logger').default;
-
-            const spy = jest.spyOn(console, 'log').mockImplementation();
+            delete process.env;
+            vi.resetModules();
+            const loggerWithoutEnv = (await import('../logger')).default;
+            const spy = vi.spyOn(console, 'log').mockImplementation(() => {
+            });
             loggerWithoutEnv.log('test');
             expect(spy).toHaveBeenCalledWith('test');
-
             process.env = originalEnv;
-            jest.resetModules();
+            vi.resetModules();
         });
 
-        test('handles missing process.env.NODE_ENV', () => {
+        test('handles missing process.env.NODE_ENV', async () => {
             const originalNodeEnv = process.env.NODE_ENV;
             delete process.env.NODE_ENV;
-
-            jest.resetModules();
-            const loggerWithoutNodeEnv = require('../logger').default;
-
-            const spy = jest.spyOn(console, 'log').mockImplementation();
+            vi.resetModules();
+            const loggerWithoutNodeEnv = (await import('../logger')).default;
+            const spy = vi.spyOn(console, 'log').mockImplementation(() => {
+            });
             loggerWithoutNodeEnv.log('test');
             expect(spy).toHaveBeenCalledWith('test');
-
             process.env.NODE_ENV = originalNodeEnv;
-            jest.resetModules();
+            vi.resetModules();
         });
     });
 });

@@ -1,36 +1,98 @@
 import React from 'react';
 import {render, screen, fireEvent, waitFor} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
+import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 import NavBar from '../NavBar';
 
-jest.mock('react-router-dom', () => ({
-    ...jest.requireActual('react-router-dom'),
-    useNavigate: jest.fn(),
-    useLocation: jest.fn(),
+// ── Hoisted variables ───────────────────────────────────────────────────
+const {
+    mockNavigate,
+    mockUseNavigate,
+    mockUseLocation,
+    mockAuthDispatch,
+    mockFetchNodes,
+    mockUseAuth,
+    mockUseOidc,
+    mockUseFetchDaemonStatus,
+    mockUseOnlineStatus,
+    mockUseEventStore,
+} = vi.hoisted(() => {
+    const mockNavigate = vi.fn();
+    const mockUseNavigate = vi.fn(() => mockNavigate);
+    const mockUseLocation = vi.fn(() => ({pathname: '/cluster'}));
+    const mockAuthDispatch = vi.fn();
+    const mockFetchNodes = vi.fn();
+    const mockUseAuth = vi.fn();
+    const mockUseOidc = vi.fn();
+    const mockUseFetchDaemonStatus = vi.fn();
+    const mockUseOnlineStatus = vi.fn();
+    const mockUseEventStore = vi.fn();
+
+    return {
+        mockNavigate,
+        mockUseNavigate,
+        mockUseLocation,
+        mockAuthDispatch,
+        mockFetchNodes,
+        mockUseAuth,
+        mockUseOidc,
+        mockUseFetchDaemonStatus,
+        mockUseOnlineStatus,
+        mockUseEventStore,
+    };
+});
+
+// ── Mocks ───────────────────────────────────────────────────────────────
+vi.mock('react-router-dom', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        useNavigate: mockUseNavigate,
+        useLocation: mockUseLocation,
+    };
+});
+
+vi.mock('../../context/OidcAuthContext.tsx', () => ({
+    useOidc: mockUseOidc,
 }));
-jest.mock('../../context/OidcAuthContext.tsx', () => ({useOidc: jest.fn()}));
-jest.mock('../../context/AuthProvider.jsx', () => ({
-    useAuth: jest.fn(),
-    useAuthDispatch: jest.fn(),
+
+vi.mock('../../context/AuthProvider.jsx', () => ({
+    useAuth: mockUseAuth,
+    useAuthDispatch: () => mockAuthDispatch,
     Logout: 'LOGOUT',
 }));
-jest.mock('@mui/material', () => ({
-    ...jest.requireActual('@mui/material'),
-    AppBar: jest.fn(({children}) => <div>{children}</div>),
-    Toolbar: jest.fn(({children}) => <div>{children}</div>),
-}));
-jest.mock('../../hooks/useFetchDaemonStatus', () => ({
+
+vi.mock('@mui/material', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        AppBar: vi.fn(({children}) => <div>{children}</div>),
+        Toolbar: vi.fn(({children}) => <div>{children}</div>),
+    };
+});
+
+vi.mock('../../hooks/useFetchDaemonStatus', () => ({
     __esModule: true,
-    default: jest.fn(),
+    default: mockUseFetchDaemonStatus,
 }));
-jest.mock('../../hooks/useEventStore.js', () => ({__esModule: true, default: jest.fn()}));
-jest.mock('../../hooks/useOnlineStatus', () => ({__esModule: true, default: jest.fn()}));
-jest.mock('../../utils/logger.js', () => ({error: jest.fn()}));
 
-const mockNavigate = jest.fn();
-const mockAuthDispatch = jest.fn();
-const mockFetchNodes = jest.fn();
+vi.mock('../../hooks/useEventStore.js', () => ({
+    __esModule: true,
+    default: mockUseEventStore,
+}));
 
+vi.mock('../../hooks/useOnlineStatus', () => ({
+    __esModule: true,
+    default: mockUseOnlineStatus,
+}));
+
+vi.mock('../../utils/logger.js', () => ({
+    default: {
+        error: vi.fn(),
+    },
+}));
+
+// ── Setup helpers ───────────────────────────────────────────────────────
 function setupMocks(overrides = {}) {
     const {
         pathname = '/cluster',
@@ -45,27 +107,21 @@ function setupMocks(overrides = {}) {
         skipAuthMock = false,
     } = overrides;
 
-    const {useNavigate, useLocation} = require('react-router-dom');
-    useNavigate.mockReturnValue(mockNavigate);
-    useLocation.mockReturnValue({pathname});
-
+    mockUseLocation.mockReturnValue({pathname});
     if (!skipAuthMock) {
-        require('../../context/AuthProvider.jsx').useAuth.mockReturnValue({authChoice, authToken});
+        mockUseAuth.mockReturnValue({authChoice, authToken});
     }
-    require('../../context/AuthProvider.jsx').useAuthDispatch.mockReturnValue(mockAuthDispatch);
-    require('../../context/OidcAuthContext.tsx').useOidc.mockReturnValue({
-        userManager: {signoutRedirect: jest.fn(), removeUser: jest.fn()},
+    mockUseOidc.mockReturnValue({
+        userManager: {signoutRedirect: vi.fn(), removeUser: vi.fn()},
     });
-    require('../../hooks/useFetchDaemonStatus').default.mockReturnValue({
+    mockUseFetchDaemonStatus.mockReturnValue({
         clusterName,
         fetchNodes,
         loading,
         daemon,
     });
-    require('../../hooks/useOnlineStatus').default.mockReturnValue(online);
-    require('../../hooks/useEventStore.js').default.mockImplementation((selector) =>
-        selector(eventStoreData)
-    );
+    mockUseOnlineStatus.mockReturnValue(online);
+    mockUseEventStore.mockImplementation((selector) => selector(eventStoreData));
     localStorage.clear();
 }
 
@@ -77,13 +133,17 @@ function renderNavBar() {
     );
 }
 
+// ── Tests ───────────────────────────────────────────────────────────────
 describe('NavBar', () => {
     beforeEach(() => {
-        jest.clearAllMocks();
+        vi.clearAllMocks();
         setupMocks();
     });
 
-    // ---------- basic rendering ----------
+    afterEach(() => {
+        vi.useRealTimers?.();
+    });
+
     test('renders cluster breadcrumb and WhoAmI link on /cluster', () => {
         renderNavBar();
         expect(screen.getByRole('link', {name: /navigate to cluster/i})).toBeInTheDocument();
@@ -96,7 +156,6 @@ describe('NavBar', () => {
         expect(screen.queryByRole('link', {name: /navigate to/i})).not.toBeInTheDocument();
     });
 
-    // ---------- breadcrumbs ----------
     describe('breadcrumbs', () => {
         const cases = [
             ['/cluster/node1/pod1', ['Cluster', 'node1', 'pod1']],
@@ -122,16 +181,11 @@ describe('NavBar', () => {
             const pathname = '/nodes/node1/objects/myobj';
             setupMocks({pathname, authToken: null, fetchNodes: undefined});
             renderNavBar();
-
             expect(screen.getByRole('link', {name: /navigate to cluster/i})).toBeInTheDocument();
             expect(screen.getByRole('link', {name: /navigate to objects/i})).toBeInTheDocument();
             expect(screen.getByRole('link', {name: /navigate to myobj/i})).toBeInTheDocument();
-
-            // node1 should appear as text, not a link
             expect(screen.getByText('node1')).toBeInTheDocument();
             expect(screen.queryByRole('link', {name: /navigate to node1/i})).not.toBeInTheDocument();
-
-            // three separators: Cluster > objects > myobj > node1
             expect(screen.getAllByText('>')).toHaveLength(3);
         });
     });
@@ -153,7 +207,7 @@ describe('NavBar', () => {
 
         test('retries when token appears later', async () => {
             let calls = 0;
-            require('../../context/AuthProvider.jsx').useAuth.mockImplementation(() => ({
+            mockUseAuth.mockImplementation(() => ({
                 authChoice: 'local',
                 get authToken() {
                     calls++;
@@ -161,24 +215,24 @@ describe('NavBar', () => {
                 },
             }));
             setupMocks({clusterName: null, fetchNodes: mockFetchNodes, skipAuthMock: true});
-            jest.useFakeTimers();
+            vi.useFakeTimers();
             renderNavBar();
-            jest.advanceTimersByTime(1000);
+            vi.advanceTimersByTime(1000);
             await waitFor(() => expect(mockFetchNodes).toHaveBeenCalledWith('delayed-token'));
-            jest.useRealTimers();
+            vi.useRealTimers();
         });
 
         test('stops retrying after max attempts', async () => {
             setupMocks({authToken: null, fetchNodes: mockFetchNodes});
-            jest.useFakeTimers();
+            vi.useFakeTimers();
             renderNavBar();
-            jest.advanceTimersByTime(3000);
+            vi.advanceTimersByTime(3000);
             await waitFor(() => expect(mockFetchNodes).not.toHaveBeenCalled());
-            jest.useRealTimers();
+            vi.useRealTimers();
         });
 
         test('handles fetchNodes errors', async () => {
-            const errorFn = jest.fn().mockRejectedValue(new Error('fail'));
+            const errorFn = vi.fn().mockRejectedValue(new Error('fail'));
             setupMocks({fetchNodes: errorFn});
             renderNavBar();
             await waitFor(() => expect(errorFn).toHaveBeenCalled());
@@ -191,10 +245,9 @@ describe('NavBar', () => {
         });
 
         test('shows cluster name after fetchNodes resolves', async () => {
-            const fetchNodesMock = jest.fn().mockResolvedValue();
+            const fetchNodesMock = vi.fn().mockResolvedValue();
             setupMocks({fetchNodes: fetchNodesMock, clusterName: 'My Cluster', loading: false});
             renderNavBar();
-            // Wait for the state update that sets storedClusterName and re-renders the breadcrumb
             await waitFor(() => {
                 expect(screen.getByRole('link', {name: /navigate to my cluster/i})).toBeInTheDocument();
             });

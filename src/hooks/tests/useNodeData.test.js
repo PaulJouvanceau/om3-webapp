@@ -3,7 +3,7 @@ import useEventStore from '../useEventStore';
 import {useNodeData} from '../useNodeData';
 
 // Mock the useEventStore module
-jest.mock('../useEventStore');
+vi.mock('../useEventStore');
 
 describe('useNodeData', () => {
     // Simulated store state, modifiable in each test

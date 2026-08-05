@@ -4,39 +4,80 @@ import {MemoryRouter} from 'react-router-dom';
 import WhoAmI from '../WhoAmI';
 import {URL_AUTH_WHOAMI} from '../../config/apiPath';
 import {DarkModeProvider} from '../../context/DarkModeContext';
+import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 
-// Mock external modules
-jest.mock('../../context/OidcAuthContext.tsx', () => ({useOidc: jest.fn()}));
-jest.mock('../../context/AuthProvider.jsx', () => ({
-    useAuth: jest.fn(),
-    useAuthDispatch: jest.fn(),
+const {
+    mockNavigate,
+    mockAuthDispatch,
+    mockUseAuth,
+    mockUseOidc,
+    mockUseFetchDaemonStatus,
+    mockToggleDarkMode,
+    mockLogger,
+    mockLocalStorage,
+} = vi.hoisted(() => ({
+    mockNavigate: vi.fn(),
+    mockAuthDispatch: vi.fn(),
+    mockUseAuth: vi.fn(),
+    mockUseOidc: vi.fn(),
+    mockUseFetchDaemonStatus: vi.fn(),
+    mockToggleDarkMode: vi.fn(),
+    mockLogger: {error: vi.fn(), info: vi.fn()},
+    mockLocalStorage: {
+        getItem: vi.fn(),
+        removeItem: vi.fn(),
+        setItem: vi.fn(),
+        clear: vi.fn(),
+    },
+}));
+
+// ── Mocks ──────────────────────────────────────────────────────────────
+vi.mock('react-router-dom', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        useNavigate: () => mockNavigate,
+    };
+});
+
+vi.mock('../../context/AuthProvider.jsx', () => ({
+    useAuth: mockUseAuth,
+    useAuthDispatch: () => mockAuthDispatch,
     Logout: 'LOGOUT',
 }));
-jest.mock('../../hooks/useFetchDaemonStatus', () => jest.fn());
-jest.mock('../../utils/logger.js', () => ({error: jest.fn(), info: jest.fn()}));
-jest.mock('react-router-dom', () => ({
-    ...jest.requireActual('react-router-dom'),
-    useNavigate: jest.fn(),
+
+vi.mock('../../context/OidcAuthContext.tsx', () => ({
+    useOidc: mockUseOidc,
 }));
 
-global.fetch = jest.fn();
+vi.mock('../../hooks/useFetchDaemonStatus', () => ({
+    default: mockUseFetchDaemonStatus,
+}));
 
-const mockLocalStorage = {
-    getItem: jest.fn(),
-    removeItem: jest.fn(),
-    setItem: jest.fn(),
-    clear: jest.fn(),
-};
+vi.mock('../../utils/logger.js', () => ({
+    default: mockLogger,
+}));
+
+vi.mock('../../context/DarkModeContext', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        useDarkMode: () => ({
+            isDarkMode: false,
+            toggleDarkMode: mockToggleDarkMode,
+        }),
+    };
+});
+
 Object.defineProperty(window, 'localStorage', {value: mockLocalStorage});
+
+global.fetch = vi.fn();
 
 describe('WhoAmI', () => {
     const mockToken = 'mock-token';
-    const mockNavigate = jest.fn();
-    const mockAuthDispatch = jest.fn();
-    const mockToggleDarkMode = jest.fn();
-    const mockSignoutRedirect = jest.fn();
-    const mockRemoveUser = jest.fn();
-    const mockFetchNodes = jest.fn();
+    const mockSignoutRedirect = vi.fn();
+    const mockRemoveUser = vi.fn();
+    const mockFetchNodes = vi.fn();
 
     const defaultUserInfo = {
         auth: 'user',
@@ -49,52 +90,35 @@ describe('WhoAmI', () => {
     const defaultDaemon = {nodename: 'test-node'};
 
     const setupMocks = (overrides = {}) => {
-        jest.clearAllMocks();
+        vi.clearAllMocks();
 
-        // Default localStorage
+        // localStorage
         mockLocalStorage.getItem.mockImplementation((key) => {
-            if (key === 'authToken') {
-                return 'authToken' in overrides ? overrides.authToken : mockToken;
-            }
+            if (key === 'authToken') return 'authToken' in overrides ? overrides.authToken : mockToken;
             if (key === 'darkMode') return 'false';
-            if (key === 'appVersion') {
-                return 'appVersion' in overrides ? overrides.appVersion : null;
-            }
-            if (key === 'appVersionTime') {
-                return 'appVersionTime' in overrides ? overrides.appVersionTime : null;
-            }
+            if (key === 'appVersion') return 'appVersion' in overrides ? overrides.appVersion : null;
+            if (key === 'appVersionTime') return 'appVersionTime' in overrides ? overrides.appVersionTime : null;
             return null;
         });
 
-        // Navigation
-        require('react-router-dom').useNavigate.mockReturnValue(mockNavigate);
-
         // Auth context
-        require('../../context/AuthProvider.jsx').useAuth.mockReturnValue({
+        mockUseAuth.mockReturnValue({
             authChoice: overrides.authChoice ?? 'local',
             authToken: mockToken,
         });
-        require('../../context/AuthProvider.jsx').useAuthDispatch.mockReturnValue(mockAuthDispatch);
 
-        // OIDC
-        require('../../context/OidcAuthContext.tsx').useOidc.mockReturnValue({
+        // OIDC context
+        mockUseOidc.mockReturnValue({
             userManager: {
                 signoutRedirect: mockSignoutRedirect,
                 removeUser: mockRemoveUser,
             },
         });
 
-        // Daemon status
-        const useFetchDaemonStatus = require('../../hooks/useFetchDaemonStatus');
-        useFetchDaemonStatus.mockReturnValue({
+        // Daemon status hook
+        mockUseFetchDaemonStatus.mockReturnValue({
             daemon: overrides.daemon ?? defaultDaemon,
             fetchNodes: mockFetchNodes,
-        });
-
-        // Dark mode
-        jest.spyOn(require('../../context/DarkModeContext'), 'useDarkMode').mockReturnValue({
-            isDarkMode: overrides.isDarkMode ?? false,
-            toggleDarkMode: mockToggleDarkMode,
         });
 
         // Fetch
@@ -273,12 +297,11 @@ describe('WhoAmI', () => {
         });
 
         test('logs error when fetchNodes fails', async () => {
-            const logger = require('../../utils/logger.js');
             mockFetchNodes.mockRejectedValue(new Error('daemon error'));
             setupMocks();
             renderComponent();
             await waitFor(() => {
-                expect(logger.error).toHaveBeenCalledWith(
+                expect(mockLogger.error).toHaveBeenCalledWith(
                     'Error fetching daemon status:',
                     expect.any(Error)
                 );

@@ -1,58 +1,49 @@
 import React from 'react';
 import {render, screen, fireEvent} from '@testing-library/react';
+import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 import ActionDialogManager from '../ActionDialogManager';
 
-// Mock MUI components
-jest.mock('@mui/material', () => ({
-    Dialog: ({open, children}) => (open ? <div data-testid="mock-dialog">{children}</div> : null),
-    DialogTitle: ({children}) => <h2>{children}</h2>,
-    DialogContent: ({children}) => <div>{children}</div>,
-    DialogActions: ({children}) => <div>{children}</div>,
-    Button: ({onClick, disabled, children}) => (
-        <button onClick={onClick} disabled={disabled}>
-            {children}
-        </button>
-    ),
-    Checkbox: ({checked, onChange, 'aria-label': ariaLabel}) => (
-        <input
-            type="checkbox"
-            checked={checked}
-            onChange={onChange}
-            aria-label={ariaLabel}
-        />
-    ),
-    FormControlLabel: ({control, label}) => (
-        <div>
-            {control}
-            <span>{label}</span>
-        </div>
-    ),
-    Typography: ({children}) => <span>{children}</span>,
-    TextField: ({label, value, onChange, disabled, type, inputProps, helperText}) => (
-        <div>
-            <label>{label}</label>
-            <input
-                type={type || 'text'}
-                value={value}
-                onChange={onChange}
-                disabled={disabled}
-                min={inputProps?.min}
-                data-testid={`${label?.toLowerCase()?.replace(/\s+/g, '-')}-input`}
-            />
-            {helperText &&
-                <span data-testid={`${label?.toLowerCase()?.replace(/\s+/g, '-')}-helper`}>{helperText}</span>}
-        </div>
-    ),
-    Box: ({children}) => <div>{children}</div>,
-}));
+// ── Mocks ──────────────────────────────────────────────────────────────
+vi.mock('@mui/material', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        Dialog: ({open, children, ...props}) =>
+            open ? (
+                <div data-testid="mock-dialog" {...props}>
+                    {children}
+                </div>
+            ) : null,
+        TextField: ({label, value, onChange, helperText, inputProps, ...props}) => {
+            const testId = label?.toLowerCase()?.replace(/\s+/g, '-') + '-input';
+            const helperTestId = label?.toLowerCase()?.replace(/\s+/g, '-') + '-helper';
+            const inputId = props.id || `textfield-${label}`;
+            return (
+                <div>
+                    <label htmlFor={inputId}>{label}</label>
+                    <input
+                        id={inputId}
+                        type="text"
+                        value={value}
+                        onChange={onChange}
+                        data-testid={testId}
+                        {...inputProps}
+                    />
+                    {helperText && <span data-testid={helperTestId}>{helperText}</span>}
+                </div>
+            );
+        },
+    };
+});
 
-// Mock ActionDialogs
-jest.mock('../ActionDialogs', () => ({
-    FreezeDialog: jest.fn((props) =>
+vi.mock('../ActionDialogs', () => ({
+    FreezeDialog: vi.fn((props) =>
         props.open ? (
             <div data-testid="freeze-dialog">
                 <button onClick={props.onClose}>Cancel</button>
-                <button onClick={props.onConfirm} disabled={props.disabled}>Confirm</button>
+                <button onClick={props.onConfirm} disabled={props.disabled}>
+                    Confirm
+                </button>
                 <input
                     type="checkbox"
                     checked={props.checked}
@@ -64,11 +55,13 @@ jest.mock('../ActionDialogs', () => ({
             </div>
         ) : null
     ),
-    StopDialog: jest.fn((props) =>
+    StopDialog: vi.fn((props) =>
         props.open ? (
             <div data-testid="stop-dialog">
                 <button onClick={props.onClose}>Cancel</button>
-                <button onClick={props.onConfirm} disabled={props.disabled}>Confirm</button>
+                <button onClick={props.onConfirm} disabled={props.disabled}>
+                    Confirm
+                </button>
                 <input
                     type="checkbox"
                     checked={props.checked}
@@ -80,28 +73,36 @@ jest.mock('../ActionDialogs', () => ({
             </div>
         ) : null
     ),
-    UnprovisionDialog: jest.fn((props) =>
+    UnprovisionDialog: vi.fn((props) =>
         props.open ? (
             <div data-testid="unprovision-dialog">
                 <button onClick={props.onClose}>Cancel</button>
-                <button onClick={props.onConfirm} disabled={props.disabled}>Confirm</button>
+                <button onClick={props.onConfirm} disabled={props.disabled}>
+                    Confirm
+                </button>
                 <input
                     type="checkbox"
                     checked={props.checkboxes.dataLoss}
-                    onChange={(e) => props.setCheckboxes({...props.checkboxes, dataLoss: e.target.checked})}
+                    onChange={(e) =>
+                        props.setCheckboxes({...props.checkboxes, dataLoss: e.target.checked})
+                    }
                     data-testid="unprovision-dataLoss-checkbox"
                 />
                 <input
                     type="checkbox"
                     checked={props.checkboxes.serviceInterruption}
-                    onChange={(e) => props.setCheckboxes({...props.checkboxes, serviceInterruption: e.target.checked})}
+                    onChange={(e) =>
+                        props.setCheckboxes({...props.checkboxes, serviceInterruption: e.target.checked})
+                    }
                     data-testid="unprovision-serviceInterruption-checkbox"
                 />
                 {!props.pendingAction?.node && (
                     <input
                         type="checkbox"
                         checked={props.checkboxes.clusterwide}
-                        onChange={(e) => props.setCheckboxes({...props.checkboxes, clusterwide: e.target.checked})}
+                        onChange={(e) =>
+                            props.setCheckboxes({...props.checkboxes, clusterwide: e.target.checked})
+                        }
                         data-testid="unprovision-clusterwide-checkbox"
                     />
                 )}
@@ -110,27 +111,35 @@ jest.mock('../ActionDialogs', () => ({
             </div>
         ) : null
     ),
-    PurgeDialog: jest.fn((props) =>
+    PurgeDialog: vi.fn((props) =>
         props.open ? (
             <div data-testid="purge-dialog">
                 <button onClick={props.onClose}>Cancel</button>
-                <button onClick={props.onConfirm} disabled={props.disabled}>Confirm</button>
+                <button onClick={props.onConfirm} disabled={props.disabled}>
+                    Confirm
+                </button>
                 <input
                     type="checkbox"
                     checked={props.checkboxes.dataLoss}
-                    onChange={(e) => props.setCheckboxes({...props.checkboxes, dataLoss: e.target.checked})}
+                    onChange={(e) =>
+                        props.setCheckboxes({...props.checkboxes, dataLoss: e.target.checked})
+                    }
                     data-testid="purge-dataLoss-checkbox"
                 />
                 <input
                     type="checkbox"
                     checked={props.checkboxes.configLoss}
-                    onChange={(e) => props.setCheckboxes({...props.checkboxes, configLoss: e.target.checked})}
+                    onChange={(e) =>
+                        props.setCheckboxes({...props.checkboxes, configLoss: e.target.checked})
+                    }
                     data-testid="purge-configLoss-checkbox"
                 />
                 <input
                     type="checkbox"
                     checked={props.checkboxes.serviceInterruption}
-                    onChange={(e) => props.setCheckboxes({...props.checkboxes, serviceInterruption: e.target.checked})}
+                    onChange={(e) =>
+                        props.setCheckboxes({...props.checkboxes, serviceInterruption: e.target.checked})
+                    }
                     data-testid="purge-serviceInterruption-checkbox"
                 />
                 <span>{props.pendingAction?.action}</span>
@@ -138,21 +147,27 @@ jest.mock('../ActionDialogs', () => ({
             </div>
         ) : null
     ),
-    DeleteDialog: jest.fn((props) =>
+    DeleteDialog: vi.fn((props) =>
         props.open ? (
             <div data-testid="delete-dialog">
                 <button onClick={props.onClose}>Cancel</button>
-                <button onClick={props.onConfirm} disabled={props.disabled}>Confirm</button>
+                <button onClick={props.onConfirm} disabled={props.disabled}>
+                    Confirm
+                </button>
                 <input
                     type="checkbox"
                     checked={props.checkboxes.configLoss}
-                    onChange={(e) => props.setCheckboxes({...props.checkboxes, configLoss: e.target.checked})}
+                    onChange={(e) =>
+                        props.setCheckboxes({...props.checkboxes, configLoss: e.target.checked})
+                    }
                     data-testid="delete-configLoss-checkbox"
                 />
                 <input
                     type="checkbox"
                     checked={props.checkboxes.clusterwide}
-                    onChange={(e) => props.setCheckboxes({...props.checkboxes, clusterwide: e.target.checked})}
+                    onChange={(e) =>
+                        props.setCheckboxes({...props.checkboxes, clusterwide: e.target.checked})
+                    }
                     data-testid="delete-clusterwide-checkbox"
                 />
                 <span>{props.pendingAction?.action}</span>
@@ -160,11 +175,13 @@ jest.mock('../ActionDialogs', () => ({
             </div>
         ) : null
     ),
-    SwitchDialog: jest.fn((props) =>
+    SwitchDialog: vi.fn((props) =>
         props.open ? (
             <div data-testid="switch-dialog">
                 <button onClick={props.onClose}>Cancel</button>
-                <button onClick={props.onConfirm} disabled={props.disabled}>Confirm</button>
+                <button onClick={props.onConfirm} disabled={props.disabled}>
+                    Confirm
+                </button>
                 <input
                     type="checkbox"
                     checked={props.checked}
@@ -176,11 +193,13 @@ jest.mock('../ActionDialogs', () => ({
             </div>
         ) : null
     ),
-    GivebackDialog: jest.fn((props) =>
+    GivebackDialog: vi.fn((props) =>
         props.open ? (
             <div data-testid="giveback-dialog">
                 <button onClick={props.onClose}>Cancel</button>
-                <button onClick={props.onConfirm} disabled={props.disabled}>Confirm</button>
+                <button onClick={props.onConfirm} disabled={props.disabled}>
+                    Confirm
+                </button>
                 <input
                     type="checkbox"
                     checked={props.checked}
@@ -197,26 +216,34 @@ jest.mock('../ActionDialogs', () => ({
 describe('ActionDialogManager', () => {
     const defaultProps = {
         pendingAction: null,
-        handleConfirm: jest.fn(),
+        handleConfirm: vi.fn(),
         target: 'test-target',
-        supportedActions: ['freeze', 'stop', 'unprovision', 'purge', 'delete', 'switch', 'giveback', 'console', 'other'],
-        onClose: jest.fn(),
+        supportedActions: [
+            'freeze',
+            'stop',
+            'unprovision',
+            'purge',
+            'delete',
+            'switch',
+            'giveback',
+            'console',
+            'other',
+        ],
+        onClose: vi.fn(),
     };
 
     beforeEach(() => {
-        jest.clearAllMocks();
-        jest.spyOn(console, 'log').mockImplementation(() => {
+        vi.clearAllMocks();
+        vi.spyOn(console, 'log').mockImplementation(() => {
         });
-        jest.spyOn(console, 'warn').mockImplementation(() => {
+        vi.spyOn(console, 'warn').mockImplementation(() => {
         });
-        jest.spyOn(console, 'error').mockImplementation(() => {
+        vi.spyOn(console, 'error').mockImplementation(() => {
         });
     });
 
     afterEach(() => {
-        console.log.mockRestore();
-        console.warn.mockRestore();
-        console.error.mockRestore();
+        vi.restoreAllMocks();
     });
 
     test('renders without crashing when no pendingAction is provided', () => {
@@ -240,7 +267,9 @@ describe('ActionDialogManager', () => {
     test('opens SimpleConfirmDialog for unknown action', async () => {
         render(<ActionDialogManager {...defaultProps} pendingAction={{action: 'other'}}/>);
         expect(await screen.findByText('Confirm Other')).toBeInTheDocument();
-        expect(screen.getByText(/Are you sure you want to other on test-target\?/)).toBeInTheDocument();
+        expect(
+            screen.getByText(/Are you sure you want to other on test-target\?/)
+        ).toBeInTheDocument();
     });
 
     test('closes dialog and calls onClose when Cancel is clicked', async () => {
@@ -260,9 +289,16 @@ describe('ActionDialogManager', () => {
     });
 
     test('handles unprovision checkboxes properly', async () => {
-        render(<ActionDialogManager {...defaultProps} pendingAction={{action: 'unprovision', node: 'test-node'}}/>);
+        render(
+            <ActionDialogManager
+                {...defaultProps}
+                pendingAction={{action: 'unprovision', node: 'test-node'}}
+            />
+        );
         const dataLossCheckbox = await screen.findByTestId('unprovision-dataLoss-checkbox');
-        const serviceInterruptionCheckbox = await screen.findByTestId('unprovision-serviceInterruption-checkbox');
+        const serviceInterruptionCheckbox = await screen.findByTestId(
+            'unprovision-serviceInterruption-checkbox'
+        );
 
         fireEvent.click(dataLossCheckbox);
         fireEvent.click(serviceInterruptionCheckbox);
@@ -271,7 +307,7 @@ describe('ActionDialogManager', () => {
     });
 
     test('handles invalid setCheckboxes value for unprovision', async () => {
-        const {UnprovisionDialog} = require('../ActionDialogs');
+        const {UnprovisionDialog} = await import('../ActionDialogs');
         render(<ActionDialogManager {...defaultProps} pendingAction={{action: 'unprovision'}}/>);
         await screen.findByTestId('unprovision-dialog');
 
@@ -280,18 +316,28 @@ describe('ActionDialogManager', () => {
         expect(mockCall[0].setCheckboxes).toBeDefined();
 
         mockCall[0].setCheckboxes(null);
-        expect(console.error).toHaveBeenCalledWith('setCheckboxes for unprovision received invalid value:', null);
+        expect(console.error).toHaveBeenCalledWith(
+            'setCheckboxes for unprovision received invalid value:',
+            null
+        );
     });
 
     test('ignores unsupported action and calls onClose', () => {
-        render(<ActionDialogManager {...defaultProps} pendingAction={{action: 'invalid'}}
-                                    supportedActions={['freeze']}/>);
+        render(
+            <ActionDialogManager
+                {...defaultProps}
+                pendingAction={{action: 'invalid'}}
+                supportedActions={['freeze']}
+            />
+        );
         expect(console.warn).toHaveBeenCalledWith('Unsupported action: invalid');
         expect(defaultProps.onClose).toHaveBeenCalled();
     });
 
     test('re-initializes dialog when pendingAction changes', async () => {
-        const {rerender} = render(<ActionDialogManager {...defaultProps} pendingAction={{action: 'stop'}}/>);
+        const {rerender} = render(
+            <ActionDialogManager {...defaultProps} pendingAction={{action: 'stop'}}/>
+        );
         const stopDialog = await screen.findByTestId('stop-dialog');
         expect(stopDialog).toBeInTheDocument();
 
@@ -333,9 +379,9 @@ describe('ActionDialogManager', () => {
             ...defaultProps,
             pendingAction: {action: 'console', rid: 'test-resource', node: 'test-node'},
             seats: 1,
-            setSeats: jest.fn(),
-            greetTimeout: "5s",
-            setGreetTimeout: jest.fn(),
+            setSeats: vi.fn(),
+            greetTimeout: '5s',
+            setGreetTimeout: vi.fn(),
         };
 
         render(<ActionDialogManager {...consoleProps} />);
@@ -346,13 +392,19 @@ describe('ActionDialogManager', () => {
         const dialogTitle = screen.getByRole('heading', {level: 2, name: 'Open Console'});
         expect(dialogTitle).toBeInTheDocument();
 
-        expect(screen.getByText('This will open a terminal console for the selected resource.')).toBeInTheDocument();
+        expect(
+            screen.getByText('This will open a terminal console for the selected resource.')
+        ).toBeInTheDocument();
 
         const dialogContent = screen.getByTestId('mock-dialog').textContent;
         expect(dialogContent).toMatch(/Resource:.*test-resource/);
         expect(dialogContent).toMatch(/Node:.*test-node/);
 
-        expect(screen.getByText('The console session will open in a new browser tab and provide shell access to the container.')).toBeInTheDocument();
+        expect(
+            screen.getByText(
+                'The console session will open in a new browser tab and provide shell access to the container.'
+            )
+        ).toBeInTheDocument();
 
         const seatsInput = screen.getByTestId('number-of-seats-input');
         const greetTimeoutInput = screen.getByTestId('greet-timeout-input');
@@ -364,7 +416,9 @@ describe('ActionDialogManager', () => {
         const greetTimeoutHelper = screen.getByTestId('greet-timeout-helper');
 
         expect(seatsHelper).toHaveTextContent('Number of simultaneous users allowed in the console');
-        expect(greetTimeoutHelper).toHaveTextContent('Time to wait for console connection (e.g., 5s, 10s)');
+        expect(greetTimeoutHelper).toHaveTextContent(
+            'Time to wait for console connection (e.g., 5s, 10s)'
+        );
 
         fireEvent.change(seatsInput, {target: {value: '2'}});
         expect(consoleProps.setSeats).toHaveBeenCalledWith(2);
@@ -383,9 +437,9 @@ describe('ActionDialogManager', () => {
             ...defaultProps,
             pendingAction: {action: 'console'},
             seats: 1,
-            setSeats: jest.fn(),
-            greetTimeout: "5s",
-            setGreetTimeout: jest.fn(),
+            setSeats: vi.fn(),
+            greetTimeout: '5s',
+            setGreetTimeout: vi.fn(),
         };
 
         render(<ActionDialogManager {...consoleProps} />);
@@ -395,8 +449,14 @@ describe('ActionDialogManager', () => {
         const dialogTitle = screen.getByRole('heading', {level: 2, name: 'Open Console'});
         expect(dialogTitle).toBeInTheDocument();
 
-        expect(screen.getByText('This will open a terminal console for the selected resource.')).toBeInTheDocument();
-        expect(screen.getByText('The console session will open in a new browser tab and provide shell access to the container.')).toBeInTheDocument();
+        expect(
+            screen.getByText('This will open a terminal console for the selected resource.')
+        ).toBeInTheDocument();
+        expect(
+            screen.getByText(
+                'The console session will open in a new browser tab and provide shell access to the container.'
+            )
+        ).toBeInTheDocument();
 
         expect(screen.queryByText(/Resource:/)).not.toBeInTheDocument();
         expect(screen.queryByText(/Node:/)).not.toBeInTheDocument();
@@ -421,7 +481,7 @@ describe('ActionDialogManager', () => {
     });
 
     test('covers setCheckboxes branches for unprovision', async () => {
-        const {UnprovisionDialog} = require('../ActionDialogs');
+        const {UnprovisionDialog} = await import('../ActionDialogs');
         render(<ActionDialogManager {...defaultProps} pendingAction={{action: 'unprovision'}}/>);
         await screen.findByTestId('unprovision-dialog');
 
@@ -431,14 +491,17 @@ describe('ActionDialogManager', () => {
 
         const setCheckboxes = mockCall[0].setCheckboxes;
 
-        setCheckboxes(prev => ({...prev, dataLoss: true, extra: true}));
+        setCheckboxes((prev) => ({...prev, dataLoss: true, extra: true}));
         setCheckboxes({serviceInterruption: true, invalidKey: false});
         setCheckboxes(42);
-        expect(console.error).toHaveBeenCalledWith('setCheckboxes for unprovision received invalid value:', 42);
+        expect(console.error).toHaveBeenCalledWith(
+            'setCheckboxes for unprovision received invalid value:',
+            42
+        );
     });
 
     test('covers setCheckboxes branches for purge', async () => {
-        const {PurgeDialog} = require('../ActionDialogs');
+        const {PurgeDialog} = await import('../ActionDialogs');
         render(<ActionDialogManager {...defaultProps} pendingAction={{action: 'purge'}}/>);
         await screen.findByTestId('purge-dialog');
 
@@ -448,14 +511,17 @@ describe('ActionDialogManager', () => {
 
         const setCheckboxes = mockCall[0].setCheckboxes;
 
-        setCheckboxes(prev => ({...prev, dataLoss: true, extra: true}));
+        setCheckboxes((prev) => ({...prev, dataLoss: true, extra: true}));
         setCheckboxes({configLoss: true, invalidKey: false});
         setCheckboxes(42);
-        expect(console.error).toHaveBeenCalledWith('setCheckboxes for purge received invalid value:', 42);
+        expect(console.error).toHaveBeenCalledWith(
+            'setCheckboxes for purge received invalid value:',
+            42
+        );
     });
 
     test('covers setCheckboxes branches for delete', async () => {
-        const {DeleteDialog} = require('../ActionDialogs');
+        const {DeleteDialog} = await import('../ActionDialogs');
         render(<ActionDialogManager {...defaultProps} pendingAction={{action: 'delete'}}/>);
         await screen.findByTestId('delete-dialog');
 
@@ -465,10 +531,13 @@ describe('ActionDialogManager', () => {
 
         const setCheckboxes = mockCall[0].setCheckboxes;
 
-        setCheckboxes(prev => ({...prev, configLoss: true, extra: true}));
+        setCheckboxes((prev) => ({...prev, configLoss: true, extra: true}));
         setCheckboxes({clusterwide: true, invalidKey: false});
         setCheckboxes(42);
-        expect(console.error).toHaveBeenCalledWith('setCheckboxes for delete received invalid value:', 42);
+        expect(console.error).toHaveBeenCalledWith(
+            'setCheckboxes for delete received invalid value:',
+            42
+        );
     });
 
     test('does not log warnings in production environment', () => {
@@ -478,7 +547,13 @@ describe('ActionDialogManager', () => {
         render(<ActionDialogManager {...defaultProps} pendingAction={{}}/>);
         expect(console.warn).not.toHaveBeenCalled();
 
-        render(<ActionDialogManager {...defaultProps} pendingAction={{action: 'invalid'}} supportedActions={[]}/>);
+        render(
+            <ActionDialogManager
+                {...defaultProps}
+                pendingAction={{action: 'invalid'}}
+                supportedActions={[]}
+            />
+        );
         expect(console.warn).not.toHaveBeenCalled();
 
         process.env.NODE_ENV = originalEnv;
@@ -488,12 +563,16 @@ describe('ActionDialogManager', () => {
         const propsWithoutOnClose = {...defaultProps, onClose: undefined};
 
         const triggerActions = async (action, checkboxTestId, dialogTestId, confirmText = 'Confirm') => {
-            let {unmount} = render(<ActionDialogManager {...propsWithoutOnClose} pendingAction={{action}}/>);
+            let {unmount} = render(
+                <ActionDialogManager {...propsWithoutOnClose} pendingAction={{action}}/>
+            );
             await screen.findByTestId(dialogTestId);
             fireEvent.click(screen.getByText('Cancel'));
             unmount();
 
-            ({unmount} = render(<ActionDialogManager {...propsWithoutOnClose} pendingAction={{action}}/>));
+            ({unmount} = render(
+                <ActionDialogManager {...propsWithoutOnClose} pendingAction={{action}}/>
+            ));
             await screen.findByTestId(dialogTestId);
             if (checkboxTestId) {
                 fireEvent.click(screen.getByTestId(checkboxTestId));
@@ -512,17 +591,21 @@ describe('ActionDialogManager', () => {
         const consoleProps = {
             ...propsWithoutOnClose,
             seats: 1,
-            setSeats: jest.fn(),
-            greetTimeout: "5s",
-            setGreetTimeout: jest.fn(),
+            setSeats: vi.fn(),
+            greetTimeout: '5s',
+            setGreetTimeout: vi.fn(),
         };
 
-        let {unmount} = render(<ActionDialogManager {...consoleProps} pendingAction={{action: 'console'}}/>);
+        let {unmount} = render(
+            <ActionDialogManager {...consoleProps} pendingAction={{action: 'console'}}/>
+        );
         await screen.findByTestId('mock-dialog');
         fireEvent.click(screen.getByText('Cancel'));
         unmount();
 
-        ({unmount} = render(<ActionDialogManager {...consoleProps} pendingAction={{action: 'console'}}/>));
+        ({unmount} = render(
+            <ActionDialogManager {...consoleProps} pendingAction={{action: 'console'}}/>
+        ));
         await screen.findByTestId('mock-dialog');
         const openConsoleButton = screen.getByRole('button', {name: 'Open Console'});
         fireEvent.click(openConsoleButton);

@@ -94,5 +94,16 @@ export default defineConfig({
         alias: {
             '@': '/src'
         }
+    },
+    test: {
+        globals: true,
+        environment: 'jsdom',
+        setupFiles: ['./setupTests.js'],
+        css: {
+            modules: {
+                classNameStrategy: 'non-scoped'
+            }
+        },
+        testTimeout: 20000,
     }
 });

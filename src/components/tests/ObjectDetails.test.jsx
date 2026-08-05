@@ -2,14 +2,35 @@ import React, {act} from 'react';
 import {render, screen, fireEvent, waitFor, within} from '@testing-library/react';
 import {MemoryRouter, Route, Routes} from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
+import {vi} from 'vitest';
 import ObjectDetail, {getResourceType, parseProvisionedState} from '../ObjectDetails';
 import useEventStore from '../../hooks/useEventStore.js';
 import {closeEventSource, startEventReception} from '../../eventSourceManager.jsx';
 import logger from '../../utils/logger';
 
-// ─── MUI mock ─────────────────────────────────────────────────────────────
-jest.mock('@mui/material', () => {
-    const actual = jest.requireActual('@mui/material');
+// ── Hoisted variables for use in vi.mock factories ──────────────────────
+const {
+    mockUseParams,
+    mockUseNavigate,
+    mockNavigate,
+    mockLocalStorage,
+} = vi.hoisted(() => {
+    const mockNavigate = vi.fn();
+    return {
+        mockUseParams: vi.fn(),
+        mockUseNavigate: vi.fn(() => mockNavigate),
+        mockNavigate,
+        mockLocalStorage: {
+            getItem: vi.fn(() => 'mock-token'),
+            setItem: vi.fn(),
+            removeItem: vi.fn(),
+        },
+    };
+});
+
+// ── Mocks ───────────────────────────────────────────────────────────────
+vi.mock('@mui/material', async (importOriginal) => {
+    const actual = await importOriginal();
     return {
         ...actual,
         Menu: ({open, children, ...props}) =>
@@ -69,39 +90,55 @@ jest.mock('@mui/material', () => {
     };
 });
 
-jest.mock('@mui/icons-material/ExpandMore', () => () => <span>ExpandMore</span>);
-jest.mock('@mui/icons-material/UploadFile', () => () => <span>UploadFile</span>);
-jest.mock('@mui/icons-material/Edit', () => () => <span>Edit</span>);
-jest.mock('@mui/icons-material/AcUnit', () => () => <span>AcUnit</span>);
-jest.mock('@mui/icons-material/MoreVert', () => () => <span>MoreVertIcon</span>);
+vi.mock('@mui/icons-material/ExpandMore', () => ({default: () => <span>ExpandMore</span>}));
+vi.mock('@mui/icons-material/UploadFile', () => ({default: () => <span>UploadFile</span>}));
+vi.mock('@mui/icons-material/Edit', () => ({default: () => <span>Edit</span>}));
+vi.mock('@mui/icons-material/AcUnit', () => ({default: () => <span>AcUnit</span>}));
+vi.mock('@mui/icons-material/MoreVert', () => ({default: () => <span>MoreVertIcon</span>}));
 
-jest.mock('react-router-dom', () => ({
-    ...jest.requireActual('react-router-dom'),
-    useParams: jest.fn(),
-    useNavigate: jest.fn(),
-}));
-jest.mock('../../hooks/useEventStore.js');
-jest.mock('../../eventSourceManager.jsx', () => ({
-    closeEventSource: jest.fn(),
-    startEventReception: jest.fn(),
-    clearEventBuffers: jest.fn(),
-    startLoggerReception: jest.fn(),
-    closeLoggerEventSource: jest.fn(),
-}));
-jest.mock('../../context/DarkModeContext', () => ({
-    useDarkMode: () => ({
-        isDarkMode: false,
-        toggleDarkMode: jest.fn(),
+vi.mock('react-router-dom', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        useParams: mockUseParams,
+        useNavigate: mockUseNavigate,
+    };
+});
+
+vi.mock('../../hooks/useEventStore.js', () => ({
+    __esModule: true,
+    default: Object.assign(vi.fn(), {
+        getState: vi.fn(),
+        subscribe: vi.fn(),
+        setState: vi.fn(),
     }),
 }));
-jest.mock('../../utils/logger', () => ({
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
+
+vi.mock('../../eventSourceManager.jsx', () => ({
+    closeEventSource: vi.fn(),
+    startEventReception: vi.fn(),
+    clearEventBuffers: vi.fn(),
+    startLoggerReception: vi.fn(),
+    closeLoggerEventSource: vi.fn(),
 }));
 
-jest.mock('../ConfigSection', () => ({
+vi.mock('../../context/DarkModeContext', () => ({
+    useDarkMode: () => ({
+        isDarkMode: false,
+        toggleDarkMode: vi.fn(),
+    }),
+}));
+
+vi.mock('../../utils/logger', () => ({
+    default: {
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        debug: vi.fn(),
+    },
+}));
+
+vi.mock('../ConfigSection', () => ({
     __esModule: true,
     default: (props) => {
         const {decodedObjectName, configNode, configDialogOpen, setConfigDialogOpen} = props;
@@ -121,7 +158,7 @@ jest.mock('../ConfigSection', () => ({
     },
 }));
 
-jest.mock('../../constants/actions', () => ({
+vi.mock('../../constants/actions', () => ({
     OBJECT_ACTIONS: [
         {name: 'start', icon: 'StartIcon'},
         {name: 'stop', icon: 'StopIcon'},
@@ -146,36 +183,32 @@ jest.mock('../../constants/actions', () => ({
     ],
 }));
 
-jest.mock('../LogsViewer.jsx', () => ({nodename, height}) => (
-    <div data-testid="logs-viewer" data-nodename={nodename} style={{height}}>
-        Logs Viewer Mock
-    </div>
-));
-
-jest.mock('../../services/api.jsx', () => ({
-    getResponseErrorMessage: jest.fn(() => 'Server error'),
+vi.mock('../LogsViewer.jsx', () => ({
+    default: ({nodename, height}) => (
+        <div data-testid="logs-viewer" data-nodename={nodename} style={{height}}>
+            Logs Viewer Mock
+        </div>
+    ),
 }));
 
-// ─── localStorage mock ─────────────────────────────────────────────────────
-const mockLocalStorage = {
-    getItem: jest.fn(() => 'mock-token'),
-    setItem: jest.fn(),
-    removeItem: jest.fn(),
-};
+vi.mock('../../services/api.jsx', () => ({
+    getResponseErrorMessage: vi.fn(() => 'Server error'),
+}));
+
 Object.defineProperty(global, 'localStorage', {value: mockLocalStorage});
 Object.defineProperty(global.navigator, 'clipboard', {
-    value: {writeText: jest.fn()},
+    value: {writeText: vi.fn()},
     configurable: true,
     writable: true,
 });
 
-// ─── State factories ───────────────────────────────────────────────────────
+// ── State factories ─────────────────────────────────────────────────────
 const BASE_FNS = () => ({
     configUpdates: [],
-    clearConfigUpdate: jest.fn(),
-    removeObject: jest.fn(),
-    setObjectStatuses: jest.fn(),
-    setInstanceStatuses: jest.fn(),
+    clearConfigUpdate: vi.fn(),
+    removeObject: vi.fn(),
+    setObjectStatuses: vi.fn(),
+    setInstanceStatuses: vi.fn(),
 });
 
 const emptyState = () => ({
@@ -314,12 +347,12 @@ const fullMockState = {
         'node1:root/cfg/cfg1': {
             state: 'running',
             global_expect: 'placed@node1',
-            resources: {res1: {restart: {remaining: 0}}}
+            resources: {res1: {restart: {remaining: 0}}},
         },
         'node1:root/svc/svc1': {
             state: 'running',
             global_expect: 'placed@node1',
-            resources: {res1: {restart: {remaining: 0}}}
+            resources: {res1: {restart: {remaining: 0}}},
         },
         'node2:root/svc/svc1': {state: 'idle', global_expect: 'none', resources: {res3: {restart: {remaining: 0}}}},
     },
@@ -340,9 +373,9 @@ const fullMockState = {
     ...BASE_FNS(),
 };
 
-// ─── Render helpers ────────────────────────────────────────────────────────
+// ── Render helpers ────────────────────────────────────────────────────────
 const renderComponent = (objectName) => {
-    require('react-router-dom').useParams.mockReturnValue({objectName});
+    mockUseParams.mockReturnValue({objectName});
     return render(
         <MemoryRouter initialEntries={[`/object/${encodeURIComponent(objectName)}`]}>
             <Routes>
@@ -361,11 +394,11 @@ const renderReadySvc = async () => {
 };
 
 const setStoreState = (state) => {
-    useEventStore.mockImplementation((s) => s(state));
-    useEventStore.getState.mockReturnValue(state);
+    vi.mocked(useEventStore).mockImplementation((s) => s(state));
+    vi.mocked(useEventStore.getState).mockReturnValue(state);
 };
 
-// ─── Action helpers ────────────────────────────────────────────────────────
+// ── Action helpers ────────────────────────────────────────────────────────
 const confirmDialog = async (dialog) => {
     const cb = within(dialog).queryByRole('checkbox', {name: /confirm/i});
     if (cb) await userEvent.click(cb);
@@ -391,7 +424,7 @@ const mockActionFailure = (status = 500, message = 'Server error') => {
 };
 
 const withConsoleAction = async (fn) => {
-    const {INSTANCE_ACTIONS} = require('../../constants/actions');
+    const {INSTANCE_ACTIONS} = await import('../../constants/actions');
     const orig = [...INSTANCE_ACTIONS];
     INSTANCE_ACTIONS.push({name: 'console', icon: 'ConsoleIcon'});
     try {
@@ -477,7 +510,7 @@ const defaultFetchMock = (url, options) => {
             ok: true,
             status: 200,
             json: () => Promise.resolve({}),
-            text: () => Promise.resolve('Success')
+            text: () => Promise.resolve('Success'),
         });
     if (url.includes('/config/file'))
         return Promise.resolve({
@@ -496,23 +529,21 @@ const defaultFetchMock = (url, options) => {
     return Promise.resolve({ok: true, status: 200, json: () => Promise.resolve({}), text: () => Promise.resolve('')});
 };
 
-// ─── Tests ─────────────────────────────────────────────────────────────────
+// ── Tests ─────────────────────────────────────────────────────────────────
 describe('ObjectDetail Component', () => {
     const user = userEvent.setup();
-    const mockNavigate = jest.fn();
 
     beforeEach(() => {
-        jest.setTimeout(45000);
-        jest.clearAllMocks();
-        require('react-router-dom').useNavigate.mockReturnValue(mockNavigate);
+        vi.clearAllMocks();
+        mockUseNavigate.mockReturnValue(mockNavigate);
         mockLocalStorage.getItem.mockReturnValue('mock-token');
-        global.fetch = jest.fn(defaultFetchMock);
-        useEventStore.mockImplementation((selector) => selector(fullMockState));
-        useEventStore.getState = jest.fn().mockReturnValue(fullMockState);
-        useEventStore.subscribe = jest.fn(() => jest.fn());
+        global.fetch = vi.fn(defaultFetchMock);
+        vi.mocked(useEventStore).mockImplementation((selector) => selector(fullMockState));
+        vi.mocked(useEventStore.getState).mockReturnValue(fullMockState);
+        vi.mocked(useEventStore.subscribe).mockReturnValue(vi.fn());
     });
 
-    afterEach(() => jest.clearAllMocks());
+    afterEach(() => vi.clearAllMocks());
 
     // ─── Pure function tests ───────────────────────────────────────────────
     describe('getResourceType', () => {
@@ -553,12 +584,12 @@ describe('ObjectDetail Component', () => {
         const {unmount} = renderComponent('root/cfg/cfg1');
         expect(localStorage.getItem).toHaveBeenCalledWith('authToken');
         expect(startEventReception).toHaveBeenCalledWith('mock-token', expect.any(Array), 'root/cfg/cfg1');
-        expect(useEventStore.getState().removeObject).toHaveBeenCalledWith('root/cfg/cfg1');
+        expect(vi.mocked(useEventStore.getState)().removeObject).toHaveBeenCalledWith('root/cfg/cfg1');
         unmount();
         expect(closeEventSource).toHaveBeenCalled();
     });
 
-    // ─── Basic rendering ──────────────────────────────────────────────────
+    // ── Basic rendering ──────────────────────────────────────────────────
     test('renders svc with nodes and monitor', async () => {
         renderSvc();
         await waitForNode('node1');
@@ -627,7 +658,7 @@ describe('ObjectDetail Component', () => {
         await waitFor(() => expect(screen.queryByText(/placed@node1/i)).not.toBeInTheDocument());
     });
 
-    // ─── Config / Keys ────────────────────────────────────────────────────
+    // ── Config / Keys ────────────────────────────────────────────────────
     test('config dialog opens when button clicked', async () => {
         renderComponent('root/cfg/cfg1');
         fireEvent.click(await screen.findByTestId('open-config-dialog'));
@@ -651,7 +682,7 @@ describe('ObjectDetail Component', () => {
         expect(await screen.findByText(/No keys available/i)).toBeInTheDocument();
     });
 
-    // ─── Node selection & navigation ──────────────────────────────────────
+    // ── Node selection & navigation ──────────────────────────────────────
     test('node selection toggle', async () => {
         await renderReadySvc();
         const checkbox = screen.getByLabelText(/select node node1/i);
@@ -674,27 +705,32 @@ describe('ObjectDetail Component', () => {
     });
 
     test('switches configNode when current node disappears', async () => {
-        const debugSpy = jest.spyOn(logger, 'debug').mockImplementation();
+        const debugSpy = vi.spyOn(logger, 'debug').mockImplementation(() => {
+        });
         setStoreState({
             ...buildState(),
-            objectInstanceStatus: {'root/svc/svc1': {node2: {avail: 'up', resources: {}}}}
+            objectInstanceStatus: {'root/svc/svc1': {node2: {avail: 'up', resources: {}}}},
         });
 
-        require('react-router-dom').useParams.mockReturnValue({objectName: 'root/svc/svc1'});
+        mockUseParams.mockReturnValue({objectName: 'root/svc/svc1'});
         const {rerender} = render(
             <MemoryRouter initialEntries={['/object/root%2Fsvc%2Fsvc1']}>
-                <Routes><Route path="/object/:objectName" element={<ObjectDetail/>}/></Routes>
+                <Routes>
+                    <Route path="/object/:objectName" element={<ObjectDetail/>}/>
+                </Routes>
             </MemoryRouter>
         );
         await screen.findByText('node2');
 
         setStoreState({
             ...buildState(),
-            objectInstanceStatus: {'root/svc/svc1': {node1: {avail: 'up', resources: {}}}}
+            objectInstanceStatus: {'root/svc/svc1': {node1: {avail: 'up', resources: {}}}},
         });
         rerender(
             <MemoryRouter initialEntries={['/object/root%2Fsvc%2Fsvc1']}>
-                <Routes><Route path="/object/:objectName" element={<ObjectDetail/>}/></Routes>
+                <Routes>
+                    <Route path="/object/:objectName" element={<ObjectDetail/>}/>
+                </Routes>
             </MemoryRouter>
         );
 
@@ -706,10 +742,12 @@ describe('ObjectDetail Component', () => {
 
     test('resets configNode to null and closes config dialog when all nodes are removed', async () => {
         setStoreState({...buildState()});
-        require('react-router-dom').useParams.mockReturnValue({objectName: 'root/svc/svc1'});
+        mockUseParams.mockReturnValue({objectName: 'root/svc/svc1'});
         const {rerender} = render(
             <MemoryRouter initialEntries={['/object/root%2Fsvc%2Fsvc1']}>
-                <Routes><Route path="/object/:objectName" element={<ObjectDetail/>}/></Routes>
+                <Routes>
+                    <Route path="/object/:objectName" element={<ObjectDetail/>}/>
+                </Routes>
             </MemoryRouter>
         );
         await screen.findByText('node1');
@@ -720,7 +758,9 @@ describe('ObjectDetail Component', () => {
         setStoreState({...buildState(), objectInstanceStatus: {'root/svc/svc1': {}}});
         rerender(
             <MemoryRouter initialEntries={['/object/root%2Fsvc%2Fsvc1']}>
-                <Routes><Route path="/object/:objectName" element={<ObjectDetail/>}/></Routes>
+                <Routes>
+                    <Route path="/object/:objectName" element={<ObjectDetail/>}/>
+                </Routes>
             </MemoryRouter>
         );
 
@@ -730,7 +770,7 @@ describe('ObjectDetail Component', () => {
         });
     });
 
-    // ─── Batch node actions ───────────────────────────────────────────────
+    // ── Batch node actions ───────────────────────────────────────────────
     test('batch node actions: select nodes and execute start', async () => {
         await renderReadySvc();
         await user.click(screen.getByLabelText(/select node node1/i));
@@ -746,13 +786,13 @@ describe('ObjectDetail Component', () => {
                 expect.stringMatching(/\/api\/node\/name\/node1\/instance\/path\/root(%2F|\/)svc(%2F|\/)svc1\/action\/start/),
                 expect.objectContaining({
                     method: 'POST',
-                    headers: expect.objectContaining({Authorization: 'Bearer mock-token'})
+                    headers: expect.objectContaining({Authorization: 'Bearer mock-token'}),
                 })
             );
         });
     });
 
-    // ─── Individual node actions ───────────────────────────────────────────
+    // ── Individual node actions ───────────────────────────────────────────
     test('individual node stop action', async () => {
         await renderReadySvc();
         await user.click(screen.getByRole('button', {name: /Node node1 actions/i}));
@@ -764,13 +804,13 @@ describe('ObjectDetail Component', () => {
                 expect.stringMatching(/\/api\/node\/name\/node1\/instance\/path\/root(%2F|\/)svc(%2F|\/)svc1\/action\/stop/),
                 expect.objectContaining({
                     method: 'POST',
-                    headers: expect.objectContaining({Authorization: 'Bearer mock-token'})
+                    headers: expect.objectContaining({Authorization: 'Bearer mock-token'}),
                 })
             );
         });
     });
 
-    // ─── Error handling (object & node actions) ────────────────────────────
+    // ── Error handling (object & node actions) ────────────────────────────
     describe.each([
         {label: 'object', openMenu: async () => userEvent.click(screen.getByRole('button', {name: /object actions/i}))},
         {
@@ -796,9 +836,7 @@ describe('ObjectDetail Component', () => {
             await userEvent.click(screen.getByRole('menuitem', {name: /start/i}));
             await confirmDialog(await screen.findByRole('dialog'));
             await waitFor(() =>
-                expect(
-                    screen.getAllByRole('alert').some((a) => a.textContent.includes(`HTTP error! status: ${status}`))
-                ).toBe(true)
+                expect(screen.getAllByRole('alert').some((a) => a.textContent.includes(`HTTP error! status: ${status}`))).toBe(true)
             );
         });
 
@@ -815,7 +853,7 @@ describe('ObjectDetail Component', () => {
         });
     });
 
-    // ─── handleDialogConfirm outer .catch branches ─────────────────────────
+    // ── handleDialogConfirm outer .catch branches ─────────────────────────
     describe('handleDialogConfirm promise rejection handling', () => {
         test.each([
             [
@@ -848,7 +886,8 @@ describe('ObjectDetail Component', () => {
                 },
             ],
         ])('%s action rejection is logged via logger.error', async (label, fnName, triggerAction) => {
-            const errorSpy = jest.spyOn(logger, 'error').mockImplementation();
+            const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => {
+            });
             await renderReadySvc();
             await triggerAction();
             const dialog = await screen.findByRole('dialog');
@@ -866,7 +905,7 @@ describe('ObjectDetail Component', () => {
         });
     });
 
-    // ─── Dialog controls ──────────────────────────────────────────────────
+    // ── Dialog controls ──────────────────────────────────────────────────
     test('all object action dialogs open and cancel', async () => {
         setStoreState(buildState());
         renderSvc();
@@ -904,10 +943,10 @@ describe('ObjectDetail Component', () => {
         if (closeButtons.length > 0) await user.click(closeButtons[0]);
     });
 
-    // ─── Logs drawer ──────────────────────────────────────────────────────
+    // ── Logs drawer ──────────────────────────────────────────────────────
     test.each(['mouse', 'touch'])('logs drawer resize with %s events adds/removes listeners', async (kind) => {
-        const addSpy = jest.spyOn(document, 'addEventListener');
-        const removeSpy = jest.spyOn(document, 'removeEventListener');
+        const addSpy = vi.spyOn(document, 'addEventListener');
+        const removeSpy = vi.spyOn(document, 'removeEventListener');
         renderSvc();
         await waitForNode('node1');
         await user.click(screen.getAllByRole('button', {name: /logs/i})[0]);
@@ -992,7 +1031,7 @@ describe('ObjectDetail Component', () => {
         if (instanceTitle) expect(instanceTitle).toBeInTheDocument();
     });
 
-    // ─── instanceConfig subscription ──────────────────────────────────────
+    // ── instanceConfig subscription ──────────────────────────────────────
     test.each([
         [
             'triggers snackbar when configNode is set',
@@ -1025,9 +1064,9 @@ describe('ObjectDetail Component', () => {
     ])('instanceConfig subscription %s', async (label, state, objectName, waitForReady, updatedConfig, shouldFire) => {
         setStoreState(state);
         let instanceConfigCallback;
-        useEventStore.subscribe = jest.fn((selector, callback) => {
+        vi.mocked(useEventStore.subscribe).mockImplementation((selector, callback) => {
             if (selector.toString().includes('instanceConfig')) instanceConfigCallback = callback;
-            return jest.fn();
+            return vi.fn();
         });
         renderComponent(objectName);
         await waitForReady();
@@ -1064,8 +1103,9 @@ describe('ObjectDetail Component', () => {
             'not-a-function',
         ],
     ])('instanceConfig: %s', async (label, subscribeFn, warnMsg, warnArg) => {
-        const warnSpy = jest.spyOn(logger, 'warn').mockImplementation();
-        useEventStore.subscribe = jest.fn(subscribeFn);
+        const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {
+        });
+        vi.mocked(useEventStore.subscribe).mockImplementation(subscribeFn);
         renderSvc();
         await screen.findAllByText(/root\/svc\/svc1/i);
         await waitFor(() => expect(warnSpy).toHaveBeenCalledWith(warnMsg, warnArg));
@@ -1074,9 +1114,9 @@ describe('ObjectDetail Component', () => {
 
     test('instanceConfig selector body executes and returns the expected slice', async () => {
         let capturedSelector;
-        useEventStore.subscribe = jest.fn((selector) => {
+        vi.mocked(useEventStore.subscribe).mockImplementation((selector) => {
             capturedSelector = selector;
-            return jest.fn();
+            return vi.fn();
         });
         renderSvc();
         await waitForNode('node1');
@@ -1086,7 +1126,7 @@ describe('ObjectDetail Component', () => {
         expect(capturedSelector(sampleState)).toBe(sampleState.instanceConfig);
     });
 
-    // ─── batch menu mixed frozen state ────────────────────────────────────
+    // ── batch menu mixed frozen state ────────────────────────────────────
     test.each([
         [
             'keeps freeze when selected nodes have mixed frozen state',
@@ -1126,7 +1166,7 @@ describe('ObjectDetail Component', () => {
         if (expectStart) expect(within(menu).queryByRole('menuitem', {name: /start/i})).toBeTruthy();
     });
 
-    // ─── Console dialog ───────────────────────────────────────────────────
+    // ── Console dialog ───────────────────────────────────────────────────
     test('console dialog not shown by default', async () => {
         renderSvc();
         await waitForNode('node1');
@@ -1142,9 +1182,7 @@ describe('ObjectDetail Component', () => {
             if (cancelBtn) {
                 await user.click(cancelBtn);
                 await waitFor(() =>
-                    expect(
-                        screen.queryAllByRole('dialog').filter((d) => d.textContent.includes('terminal console')).length
-                    ).toBe(0)
+                    expect(screen.queryAllByRole('dialog').filter((d) => d.textContent.includes('terminal console')).length).toBe(0)
                 );
             }
         });
@@ -1195,9 +1233,6 @@ describe('ObjectDetail Component', () => {
         });
     });
 
-    // Covers resource-level console triggers found via different UI hooks (action button vs
-    // tooltip title), including the HTTP-error branch of postConsoleAction. Both are
-    // best-effort: they skip gracefully if the corresponding UI hook isn't present.
     test.each([
         ['action-button trigger', () => [
             () => screen.queryAllByRole('button', {name: /res1.*(actions|console)/i}),
@@ -1234,16 +1269,16 @@ describe('ObjectDetail Component', () => {
         });
     });
 
-    // ─── Fallback fetch ───────────────────────────────────────────────────
+    // ── Fallback fetch ───────────────────────────────────────────────────
     describe('fallback fetch', () => {
-        beforeEach(() => jest.useFakeTimers());
-        afterEach(() => jest.useRealTimers());
+        beforeEach(() => vi.useFakeTimers());
+        afterEach(() => vi.useRealTimers());
 
         test('triggers after 5 seconds when no SSE data', async () => {
             setStoreState(emptyState());
             renderSvc();
             expect(screen.getByText(/Loading object data.../i)).toBeInTheDocument();
-            act(() => jest.advanceTimersByTime(5000));
+            act(() => vi.advanceTimersByTime(5000));
             await waitFor(() => {
                 expect(global.fetch).toHaveBeenCalledWith(
                     expect.stringMatching(/\/api\/object\/path\/root(%2F|\/)svc(%2F|\/)svc1/),
@@ -1260,7 +1295,7 @@ describe('ObjectDetail Component', () => {
             setStoreState(emptyState());
             global.fetch.mockRejectedValueOnce(new Error('Network failure'));
             renderSvc();
-            act(() => jest.advanceTimersByTime(5000));
+            act(() => vi.advanceTimersByTime(5000));
             await waitFor(() => expect(screen.queryByText(/Loading object data.../i)).not.toBeInTheDocument());
             expect(screen.queryByText(/Network failure/i)).not.toBeInTheDocument();
             expect(screen.getByRole('button', {name: /Object Events/i})).toBeInTheDocument();
@@ -1271,13 +1306,14 @@ describe('ObjectDetail Component', () => {
             mockLocalStorage.getItem.mockReturnValue(null);
             renderSvc();
             expect(screen.getByText(/Loading object data.../i)).toBeInTheDocument();
-            act(() => jest.advanceTimersByTime(5000));
+            act(() => vi.advanceTimersByTime(5000));
             await waitFor(() => expect(screen.queryByText(/Loading object data.../i)).not.toBeInTheDocument());
             expect(global.fetch).not.toHaveBeenCalled();
         });
 
         test('logs error when fetchFallbackData itself rejects outside its own try/catch', async () => {
-            const errorSpy = jest.spyOn(logger, 'error').mockImplementation();
+            const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => {
+            });
             setStoreState(emptyState());
             mockLocalStorage.getItem
                 .mockReturnValueOnce('mock-token')
@@ -1286,7 +1322,7 @@ describe('ObjectDetail Component', () => {
                 });
 
             renderSvc();
-            act(() => jest.advanceTimersByTime(5000));
+            act(() => vi.advanceTimersByTime(5000));
 
             await waitFor(() => {
                 expect(errorSpy).toHaveBeenCalledWith('[ObjectDetail] fetchFallbackData failed:', expect.any(Error));
@@ -1307,7 +1343,7 @@ describe('ObjectDetail Component', () => {
                 return Promise.resolve({ok: true, json: () => Promise.resolve({}), text: () => Promise.resolve('')});
             });
             renderSvc();
-            act(() => jest.advanceTimersByTime(5000));
+            act(() => vi.advanceTimersByTime(5000));
             await waitFor(() => {
                 expect(s.setInstanceStatuses).toHaveBeenCalledWith({'root/svc/svc1': {}}, true);
             });

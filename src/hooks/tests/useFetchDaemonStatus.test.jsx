@@ -4,8 +4,8 @@ import useFetchDaemonStatus from '../useFetchDaemonStatus';
 import {fetchDaemonStatus} from '../../services/api';
 
 // Mock dependencies
-jest.mock('../../services/api');
-jest.mock('../../config/apiPath.js', () => ({
+vi.mock('../../services/api');
+vi.mock('../../config/apiPath.js', () => ({
     URL_NODE_EVENT: '/mock-node-event',
 }));
 
@@ -70,7 +70,7 @@ describe('useFetchDaemonStatus Hook', () => {
     };
 
     beforeEach(() => {
-        jest.clearAllMocks();
+        vi.clearAllMocks();
         fetchDaemonStatus.mockReset();
         console.error = jest.fn();
 

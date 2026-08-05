@@ -3,55 +3,82 @@ import {render, screen, fireEvent, waitFor} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {ThemeProvider, createTheme} from '@mui/material/styles';
 import AuthChoice from '../AuthChoice';
+import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 
-// Mock dependencie
-jest.mock('../../hooks/AuthInfo');
-jest.mock('../../context/OidcAuthContext');
-jest.mock('../../config/oidcConfiguration');
+// ── Hoisted mock variables ──────────────────────────────────────────────
+const {
+    mockNavigate,
+    mockUseNavigate,
+    mockUseAuthInfo,
+    mockUseOidc,
+    mockOidcConfiguration,
+    mockRecreateUserManager,
+} = vi.hoisted(() => {
+    const mockNavigate = vi.fn();
+    const mockUseNavigate = vi.fn(() => mockNavigate);
+    const mockUseAuthInfo = vi.fn();
+    const mockUseOidc = vi.fn();
+    const mockOidcConfiguration = vi.fn();
+    const mockRecreateUserManager = vi.fn();
+    return {
+        mockNavigate,
+        mockUseNavigate,
+        mockUseAuthInfo,
+        mockUseOidc,
+        mockOidcConfiguration,
+        mockRecreateUserManager,
+    };
+});
 
-// Mock react-router-dom
-const mockNavigate = jest.fn();
-jest.mock('react-router-dom', () => ({
-    ...jest.requireActual('react-router-dom'),
-    useNavigate: () => mockNavigate,
+// ── Mocks ───────────────────────────────────────────────────────────────
+vi.mock('react-router-dom', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        useNavigate: mockUseNavigate,
+    };
+});
+
+vi.mock('../../hooks/AuthInfo', () => ({
+    default: mockUseAuthInfo,
 }));
 
-// Import des mocks
-import useAuthInfo from '../../hooks/AuthInfo';
-import {useOidc} from '../../context/OidcAuthContext';
-import oidcConfiguration from '../../config/oidcConfiguration';
+vi.mock('../../context/OidcAuthContext', () => ({
+    useOidc: mockUseOidc,
+}));
+
+vi.mock('../../config/oidcConfiguration', () => ({
+    default: mockOidcConfiguration,
+}));
 
 describe('AuthChoice Component', () => {
     const theme = createTheme();
-    const mockRecreateUserManager = jest.fn();
 
     beforeEach(() => {
-        jest.clearAllMocks();
+        vi.clearAllMocks();
 
-        // Mock console.log et console.error
-        jest.spyOn(console, 'log').mockImplementation(() => {
+        // Mock console methods
+        vi.spyOn(console, 'log').mockImplementation(() => {
         });
-        jest.spyOn(console, 'error').mockImplementation(() => {
+        vi.spyOn(console, 'error').mockImplementation(() => {
+        });
+        vi.spyOn(console, 'info').mockImplementation(() => {
         });
 
-        // Initialiser les mocks avec des valeurs par défaut
-        useOidc.mockReturnValue({
+        // Default mock returns
+        mockUseOidc.mockReturnValue({
             userManager: null,
             recreateUserManager: mockRecreateUserManager,
         });
-
-        useAuthInfo.mockReturnValue(null);
-
-        oidcConfiguration.mockReturnValue({
+        mockUseAuthInfo.mockReturnValue(null);
+        mockOidcConfiguration.mockReturnValue({
             issuer: 'mock-issuer',
-            client_id: 'mock-client'
+            client_id: 'mock-client',
         });
     });
 
     afterEach(() => {
-        // Restaurer les mocks de console
-        console.log.mockRestore();
-        console.error.mockRestore();
+        vi.restoreAllMocks();
     });
 
     const renderComponent = () => {
@@ -66,71 +93,62 @@ describe('AuthChoice Component', () => {
 
     test('renders dialog with title and description', () => {
         renderComponent();
-
         expect(screen.getByText('Authentication Methods')).toBeInTheDocument();
         expect(screen.getByText('Please select one of the authentication methods the cluster advertises.')).toBeInTheDocument();
         expect(screen.getByRole('dialog')).toBeInTheDocument();
     });
 
     test('renders no buttons when authInfo is null', () => {
-        useAuthInfo.mockReturnValue(null);
+        mockUseAuthInfo.mockReturnValue(null);
         renderComponent();
-
         expect(screen.queryByText('OpenID')).not.toBeInTheDocument();
         expect(screen.queryByText('Login')).not.toBeInTheDocument();
     });
 
     test('renders OpenID button when openid.issuer is defined', () => {
-        useAuthInfo.mockReturnValue({
+        mockUseAuthInfo.mockReturnValue({
             openid: {issuer: 'https://auth.example.com'},
             methods: [],
         });
         renderComponent();
-
         expect(screen.getByText('OpenID')).toBeInTheDocument();
         expect(screen.queryByText('Login')).not.toBeInTheDocument();
     });
 
     test('renders Login button when methods includes basic', () => {
-        useAuthInfo.mockReturnValue({
+        mockUseAuthInfo.mockReturnValue({
             openid: null,
             methods: ['basic'],
         });
         renderComponent();
-
         expect(screen.queryByText('OpenID')).not.toBeInTheDocument();
         expect(screen.getByText('Login')).toBeInTheDocument();
     });
 
     test('renders both buttons when both methods are available', () => {
-        useAuthInfo.mockReturnValue({
+        mockUseAuthInfo.mockReturnValue({
             openid: {issuer: 'https://auth.example.com'},
             methods: ['basic'],
         });
         renderComponent();
-
         expect(screen.getByText('OpenID')).toBeInTheDocument();
         expect(screen.getByText('Login')).toBeInTheDocument();
     });
 
     test('clicking OpenID button calls signinRedirect when userManager exists', () => {
-        const mockSigninRedirect = jest.fn();
-        const mockUserManager = {
-            signinRedirect: mockSigninRedirect,
-        };
+        const mockSigninRedirect = vi.fn();
+        const mockUserManager = {signinRedirect: mockSigninRedirect};
 
-        useAuthInfo.mockReturnValue({
+        mockUseAuthInfo.mockReturnValue({
             openid: {issuer: 'https://auth.example.com'},
             methods: [],
         });
-
-        useOidc.mockReturnValue({
+        mockUseOidc.mockReturnValue({
             userManager: mockUserManager,
             recreateUserManager: mockRecreateUserManager,
         });
 
         renderComponent();
-
         fireEvent.click(screen.getByText('OpenID'));
 
         expect(mockSigninRedirect).toHaveBeenCalled();
@@ -138,20 +156,16 @@ describe('AuthChoice Component', () => {
     });
 
     test('clicking OpenID button logs message when userManager is null', () => {
-        jest.spyOn(console, 'info').mockImplementation(() => {
-        });
-
-        useAuthInfo.mockReturnValue({
+        mockUseAuthInfo.mockReturnValue({
             openid: {issuer: 'https://auth.example.com'},
             methods: [],
         });
-        useOidc.mockReturnValue({
+        mockUseOidc.mockReturnValue({
             userManager: null,
             recreateUserManager: mockRecreateUserManager,
         });
 
         renderComponent();
-
         fireEvent.click(screen.getByText('OpenID'));
 
         expect(console.info).toHaveBeenCalledWith(
@@ -160,25 +174,23 @@ describe('AuthChoice Component', () => {
     });
 
     test('clicking Login button navigates to /auth/login', () => {
-        useAuthInfo.mockReturnValue({
+        mockUseAuthInfo.mockReturnValue({
             openid: null,
             methods: ['basic'],
         });
 
         renderComponent();
-
         fireEvent.click(screen.getByText('Login'));
 
         expect(mockNavigate).toHaveBeenCalledWith('/auth/login');
     });
 
     test('useEffect calls recreateUserManager when authInfo.openid.issuer exists and userManager is null', async () => {
-        useAuthInfo.mockReturnValue({
+        mockUseAuthInfo.mockReturnValue({
             openid: {issuer: 'https://auth.example.com'},
             methods: [],
         });
-
-        useOidc.mockReturnValue({
+        mockUseOidc.mockReturnValue({
             userManager: null,
             recreateUserManager: mockRecreateUserManager,
         });
@@ -186,7 +198,7 @@ describe('AuthChoice Component', () => {
         renderComponent();
 
         await waitFor(() => {
-            expect(oidcConfiguration).toHaveBeenCalledWith({
+            expect(mockOidcConfiguration).toHaveBeenCalledWith({
                 openid: {issuer: 'https://auth.example.com'},
                 methods: [],
             });
@@ -195,23 +207,20 @@ describe('AuthChoice Component', () => {
         await waitFor(() => {
             expect(mockRecreateUserManager).toHaveBeenCalledWith({
                 issuer: 'mock-issuer',
-                client_id: 'mock-client'
+                client_id: 'mock-client',
             });
         });
     });
 
     test('useEffect does not call recreateUserManager when userManager exists', () => {
-        const mockSigninRedirect = jest.fn();
-        const mockUserManager = {
-            signinRedirect: mockSigninRedirect,
-        };
+        const mockSigninRedirect = vi.fn();
+        const mockUserManager = {signinRedirect: mockSigninRedirect};
 
-        useAuthInfo.mockReturnValue({
+        mockUseAuthInfo.mockReturnValue({
             openid: {issuer: 'https://auth.example.com'},
             methods: [],
         });
-
-        useOidc.mockReturnValue({
+        mockUseOidc.mockReturnValue({
             userManager: mockUserManager,
             recreateUserManager: mockRecreateUserManager,
         });
@@ -222,12 +231,11 @@ describe('AuthChoice Component', () => {
     });
 
     test('useEffect does not call recreateUserManager when authInfo.openid.issuer is undefined', () => {
-        useAuthInfo.mockReturnValue({
+        mockUseAuthInfo.mockReturnValue({
             openid: null,
             methods: ['basic'],
         });
-
-        useOidc.mockReturnValue({
+        mockUseOidc.mockReturnValue({
             userManager: null,
             recreateUserManager: mockRecreateUserManager,
         });
@@ -238,17 +246,14 @@ describe('AuthChoice Component', () => {
     });
 
     test('handles signinRedirect error', async () => {
-        const mockSigninRedirect = jest.fn(() => Promise.reject(new Error('Signin failed')));
-        const mockUserManager = {
-            signinRedirect: mockSigninRedirect,
-        };
+        const mockSigninRedirect = vi.fn(() => Promise.reject(new Error('Signin failed')));
+        const mockUserManager = {signinRedirect: mockSigninRedirect};
 
-        useAuthInfo.mockReturnValue({
+        mockUseAuthInfo.mockReturnValue({
             openid: {issuer: 'https://auth.example.com'},
             methods: [],
         });
-
-        useOidc.mockReturnValue({
+        mockUseOidc.mockReturnValue({
             userManager: mockUserManager,
             recreateUserManager: mockRecreateUserManager,
         });
@@ -263,9 +268,6 @@ describe('AuthChoice Component', () => {
 
         await waitFor(() => {
             expect(console.error).toHaveBeenCalledWith('handleAuthChoice signinRedirect:', expect.any(Error));
-        });
-
-        await waitFor(() => {
             expect(console.error.mock.calls[0][1].message).toBe('Signin failed');
         });
     });

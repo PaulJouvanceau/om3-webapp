@@ -1,9 +1,11 @@
 import useEventStore from '../useEventStore.js';
 import {act} from '@testing-library/react';
 
-jest.mock('../../utils/logger.js', () => ({
-    warn: jest.fn(),
-    debug: jest.fn(),
+vi.mock('../../utils/logger.js', () => ({
+    default: {
+        warn: vi.fn(),
+        debug: vi.fn(),
+    },
 }));
 
 import logger from '../../utils/logger.js';
@@ -24,7 +26,7 @@ describe('useEventStore', () => {
                 pendingDeletes: {},
             });
         });
-        jest.clearAllMocks();
+        vi.clearAllMocks();
     });
 
     test('should initialize with default state', () => {

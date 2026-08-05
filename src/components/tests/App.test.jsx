@@ -4,53 +4,54 @@ import {MemoryRouter} from 'react-router-dom';
 import App from '../App';
 import {DarkModeProvider} from '../../context/DarkModeContext';
 import {ThemeProvider, createTheme} from '@mui/material/styles';
+import {vi} from 'vitest';
+import logger from '../../utils/logger.js';
+import oidcConfiguration from '../../config/oidcConfiguration.js';
+import {decodeToken} from '../Login';
+import {__setMockRecreateUserManager, __setMockIsInitialized} from '../../context/OidcAuthContext.tsx';
 
-jest.mock('../../styles/main.css', () => ({}));
-jest.mock('../../utils/logger.js', () => ({
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
+vi.mock('../../styles/main.css', () => ({}));
+vi.mock('../../utils/logger.js', () => ({
+    default: {
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        debug: vi.fn(),
+    },
 }));
-const logger = require('../../utils/logger.js');
-jest.mock('../NavBar', () => () => <div data-testid="navbar">NavBar</div>);
-jest.mock('../Cluster', () => () => <div data-testid="cluster">ClusterOverview</div>);
-jest.mock('../NodesTable', () => () => <div data-testid="nodes">NodesTable</div>);
-jest.mock('../Namespaces', () => () => <div data-testid="namespaces">Namespaces</div>);
-jest.mock('../Heartbeats', () => () => <div data-testid="heartbeats">Heartbeats</div>);
-jest.mock('../Pools', () => () => <div data-testid="pools">Pools</div>);
-jest.mock('../Objects', () => () => <div data-testid="objects">Objects</div>);
-jest.mock('../ObjectDetails', () => () => <div data-testid="object-details">ObjectDetails</div>);
-jest.mock('../Network', () => () => <div data-testid="network">Network</div>);
-jest.mock('../NetworkDetails', () => () => <div data-testid="network-details">NetworkDetails</div>);
-jest.mock('../WhoAmI', () => () => <div data-testid="whoami">WhoAmI</div>);
-jest.mock('../SilentRenew.jsx', () => () => <div data-testid="silent-renew">SilentRenew</div>);
-jest.mock('../AuthChoice.jsx', () => () => <div data-testid="auth-choice">AuthChoice</div>);
-jest.mock('../OidcCallback', () => () => <div data-testid="auth-callback">OidcCallback</div>);
-jest.mock('../Login', () => ({
+vi.mock('../NavBar', () => ({default: () => <div data-testid="navbar">NavBar</div>}));
+vi.mock('../Cluster', () => ({default: () => <div data-testid="cluster">ClusterOverview</div>}));
+vi.mock('../NodesTable', () => ({default: () => <div data-testid="nodes">NodesTable</div>}));
+vi.mock('../Namespaces', () => ({default: () => <div data-testid="namespaces">Namespaces</div>}));
+vi.mock('../Heartbeats', () => ({default: () => <div data-testid="heartbeats">Heartbeats</div>}));
+vi.mock('../Pools', () => ({default: () => <div data-testid="pools">Pools</div>}));
+vi.mock('../Objects', () => ({default: () => <div data-testid="objects">Objects</div>}));
+vi.mock('../ObjectDetails', () => ({default: () => <div data-testid="object-details">ObjectDetails</div>}));
+vi.mock('../Network', () => ({default: () => <div data-testid="network">Network</div>}));
+vi.mock('../NetworkDetails', () => ({default: () => <div data-testid="network-details">NetworkDetails</div>}));
+vi.mock('../WhoAmI', () => ({default: () => <div data-testid="whoami">WhoAmI</div>}));
+vi.mock('../SilentRenew.jsx', () => ({default: () => <div data-testid="silent-renew">SilentRenew</div>}));
+vi.mock('../AuthChoice.jsx', () => ({default: () => <div data-testid="auth-choice">AuthChoice</div>}));
+vi.mock('../OidcCallback', () => ({default: () => <div data-testid="auth-callback">OidcCallback</div>}));
+vi.mock('../Login', () => ({
     __esModule: true,
     default: () => <div data-testid="login">Login</div>,
-    decodeToken: jest.fn(),
-    refreshToken: jest.fn(),
+    decodeToken: vi.fn(),
+    refreshToken: vi.fn(),
 }));
-
-const mockDecodeToken = jest.requireMock('../Login').decodeToken;
-
-jest.mock('../../hooks/AuthInfo.jsx', () => jest.fn(() => ({
-    openid: {issuer: 'https://test-issuer.com', client_id: 'test-client'}
-})));
-
-jest.mock('../../config/oidcConfiguration.js', () => jest.fn(() => Promise.resolve({
-    client_id: 'test-client',
-    authority: 'https://test-issuer.com',
-    scope: 'openid profile email'
-})));
-const oidcConfiguration = require('../../config/oidcConfiguration.js');
-
-const mockAuthDispatch = jest.fn();
-const mockAuthState = {user: null, isAuthenticated: false, authChoice: null, authInfo: null, accessToken: null};
-
-jest.mock('../../context/AuthProvider', () => ({
+vi.mock('../../hooks/AuthInfo.jsx', () => ({
+    default: vi.fn(() => ({
+        openid: {issuer: 'https://test-issuer.com', client_id: 'test-client'},
+    })),
+}));
+vi.mock('../../config/oidcConfiguration.js', () => ({
+    default: vi.fn(() => Promise.resolve({
+        client_id: 'test-client',
+        authority: 'https://test-issuer.com',
+        scope: 'openid profile email',
+    })),
+}));
+vi.mock('../../context/AuthProvider', () => ({
     AuthProvider: ({children}) => <div>{children}</div>,
     useAuth: () => mockAuthState,
     useAuthDispatch: () => mockAuthDispatch,
@@ -58,21 +59,7 @@ jest.mock('../../context/AuthProvider', () => ({
     SetAuthChoice: 'SetAuthChoice',
     Login: 'Login',
 }));
-
-let mockUserManager = {
-    getUser: jest.fn(() => Promise.resolve(null)),
-    signinSilent: jest.fn(() => Promise.resolve(null)),
-    events: {
-        addUserLoaded: jest.fn(), addAccessTokenExpiring: jest.fn(),
-        addAccessTokenExpired: jest.fn(), addSilentRenewError: jest.fn(),
-        removeUserLoaded: jest.fn(), removeAccessTokenExpired: jest.fn(),
-        removeSilentRenewError: jest.fn(),
-    }
-};
-let mockRecreateUserManager = jest.fn();
-let mockIsInitialized = true;
-
-jest.mock('../../context/OidcAuthContext.tsx', () => ({
+vi.mock('../../context/OidcAuthContext.tsx', () => ({
     OidcProvider: ({children}) => <div>{children}</div>,
     useOidc: () => ({
         userManager: mockUserManager,
@@ -86,30 +73,53 @@ jest.mock('../../context/OidcAuthContext.tsx', () => ({
         mockIsInitialized = v;
     },
 }));
-const mockOidcModule = require('../../context/OidcAuthContext.tsx');
 
-const mockLocalStorage = {getItem: jest.fn(), setItem: jest.fn(), removeItem: jest.fn()};
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        useNavigate: () => mockNavigate,
+    };
+});
+
+const mockAuthDispatch = vi.fn();
+const mockAuthState = {user: null, isAuthenticated: false, authChoice: null, authInfo: null, accessToken: null};
+let mockUserManager = {
+    getUser: vi.fn(() => Promise.resolve(null)),
+    signinSilent: vi.fn(() => Promise.resolve(null)),
+    events: {
+        addUserLoaded: vi.fn(),
+        addAccessTokenExpiring: vi.fn(),
+        addAccessTokenExpired: vi.fn(),
+        addSilentRenewError: vi.fn(),
+        removeUserLoaded: vi.fn(),
+        removeAccessTokenExpired: vi.fn(),
+        removeSilentRenewError: vi.fn(),
+    },
+};
+let mockRecreateUserManager = vi.fn();
+let mockIsInitialized = true;
+
+const mockLocalStorage = {
+    getItem: vi.fn(),
+    setItem: vi.fn(),
+    removeItem: vi.fn(),
+};
 Object.defineProperty(window, 'localStorage', {value: mockLocalStorage});
 
 const consoleSpy = {
-    log: jest.spyOn(console, 'log').mockImplementation(() => {
+    log: vi.spyOn(console, 'log').mockImplementation(() => {
     }),
-    error: jest.spyOn(console, 'error').mockImplementation(() => {
+    error: vi.spyOn(console, 'error').mockImplementation(() => {
     }),
-    warn: jest.spyOn(console, 'warn').mockImplementation(() => {
+    warn: vi.spyOn(console, 'warn').mockImplementation(() => {
     }),
-    debug: jest.spyOn(console, 'debug').mockImplementation(() => {
+    debug: vi.spyOn(console, 'debug').mockImplementation(() => {
     }),
 };
 
-const mockNavigate = jest.fn();
-jest.mock('react-router-dom', () => ({
-    ...jest.requireActual('react-router-dom'),
-    useNavigate: () => mockNavigate,
-}));
-
 // --- Helpers ---
-
 const makeTokenWithExp = (expSecondsFromNow) => {
     const payload = {exp: Math.floor(Date.now() / 1000) + expSecondsFromNow};
     return 'h.' + btoa(JSON.stringify(payload)) + '.s';
@@ -133,7 +143,7 @@ const setupBasicAuth = (tokenExpOffset = 3600) => {
     mockLocalStorage.getItem.mockImplementation((k) =>
         k === 'authToken' ? token : k === 'authChoice' ? 'basic' : null
     );
-    mockDecodeToken.mockReturnValue({exp: Math.floor(Date.now() / 1000) + tokenExpOffset});
+    decodeToken.mockReturnValue({exp: Math.floor(Date.now() / 1000) + tokenExpOffset});
     return token;
 };
 
@@ -145,19 +155,16 @@ const setupOidcAuth = (token = 'dummy') => {
 };
 
 // --- Tests ---
-
 describe('App Component', () => {
     beforeEach(() => {
-        // Use mockClear (preserves implementations) not mockReset (strips them)
         mockAuthDispatch.mockClear();
         mockLocalStorage.getItem.mockClear().mockReturnValue(null);
         mockLocalStorage.setItem.mockClear().mockImplementation(() => {
         });
         mockLocalStorage.removeItem.mockClear();
-        mockDecodeToken.mockClear();
+        decodeToken.mockClear();
         mockNavigate.mockClear();
         oidcConfiguration.mockClear();
-        // mockClear on console spies preserves their mockImplementation(() => {})
         Object.values(consoleSpy).forEach(spy => spy.mockClear());
         Object.values(logger).forEach(fn => fn.mockClear());
         mockAuthState.authChoice = null;
@@ -166,13 +173,12 @@ describe('App Component', () => {
         mockUserManager.getUser.mockResolvedValue(null);
         mockUserManager.signinSilent.mockResolvedValue(null);
         Object.values(mockUserManager.events).forEach(fn => fn.mockClear?.());
-        mockRecreateUserManager = jest.fn();
-        mockOidcModule.__setMockRecreateUserManager(mockRecreateUserManager);
-        mockOidcModule.__setMockIsInitialized(true);
+        mockRecreateUserManager = vi.fn();
+        __setMockRecreateUserManager(mockRecreateUserManager);
+        __setMockIsInitialized(true);
     });
 
     // --- Routing ---
-
     test('renders NavBar and redirects / to /cluster', async () => {
         setupBasicAuth();
         renderApp(['/']);
@@ -215,7 +221,6 @@ describe('App Component', () => {
     });
 
     // --- ProtectedRoute ---
-
     test('ProtectedRoute: valid basic token shows content', async () => {
         setupBasicAuth();
         renderApp(['/cluster']);
@@ -246,7 +251,7 @@ describe('App Component', () => {
 
     test('ProtectedRoute: OIDC with malformed token still renders', async () => {
         setupOidcAuth('not-a-valid-jwt');
-        mockDecodeToken.mockReturnValue(null);
+        decodeToken.mockReturnValue(null);
         renderApp(['/cluster']);
         expect(await screen.findByTestId('cluster')).toBeInTheDocument();
     });
@@ -255,22 +260,21 @@ describe('App Component', () => {
         mockLocalStorage.getItem.mockImplementation((k) =>
             k === 'authToken' ? makeTokenWithExp(-3600) : k === 'authChoice' ? null : null
         );
-        mockDecodeToken.mockReturnValue({exp: Math.floor(Date.now() / 1000) - 3600});
+        decodeToken.mockReturnValue({exp: Math.floor(Date.now() / 1000) - 3600});
         renderApp(['/cluster']);
         expect(await screen.findByTestId('auth-choice')).toBeInTheDocument();
         expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('authToken');
     });
 
     // --- OIDC Initialization ---
-
     test('initializeOidcOnStartup calls oidcConfiguration and recreateUserManager when not initialized', async () => {
-        mockOidcModule.__setMockIsInitialized(false);
+        __setMockIsInitialized(false);
         setupOidcAuth(makeTokenWithExp(3600));
-        mockDecodeToken.mockReturnValue({exp: Math.floor(Date.now() / 1000) + 3600});
+        decodeToken.mockReturnValue({exp: Math.floor(Date.now() / 1000) + 3600});
         renderApp(['/cluster']);
         await waitFor(() => expect(oidcConfiguration).toHaveBeenCalled());
         await waitFor(() => expect(mockRecreateUserManager).toHaveBeenCalled());
-        mockOidcModule.__setMockIsInitialized(true);
+        __setMockIsInitialized(true);
     });
 
     test('initializeOidcOnStartup does not run if already initialized', async () => {
@@ -298,24 +302,21 @@ describe('App Component', () => {
     });
 
     test('initializeOidcOnStartup does not run if authInfo is null', async () => {
-        mockOidcModule.__setMockIsInitialized(false);
-        const authInfoMock = require('../../hooks/AuthInfo.jsx');
-        authInfoMock.mockImplementation(() => null);
+        __setMockIsInitialized(false);
+        const AuthInfoMock = (await import('../../hooks/AuthInfo.jsx')).default;
+        AuthInfoMock.mockImplementation(() => null);
         setupOidcAuth(makeTokenWithExp(3600));
         renderApp(['/']);
         await new Promise(r => setTimeout(r, 200));
         expect(oidcConfiguration).not.toHaveBeenCalled();
-        authInfoMock.mockImplementation(() => ({
-            openid: {
-                issuer: 'https://test-issuer.com',
-                client_id: 'test-client'
-            }
+        AuthInfoMock.mockImplementation(() => ({
+            openid: {issuer: 'https://test-issuer.com', client_id: 'test-client'}
         }));
-        mockOidcModule.__setMockIsInitialized(true);
+        __setMockIsInitialized(true);
     });
 
     test('initializeOidcOnStartup handles oidcConfiguration rejection', async () => {
-        mockOidcModule.__setMockIsInitialized(false);
+        __setMockIsInitialized(false);
         oidcConfiguration.mockImplementationOnce(() => Promise.reject(new Error('config failed')));
         setupOidcAuth(makeTokenWithExp(3600));
         renderApp(['/cluster']);
@@ -323,26 +324,25 @@ describe('App Component', () => {
         expect(oidcConfiguration).toHaveBeenCalled();
         expect(mockRecreateUserManager).not.toHaveBeenCalled();
         expect(logger.error).toHaveBeenCalled();
-        mockOidcModule.__setMockIsInitialized(true);
+        __setMockIsInitialized(true);
     });
 
     test('initializeOidcOnStartup handles recreateUserManager throwing', async () => {
-        mockOidcModule.__setMockIsInitialized(false);
+        __setMockIsInitialized(false);
         oidcConfiguration.mockImplementationOnce(() => Promise.resolve({client_id: 'x'}));
-        mockRecreateUserManager = jest.fn(() => {
+        mockRecreateUserManager = vi.fn(() => {
             throw new Error('boom create');
         });
-        mockOidcModule.__setMockRecreateUserManager(mockRecreateUserManager);
+        __setMockRecreateUserManager(mockRecreateUserManager);
         setupOidcAuth(makeTokenWithExp(3600));
         renderApp(['/cluster']);
         await new Promise(r => setTimeout(r, 200));
         expect(mockRecreateUserManager).toHaveBeenCalled();
         expect(logger.error).toHaveBeenCalled();
-        mockOidcModule.__setMockIsInitialized(true);
+        __setMockIsInitialized(true);
     });
 
     // --- OIDC User Events ---
-
     test('valid user from getUser triggers SetAccessToken and Login dispatch', async () => {
         const validUser = {
             profile: {preferred_username: 'test-user'},
@@ -434,7 +434,7 @@ describe('App Component', () => {
         setupOidcAuth();
         mockUserManager.getUser.mockResolvedValue({
             access_token: 'new-token',
-            expires_at: Math.floor(Date.now() / 1000) + 3600
+            expires_at: Math.floor(Date.now() / 1000) + 3600,
         });
         renderApp(['/cluster']);
         await waitFor(() => expect(mockAuthDispatch).toHaveBeenCalledWith({type: 'SetAccessToken', data: 'new-token'}));
@@ -457,7 +457,6 @@ describe('App Component', () => {
     });
 
     // --- Auth Choice Persistence ---
-
     test('saves auth.authChoice to localStorage', async () => {
         mockAuthState.authChoice = 'basic';
         renderApp(['/']);
@@ -472,7 +471,6 @@ describe('App Component', () => {
     });
 
     // --- Auth Resume (visibility/focus) ---
-
     test('focus triggers redirect when basic token is expired', async () => {
         setupBasicAuth(-3600);
         renderApp(['/cluster']);
@@ -514,7 +512,7 @@ describe('App Component', () => {
 
     test('OIDC expired token on resume triggers silent renew and updates storage', async () => {
         setupOidcAuth(makeTokenWithExp(-3600));
-        mockDecodeToken.mockReturnValue({exp: Math.floor(Date.now() / 1000) - 3600});
+        decodeToken.mockReturnValue({exp: Math.floor(Date.now() / 1000) - 3600});
         mockUserManager.signinSilent.mockResolvedValue({
             profile: {preferred_username: 'refreshed-user'},
             access_token: 'refreshed-token',
@@ -541,7 +539,6 @@ describe('App Component', () => {
     test('handleCheckAuthOnResume: OIDC no token on focus redirects', async () => {
         setupOidcAuth();
         renderApp(['/cluster']);
-        // After initial render, simulate focus with no token
         mockLocalStorage.getItem.mockImplementation((k) =>
             k === 'authChoice' ? 'openid' : null
         );
@@ -553,13 +550,12 @@ describe('App Component', () => {
     });
 
     test('handleCheckAuthOnResume: OIDC expired token without userManager redirects', async () => {
-        // Simulate userManager being null at resume time
-        mockOidcModule.__setMockIsInitialized(false);
+        __setMockIsInitialized(false);
         const expiredToken = makeTokenWithExp(-3600);
         setupOidcAuth(expiredToken);
-        mockDecodeToken.mockReturnValue({exp: Math.floor(Date.now() / 1000) - 3600});
-        // Override userManager to null for this test
-        jest.spyOn(require('../../context/OidcAuthContext.tsx'), 'useOidc').mockReturnValue({
+        decodeToken.mockReturnValue({exp: Math.floor(Date.now() / 1000) - 3600});
+        const oidcCtxModule = await import('../../context/OidcAuthContext.tsx');
+        vi.spyOn(oidcCtxModule, 'useOidc').mockReturnValue({
             userManager: null,
             recreateUserManager: mockRecreateUserManager,
             isInitialized: false,
@@ -570,15 +566,14 @@ describe('App Component', () => {
             await new Promise(r => setTimeout(r, 600));
         });
         expect(mockNavigate).toHaveBeenCalledWith('/auth-choice', {replace: true});
-        jest.restoreAllMocks();
-        mockOidcModule.__setMockIsInitialized(true);
+        vi.restoreAllMocks();
+        __setMockIsInitialized(true);
     });
 
     test('handleCheckAuthOnResume: OIDC silent renew returns expired user redirects', async () => {
         const expiredToken = makeTokenWithExp(-3600);
         setupOidcAuth(expiredToken);
-        mockDecodeToken.mockReturnValue({exp: Math.floor(Date.now() / 1000) - 3600});
-        // Silent renew returns an expired user
+        decodeToken.mockReturnValue({exp: Math.floor(Date.now() / 1000) - 3600});
         mockUserManager.signinSilent.mockResolvedValue({expired: true});
         renderApp(['/cluster']);
         act(() => window.dispatchEvent(new Event('focus')));
@@ -591,7 +586,6 @@ describe('App Component', () => {
 
     test('expired user silent renew returns still-expired user logs warning', async () => {
         mockUserManager.getUser.mockResolvedValue({profile: {preferred_username: 'x'}, expired: true});
-        // signinSilent returns a still-expired user
         mockUserManager.signinSilent.mockResolvedValue({expired: true, profile: {preferred_username: 'x'}});
         setupOidcAuth();
         renderApp(['/cluster']);
@@ -612,7 +606,6 @@ describe('App Component', () => {
     });
 
     // --- Miscellaneous ---
-
     test('handles om3:auth-redirect event', async () => {
         renderApp(['/']);
         act(() => window.dispatchEvent(new CustomEvent('om3:auth-redirect', {detail: '/auth-choice'})));
@@ -621,7 +614,6 @@ describe('App Component', () => {
 
     test('storage event calls getItem to check new token', async () => {
         const newToken = makeTokenWithExp(3600);
-        // Render with auth-choice path to avoid ProtectedRoute interference
         mockLocalStorage.getItem.mockImplementation((k) => k === 'authChoice' ? 'basic' : null);
         renderApp(['/auth-choice']);
         await screen.findByTestId('auth-choice');
@@ -631,8 +623,8 @@ describe('App Component', () => {
     });
 
     test('event listeners are cleaned up on unmount', async () => {
-        const removeListenerSpy = jest.spyOn(window, 'removeEventListener');
-        const docRemoveListenerSpy = jest.spyOn(document, 'removeEventListener');
+        const removeListenerSpy = vi.spyOn(window, 'removeEventListener');
+        const docRemoveListenerSpy = vi.spyOn(document, 'removeEventListener');
         setupBasicAuth();
         const {unmount} = renderApp(['/']);
         await screen.findByTestId('navbar');
@@ -648,7 +640,7 @@ describe('App Component', () => {
             mockLocalStorage.getItem.mockImplementation((k) =>
                 k === 'authToken' ? token : k === 'authChoice' ? 'basic' : null
             );
-            mockDecodeToken.mockReturnValue(null);
+            decodeToken.mockReturnValue(null);
             const {unmount} = renderApp(['/cluster']);
             expect(await screen.findByTestId('auth-choice')).toBeInTheDocument();
             unmount();
