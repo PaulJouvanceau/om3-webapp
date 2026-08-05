@@ -8,11 +8,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-
     strategy:
       matrix:
         node-version: [22.x]
-        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
     steps:
       - uses: actions/checkout@v4
@@ -32,9 +30,9 @@ jobs:
         run: npm run build
 
       - name: Upload build to release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844
         with:
-          files:
-              dist/index.html
+          files: |
+            dist/index.html
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
