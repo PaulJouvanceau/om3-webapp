@@ -44,6 +44,45 @@ const getBasePath = () => {
     return match ? match[0] : "";
 };
 
+function isSafeIssuerUrl(url) {
+    // Only allow HTTPS, with an exception for localhost over HTTP for development
+    const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]';
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLocalhost)) {
+        logger.warn("Issuer URL must use HTTPS (or HTTP for localhost). Got: " + url.protocol);
+        return false;
+    }
+    // Disallow credentials in the URL
+    if (url.username || url.password) {
+        logger.warn("Issuer URL must not contain credentials.");
+        return false;
+    }
+    // Block IP addresses to prevent SSRF to internal networks
+    const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+    const ipv6Regex = /^\[?([0-9a-fA-F:]+)\]?$/;
+    if (ipv4Regex.test(url.hostname)) {
+        // Allow only if it's a localhost IP (already handled above, but double-check)
+        // Block private, loopback, and link-local even if they passed localhost check
+        const parts = url.hostname.split('.').map(Number);
+        if (parts.length === 4 && parts.every(p => p >= 0 && p <= 255)) {
+            if (parts[0] === 10 ||
+                (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+                (parts[0] === 192 && parts[1] === 168) ||
+                parts[0] === 127 ||
+                (parts[0] === 169 && parts[1] === 254)) {
+                logger.warn("Issuer URL must not point to a private or loopback IP address.");
+                return false;
+            }
+            // Still block any non-localhost IP (force domain names)
+            logger.warn("Issuer URL must use a domain name, not an IP address.");
+            return false;
+        }
+    } else if (ipv6Regex.test(url.hostname)) {
+        logger.warn("Issuer URL must not be an IPv6 address.");
+        return false;
+    }
+    return true;
+}
+
 async function oidcConfiguration(authInfo) {
     let scopesSupported = DEFAULT_SCOPES;
     if (!authInfo?.openid?.issuer) {
@@ -57,12 +96,20 @@ async function oidcConfiguration(authInfo) {
             logger.error("Malformed URI: missing protocol or host");
             return initData;
         }
+
+        // SSRF prevention: validate the URL before making any request
+        if (!isSafeIssuerUrl(url)) {
+            logger.warn("OIDC Configuration fallback: issuer URL failed validation. Falling back to default configuration.");
+            return initData;
+        }
+
         if (!url.pathname.endsWith("/")) {
             url.pathname += "/";
         }
         url.pathname += '.well-known/openid-configuration';
         logger.info("Fetching OIDC configuration from:", url.toString());
-        const response = await fetch(url);
+        // Disable redirects to prevent SSRF via open redirects
+        const response = await fetch(url, {redirect: 'error'});
 
         if (response.ok) {
             const wellKnown = await response.json();
