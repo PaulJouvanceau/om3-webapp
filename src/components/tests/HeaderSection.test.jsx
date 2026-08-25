@@ -13,7 +13,7 @@ const {mockSetObjectMenuAnchor, mockHandleObjectActionClick} = vi.hoisted(() => 
 // ── Mocks ───────────────────────────────────────────────────────────────
 vi.mock('../../constants/actions', () => ({
     OBJECT_ACTIONS: [
-        {name: 'delete', icon: 'delete-icon'},
+        {name: 'delete', icon: 'delete-icon', color: 'red'},
         {name: 'edit', icon: 'edit-icon'},
     ],
 }));
@@ -30,7 +30,14 @@ vi.mock('@mui/material', async (importOriginal) => {
             </button>
         ),
         Menu: ({open, children, anchorEl, onClose, ...props}) =>
-            open ? <div role="menu" {...props}>{children}</div> : null,
+            open ? (
+                <div role="menu" {...props}>
+                    {children}
+                    <button aria-label="close-menu" onClick={onClose}>
+                        Close
+                    </button>
+                </div>
+            ) : null,
         MenuItem: ({children, onClick, disabled, ...props}) => (
             <div role="menuitem" onClick={onClick} data-disabled={disabled} {...props}>
                 {children}
@@ -230,5 +237,21 @@ describe('HeaderSection Component', () => {
 
         const menuItems = screen.getAllByRole('menuitem');
         expect(menuItems[0]).toHaveAttribute('data-disabled', 'true');
+    });
+
+    test('closes menu when onClose is triggered', async () => {
+        const mockAnchor = {
+            getBoundingClientRect: vi.fn(() => ({})),
+        };
+        const props = {
+            ...defaultProps,
+            objectMenuAnchor: mockAnchor,
+        };
+        render(<HeaderSection {...props} />);
+
+        const closeButton = screen.getByRole('button', {name: 'close-menu'});
+        await userEvent.click(closeButton);
+
+        expect(mockSetObjectMenuAnchor).toHaveBeenCalledWith(null);
     });
 });
