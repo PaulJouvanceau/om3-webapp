@@ -29,18 +29,8 @@ vi.mock('@mui/material', async (importOriginal) => {
                 {children}
             </button>
         ),
-        Popper: ({children, open, anchorEl, modifiers, ...props}) => {
-            if (open) {
-                modifiers?.forEach((mod) => {
-                    if (mod.name === 'offset' && typeof mod.options.offset === 'function') {
-                        mod.options.offset();
-                    }
-                });
-                return <div data-testid="popper" {...props}>{children}</div>;
-            }
-            return null;
-        },
-        Paper: ({children, ...props}) => <div {...props}>{children}</div>,
+        Menu: ({open, children, anchorEl, onClose, ...props}) =>
+            open ? <div role="menu" {...props}>{children}</div> : null,
         MenuItem: ({children, onClick, disabled, ...props}) => (
             <div role="menuitem" onClick={onClick} data-disabled={disabled} {...props}>
                 {children}
@@ -48,9 +38,6 @@ vi.mock('@mui/material', async (importOriginal) => {
         ),
         ListItemIcon: ({children, ...props}) => <span {...props}>{children}</span>,
         ListItemText: ({children}) => <span>{children}</span>,
-        ClickAwayListener: ({children, onClickAway}) => (
-            <div onClick={() => onClickAway()}>{children}</div>
-        ),
     };
 });
 
@@ -199,7 +186,7 @@ describe('HeaderSection Component', () => {
         );
     });
 
-    test('renders popper menu when objectMenuAnchor is set', () => {
+    test('renders menu when objectMenuAnchor is set', () => {
         const mockAnchor = {
             getBoundingClientRect: vi.fn(() => ({})),
         };
@@ -209,7 +196,6 @@ describe('HeaderSection Component', () => {
         };
         render(<HeaderSection {...props} />);
 
-        expect(screen.getByTestId('popper')).toBeInTheDocument();
         expect(screen.getByRole('menu')).toBeInTheDocument();
         expect(screen.getAllByRole('menuitem')).toHaveLength(2);
     });
@@ -244,37 +230,5 @@ describe('HeaderSection Component', () => {
 
         const menuItems = screen.getAllByRole('menuitem');
         expect(menuItems[0]).toHaveAttribute('data-disabled', 'true');
-    });
-
-    test('configures popperProps correctly for Safari', () => {
-        global.navigator.userAgent =
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15';
-        const mockAnchor = {
-            getBoundingClientRect: vi.fn(() => ({})),
-        };
-        const props = {
-            ...defaultProps,
-            objectMenuAnchor: mockAnchor,
-        };
-        render(<HeaderSection {...props} />);
-
-        expect(screen.getByTestId('popper')).toBeInTheDocument();
-    });
-
-    test('adjusts popper offset based on zoom level', () => {
-        Object.defineProperty(window, 'devicePixelRatio', {
-            value: 2,
-            writable: true,
-        });
-        const mockAnchor = {
-            getBoundingClientRect: vi.fn(() => ({})),
-        };
-        const props = {
-            ...defaultProps,
-            objectMenuAnchor: mockAnchor,
-        };
-        render(<HeaderSection {...props} />);
-
-        expect(screen.getByTestId('popper')).toBeInTheDocument();
     });
 });

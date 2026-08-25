@@ -4,12 +4,10 @@ import {
     Typography,
     Tooltip,
     IconButton,
-    Popper,
-    Paper,
+    Menu,
     MenuItem,
     ListItemIcon,
     ListItemText,
-    ClickAwayListener,
 } from '@mui/material';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import AcUnitIcon from '@mui/icons-material/AcUnit';
@@ -19,9 +17,6 @@ import {blue, red} from '@mui/material/colors';
 import {OBJECT_ACTIONS} from '../constants/actions';
 import {isActionAllowedForSelection} from '../utils/objectUtils';
 import logger from '../utils/logger.js';
-
-// Detect Safari
-const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
 const HeaderSection = ({
                            decodedObjectName,
@@ -34,25 +29,6 @@ const HeaderSection = ({
                            getColor,
                            objectMenuAnchorRef,
                        }) => {
-    const getZoomLevel = () => window.devicePixelRatio || 1;
-
-    const popperProps = () => ({
-        placement: "bottom-end",
-        disablePortal: isSafari,
-        modifiers: [
-            {
-                name: "offset",
-                options: {offset: [0, 8 / getZoomLevel()]},
-            },
-            {name: "preventOverflow", options: {boundariesElement: "viewport"}},
-            {name: "flip", options: {enabled: true}},
-        ],
-        sx: {
-            zIndex: 10000,
-            "& .MuiPaper-root": {minWidth: 200, boxShadow: "0px 5px 15px rgba(0,0,0,0.2)"},
-        },
-    });
-
     const isNotProvisioned = globalStatus?.provisioned === "false" || globalStatus?.provisioned === false;
     const {globalExpect} = getObjectStatus();
 
@@ -126,45 +102,45 @@ const HeaderSection = ({
                         </Tooltip>
                     </IconButton>
 
-                    <Popper open={Boolean(objectMenuAnchor)} anchorEl={objectMenuAnchor} {...popperProps()}>
-                        <ClickAwayListener onClickAway={() => setObjectMenuAnchor(null)}>
-                            <Paper elevation={3} role="menu">
-                                {OBJECT_ACTIONS.map(({name, icon, color}) => {
-                                    const isAllowed = isActionAllowedForSelection(name, [decodedObjectName]);
-                                    return (
-                                        <MenuItem
-                                            key={name}
-                                            onClick={() => {
-                                                handleObjectActionClick(name);
-                                                setObjectMenuAnchor(null);
-                                            }}
-                                            disabled={!isAllowed || actionInProgress}
-                                            sx={{
-                                                color: isAllowed
-                                                    ? (color === "red" ? "error.main" : "inherit")
-                                                    : "text.disabled",
-                                                '&.Mui-disabled': {opacity: 0.5},
-                                            }}
-                                            aria-label={`Object ${name} action`}
-                                        >
-                                            <ListItemIcon
-                                                sx={{
-                                                    minWidth: 40,
-                                                    color: isAllowed
-                                                        ? (color === "red" ? "error.main" : "inherit")
-                                                        : "text.disabled"
-                                                }}>
-                                                {icon}
-                                            </ListItemIcon>
-                                            <ListItemText>
-                                                {name.charAt(0).toUpperCase() + name.slice(1)}
-                                            </ListItemText>
-                                        </MenuItem>
-                                    );
-                                })}
-                            </Paper>
-                        </ClickAwayListener>
-                    </Popper>
+                    <Menu
+                        anchorEl={objectMenuAnchor}
+                        open={Boolean(objectMenuAnchor)}
+                        onClose={() => setObjectMenuAnchor(null)}
+                    >
+                        {OBJECT_ACTIONS.map(({name, icon, color}) => {
+                            const isAllowed = isActionAllowedForSelection(name, [decodedObjectName]);
+                            return (
+                                <MenuItem
+                                    key={name}
+                                    onClick={() => {
+                                        handleObjectActionClick(name);
+                                        setObjectMenuAnchor(null);
+                                    }}
+                                    disabled={!isAllowed || actionInProgress}
+                                    sx={{
+                                        color: isAllowed
+                                            ? (color === "red" ? "error.main" : "inherit")
+                                            : "text.disabled",
+                                        '&.Mui-disabled': {opacity: 0.5},
+                                    }}
+                                    aria-label={`Object ${name} action`}
+                                >
+                                    <ListItemIcon
+                                        sx={{
+                                            minWidth: 40,
+                                            color: isAllowed
+                                                ? (color === "red" ? "error.main" : "inherit")
+                                                : "text.disabled"
+                                        }}>
+                                        {icon}
+                                    </ListItemIcon>
+                                    <ListItemText>
+                                        {name.charAt(0).toUpperCase() + name.slice(1)}
+                                    </ListItemText>
+                                </MenuItem>
+                            );
+                        })}
+                    </Menu>
                 </Box>
             </Box>
         )

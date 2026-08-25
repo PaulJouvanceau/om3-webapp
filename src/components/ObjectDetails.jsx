@@ -9,18 +9,17 @@ import {
     DialogActions,
     DialogContent,
     DialogTitle,
+    Menu,
     MenuItem,
     Typography,
     IconButton,
     TextField,
     useTheme,
+    useMediaQuery,
     Grid,
     Snackbar,
     ListItemIcon,
     ListItemText,
-    Paper,
-    Popper,
-    ClickAwayListener,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import {green, grey, orange, red} from "@mui/material/colors";
@@ -61,14 +60,13 @@ export const parseProvisionedState = (state) => {
     return !!state;
 };
 
-const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-
 const ObjectDetail = () => {
     const {objectName} = useParams();
     const decodedObjectName = decodeURIComponent(objectName);
     const {namespace, kind, name} = parseObjectPath(decodedObjectName);
     const navigate = useNavigate();
     const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
     const objectStatus = useEventStore((s) => s.objectStatus[decodedObjectName]);
     const objectInstanceStatus = useEventStore((s) => s.objectInstanceStatus[decodedObjectName]);
@@ -495,9 +493,6 @@ const ObjectDetail = () => {
         setSelectedInstanceForLogs(null);
     }, []);
 
-    /**
-     * @param {string | boolean} status
-     */
     const getColor = useCallback((status) => {
         if (status === "up" || status === true) return green[500];
         if (status === "down" || status === false) return red[500];
@@ -505,10 +500,6 @@ const ObjectDetail = () => {
         return grey[500];
     }, []);
 
-    /**
-     * @param {string} node
-     * @returns {{avail: string, frozen: string, state: string | null}}
-     */
     const getNodeState = useCallback((node) => {
         const nodeStatus = objectInstanceStatus?.[node] || {};
         const monitor = instanceMonitor[`${node}:${decodedObjectName}`] || {};
@@ -547,28 +538,6 @@ const ObjectDetail = () => {
     const batchFilteredActions = useMemo(() => {
         return filterActionsForMultipleNodes(INSTANCE_ACTIONS, selectedNodes);
     }, [selectedNodes, filterActionsForMultipleNodes]);
-
-    const getZoomLevel = useCallback(() => window.devicePixelRatio || 1, []);
-
-    /** @type {import("@mui/material").PopperProps["modifiers"]} */
-    const popperModifiers = useMemo(() => ([
-        {
-            name: "offset",
-            options: {offset: [0, 8 / getZoomLevel()]},
-        },
-        {name: "preventOverflow", options: {boundariesElement: "viewport"}},
-        {name: "flip", enabled: true},
-    ]), [getZoomLevel]);
-
-    const popperProps = useMemo(() => ({
-        placement: /** @type {import("@mui/material").PopperPlacementType} */ ("bottom-end"),
-        disablePortal: isSafari,
-        modifiers: popperModifiers,
-        sx: {
-            zIndex: 10000,
-            "& .MuiPaper-root": {minWidth: 200, boxShadow: "0px 5px 15px rgba(0,0,0,0.2)"},
-        },
-    }), [popperModifiers]);
 
     // Resize handlers (EventLogger style)
     const handleResizeStart = useCallback((e) => {
@@ -782,7 +751,7 @@ const ObjectDetail = () => {
                     )}
 
                     <Dialog open={consoleDialogOpen} onClose={() => setConsoleDialogOpen(false)} maxWidth="sm"
-                            fullWidth>
+                            fullWidth fullScreen={isMobile}>
                         <DialogTitle>Open Console</DialogTitle>
                         <DialogContent>
                             <Typography variant="body1" sx={{mb: 2}}>This will open a terminal console for the selected
@@ -811,7 +780,7 @@ const ObjectDetail = () => {
                     </Dialog>
 
                     <Dialog open={consoleUrlDialogOpen} onClose={() => setConsoleUrlDialogOpen(false)} maxWidth="sm"
-                            fullWidth>
+                            fullWidth fullScreen={isMobile}>
                         <DialogTitle>Console URL</DialogTitle>
                         <DialogContent>
                             <Box sx={{
@@ -861,34 +830,34 @@ const ObjectDetail = () => {
                                 </Button>
                             </Box>
 
-                            <Popper open={Boolean(actionsMenuAnchor)} anchorEl={actionsMenuAnchor} {...popperProps}>
-                                <ClickAwayListener onClickAway={() => setActionsMenuAnchor(null)}>
-                                    <Paper elevation={3} role="menu">
-                                        {batchFilteredActions.map(({name, icon, color}) => (
-                                            <MenuItem
-                                                key={name}
-                                                onClick={() => handleBatchNodeActionClick(name)}
-                                                disabled={actionInProgress}
-                                                sx={{
-                                                    color: color === "red" ? "error.main" : "inherit",
-                                                    '&.Mui-disabled': {opacity: 0.5},
-                                                }}
-                                            >
-                                                <ListItemIcon
-                                                    sx={{
-                                                        minWidth: 40,
-                                                        color: color === "red" ? "error.main" : "inherit"
-                                                    }}>
-                                                    {icon}
-                                                </ListItemIcon>
-                                                <ListItemText>
-                                                    {name.charAt(0).toUpperCase() + name.slice(1)}
-                                                </ListItemText>
-                                            </MenuItem>
-                                        ))}
-                                    </Paper>
-                                </ClickAwayListener>
-                            </Popper>
+                            <Menu
+                                anchorEl={actionsMenuAnchor}
+                                open={Boolean(actionsMenuAnchor)}
+                                onClose={() => setActionsMenuAnchor(null)}
+                            >
+                                {batchFilteredActions.map(({name, icon, color}) => (
+                                    <MenuItem
+                                        key={name}
+                                        onClick={() => handleBatchNodeActionClick(name)}
+                                        disabled={actionInProgress}
+                                        sx={{
+                                            color: color === "red" ? "error.main" : "inherit",
+                                            '&.Mui-disabled': {opacity: 0.5},
+                                        }}
+                                    >
+                                        <ListItemIcon
+                                            sx={{
+                                                minWidth: 40,
+                                                color: color === "red" ? "error.main" : "inherit"
+                                            }}>
+                                            {icon}
+                                        </ListItemIcon>
+                                        <ListItemText>
+                                            {name.charAt(0).toUpperCase() + name.slice(1)}
+                                        </ListItemText>
+                                    </MenuItem>
+                                ))}
+                            </Menu>
 
                             {nodesList.map(node => (
                                 <InstanceCard
@@ -913,35 +882,34 @@ const ObjectDetail = () => {
                                 />
                             ))}
 
-                            <Popper open={Boolean(individualNodeMenuAnchor)}
-                                    anchorEl={individualNodeMenuAnchor} {...popperProps}>
-                                <ClickAwayListener onClickAway={() => setIndividualNodeMenuAnchor(null)}>
-                                    <Paper elevation={3} role="menu">
-                                        {individualFilteredActions.map(({name, icon, color}) => (
-                                            <MenuItem
-                                                key={name}
-                                                onClick={() => handleIndividualNodeActionClick(name)}
-                                                disabled={actionInProgress}
-                                                sx={{
-                                                    color: color === "red" ? "error.main" : "inherit",
-                                                    '&.Mui-disabled': {opacity: 0.5},
-                                                }}
-                                            >
-                                                <ListItemIcon
-                                                    sx={{
-                                                        minWidth: 40,
-                                                        color: color === "red" ? "error.main" : "inherit"
-                                                    }}>
-                                                    {icon}
-                                                </ListItemIcon>
-                                                <ListItemText>
-                                                    {name.charAt(0).toUpperCase() + name.slice(1)}
-                                                </ListItemText>
-                                            </MenuItem>
-                                        ))}
-                                    </Paper>
-                                </ClickAwayListener>
-                            </Popper>
+                            <Menu
+                                anchorEl={individualNodeMenuAnchor}
+                                open={Boolean(individualNodeMenuAnchor)}
+                                onClose={() => setIndividualNodeMenuAnchor(null)}
+                            >
+                                {individualFilteredActions.map(({name, icon, color}) => (
+                                    <MenuItem
+                                        key={name}
+                                        onClick={() => handleIndividualNodeActionClick(name)}
+                                        disabled={actionInProgress}
+                                        sx={{
+                                            color: color === "red" ? "error.main" : "inherit",
+                                            '&.Mui-disabled': {opacity: 0.5},
+                                        }}
+                                    >
+                                        <ListItemIcon
+                                            sx={{
+                                                minWidth: 40,
+                                                color: color === "red" ? "error.main" : "inherit"
+                                            }}>
+                                            {icon}
+                                        </ListItemIcon>
+                                        <ListItemText>
+                                            {name.charAt(0).toUpperCase() + name.slice(1)}
+                                        </ListItemText>
+                                    </MenuItem>
+                                ))}
+                            </Menu>
                         </>
                     )}
 
