@@ -1,9 +1,8 @@
 import {renderHook, act} from '@testing-library/react';
 import {OidcProvider, useOidc, cleanupUserManager} from '../OidcAuthContext';
-import {UserManager} from 'oidc-client-ts';
-import {vi, describe, test, expect, beforeEach} from 'vitest';
+import {UserManager, Log} from 'oidc-client-ts';
+import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 
-// ── Logger mock (must be hoisted, uses vi.fn) ────────────────────────
 vi.mock('../../utils/logger', () => ({
     default: {
         info: vi.fn(),
@@ -11,7 +10,6 @@ vi.mock('../../utils/logger', () => ({
     },
 }));
 
-// ── oidc-client-ts mock ──────────────────────────────────────────────
 const mockUserManagerInstance = {
     events: {
         removeUserLoaded: vi.fn(),
@@ -32,7 +30,7 @@ vi.mock('oidc-client-ts', () => ({
     },
 }));
 
-import logger from '../../utils/logger'; // now the mock is active
+import logger from '../../utils/logger';
 
 describe('OidcAuthContext', () => {
     const wrapper = ({children}: { children: React.ReactNode }) => (
@@ -41,6 +39,12 @@ describe('OidcAuthContext', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        delete (window as any).oidcUserManager;
+        (Log as unknown as { logger?: Console; level?: number }).logger = console;
+        (Log as unknown as { logger?: Console; level?: number }).level = 0;
+    });
+
+    afterEach(() => {
         delete (window as any).oidcUserManager;
     });
 
@@ -57,19 +61,148 @@ describe('OidcAuthContext', () => {
         }).toThrow('useOidc must be used within an OidcProvider');
     });
 
-    test('recreateUserManager updates userManager with new settings and sets global reference', () => {
+    test('recreateUserManager updates userManager with new settings, sets global reference, and configures Log', () => {
         const settings = {
             authority: 'https://example.com',
             client_id: 'test-client',
             redirect_uri: 'https://example.com/callback',
         };
         const {result} = renderHook(() => useOidc(), {wrapper});
+
         act(() => {
             result.current.recreateUserManager(settings);
         });
-        expect(result.current.userManager).toBeDefined();
+
+        expect(logger.info).toHaveBeenCalledWith(
+            'Recreating UserManager with settings:',
+            settings
+        );
+
+        const logMock = Log as unknown as { logger?: Console; level?: number; DEBUG?: number };
+        expect(logMock.logger).toBe(console);
+        expect(logMock.level).toBe(logMock.DEBUG);
+
         expect(UserManager).toHaveBeenCalledWith(settings);
         expect((window as any).oidcUserManager).toBe(mockUserManagerInstance);
+
+        expect(result.current.userManager).toBe(mockUserManagerInstance);
+        expect(result.current.isInitialized).toBe(true);
+    });
+
+    test('recreateUserManager handles error when configuring Log', () => {
+        const originalLog = Log as unknown as { logger?: Console; level?: number; DEBUG?: number };
+        const originalLogger = originalLog.logger;
+        const originalLevel = originalLog.level;
+
+        Object.defineProperty(Log, 'logger', {
+            configurable: true,
+            set() {
+                throw new Error('Cannot set logger');
+            },
+            get() {
+                return originalLogger;
+            },
+        });
+
+        const settings = {
+            authority: 'https://example.com',
+            client_id: 'test-client',
+            redirect_uri: 'https://example.com/callback',
+        };
+
+        const {result} = renderHook(() => useOidc(), {wrapper});
+
+        act(() => {
+            result.current.recreateUserManager(settings);
+        });
+
+        expect(logger.debug).toHaveBeenCalledWith(
+            'Failed to configure oidc-client-ts Log:',
+            expect.any(Error)
+        );
+
+        Object.defineProperty(Log, 'logger', {
+            configurable: true,
+            value: originalLogger,
+            writable: true,
+        });
+        originalLog.level = originalLevel;
+
+        expect(UserManager).toHaveBeenCalledWith(settings);
+        expect(result.current.userManager).toBe(mockUserManagerInstance);
+        expect(result.current.isInitialized).toBe(true);
+    });
+
+    test('recreateUserManager cleans up previous userManager before creating new one', () => {
+        const settings1 = {
+            authority: 'https://one.example.com',
+            client_id: 'client1',
+            redirect_uri: 'https://one.example.com/callback',
+        };
+        const settings2 = {
+            authority: 'https://two.example.com',
+            client_id: 'client2',
+            redirect_uri: 'https://two.example.com/callback',
+        };
+
+        const {result} = renderHook(() => useOidc(), {wrapper});
+
+        act(() => {
+            result.current.recreateUserManager(settings1);
+        });
+        expect(result.current.userManager).toBeDefined();
+
+        act(() => {
+            result.current.recreateUserManager(settings2);
+        });
+
+        expect(mockUserManagerInstance.events.removeUserLoaded).toHaveBeenCalledWith(expect.any(Function));
+        expect(mockUserManagerInstance.events.removeUserUnloaded).toHaveBeenCalledWith(expect.any(Function));
+        expect(mockUserManagerInstance.events.removeAccessTokenExpired).toHaveBeenCalledWith(expect.any(Function));
+        expect(mockUserManagerInstance.events.removeAccessTokenExpiring).toHaveBeenCalledWith(expect.any(Function));
+        expect(mockUserManagerInstance.events.removeSilentRenewError).toHaveBeenCalledWith(expect.any(Function));
+        expect(mockUserManagerInstance.clearStaleState).toHaveBeenCalled();
+
+        expect(UserManager).toHaveBeenCalledTimes(2);
+        expect(result.current.userManager).toBe(mockUserManagerInstance);
+    });
+
+    test('handles failure when setting window.oidcUserManager', () => {
+        const settings = {
+            authority: 'https://example.com',
+            client_id: 'test-client',
+            redirect_uri: 'https://example.com/callback',
+        };
+
+        const originalDescriptor = Object.getOwnPropertyDescriptor(window, 'oidcUserManager');
+        Object.defineProperty(window, 'oidcUserManager', {
+            configurable: true,
+            set() {
+                throw new Error('Assignment failed');
+            },
+            get() {
+                return undefined;
+            },
+        });
+
+        const {result} = renderHook(() => useOidc(), {wrapper});
+        act(() => {
+            result.current.recreateUserManager(settings);
+        });
+
+        expect(logger.debug).toHaveBeenCalledWith(
+            'Unable to set window.oidcUserManager:',
+            expect.any(Error)
+        );
+
+        if (originalDescriptor) {
+            Object.defineProperty(window, 'oidcUserManager', originalDescriptor);
+        } else {
+            delete (window as any).oidcUserManager;
+        }
+
+        expect(result.current.userManager).toBe(mockUserManagerInstance);
+        expect(result.current.isInitialized).toBe(true);
     });
 
     test('cleanupUserManager removes event listeners and clears stale state', () => {
@@ -164,7 +297,6 @@ describe('OidcAuthContext', () => {
         expect(result.current.userManager).toBe(mockUserManagerInstance);
         expect((window as any).oidcUserManager).toBe(mockUserManagerInstance);
         unmount();
-        // Les événements retirés lors du cleanup
         expect(mockUserManagerInstance.events.removeUserLoaded).toHaveBeenCalledWith(expect.any(Function));
         expect(mockUserManagerInstance.events.removeUserUnloaded).toHaveBeenCalledWith(expect.any(Function));
         expect(mockUserManagerInstance.events.removeAccessTokenExpired).toHaveBeenCalledWith(expect.any(Function));
