@@ -53,13 +53,17 @@ vi.mock('../../eventSourceManager', () => ({
     closeLoggerEventSource: vi.fn(),
 }));
 
-vi.mock('@mui/material/useMediaQuery', () => ({
-    default: vi.fn(),
-}));
+vi.mock('@mui/material', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        useMediaQuery: vi.fn(),
+    };
+});
 
 import useEventStore from '../../hooks/useEventStore';
 import useFetchDaemonStatus from '../../hooks/useFetchDaemonStatus';
-import useMediaQuery from '@mui/material/useMediaQuery';
+import {useMediaQuery} from '@mui/material';
 import {useLocation} from 'react-router-dom';
 import {startEventReception, closeEventSource} from '../../eventSourceManager';
 
@@ -114,10 +118,20 @@ const setup = (customState = {}, locationSearch = '', mediaQuery = true, {daemon
     vi.mocked(useLocation).mockReturnValue({search: locationSearch, pathname: '/objects'});
 
     const mockedUseMediaQuery = useMediaQuery;
+    mockedUseMediaQuery.mockReset();
+
     if (typeof mediaQuery === 'object' && mediaQuery !== null) {
-        mockedUseMediaQuery
-            .mockReturnValueOnce(mediaQuery.isWideScreen)
-            .mockReturnValueOnce(mediaQuery.isMobile);
+        mockedUseMediaQuery.mockImplementation((query) => {
+            if (typeof query === 'string') {
+                if (query.includes('min-width')) {
+                    return mediaQuery.isWideScreen;
+                }
+                if (query.includes('max-width')) {
+                    return mediaQuery.isMobile;
+                }
+            }
+            return false;
+        });
     } else {
         mockedUseMediaQuery.mockReturnValue(mediaQuery);
     }
@@ -218,6 +232,7 @@ beforeEach(() => {
     Storage.prototype.getItem = vi.fn().mockReturnValue('mock-token');
     mockRemoveObject.mockClear();
     mockSetObjectStatuses.mockClear();
+    useMediaQuery.mockReset();
     cleanup();
 });
 
@@ -816,6 +831,18 @@ describe('Objects Component', () => {
         expect(screen.getByLabelText('Name')).toBeInTheDocument();
     });
 
+    test('mobile: filters hidden initially and toggle button works', async () => {
+        setup({}, '', {isWideScreen: false, isMobile: true});
+        await waitFor(() => expect(screen.getByRole('table')).toBeInTheDocument());
+        expect(screen.queryByLabelText('Namespace')).not.toBeInTheDocument();
+        const toggleButton = screen.getByRole('button', {name: /show filters/i});
+        fireEvent.click(toggleButton);
+        await waitFor(() => expect(screen.getByLabelText('Namespace')).toBeInTheDocument());
+        const hideButton = screen.getByRole('button', {name: /hide filters/i});
+        fireEvent.click(hideButton);
+        await waitFor(() => expect(screen.queryByLabelText('Namespace')).not.toBeInTheDocument());
+    });
+
     describe('sorting', () => {
         test('Status sorting works', async () => {
             setup();
@@ -830,11 +857,19 @@ describe('Objects Component', () => {
             clickHeader('Object');
             await waitFor(() => expect(screen.getAllByRole('row').length).toBeGreaterThan(1));
         });
+
+        test('node column sorting works without error', async () => {
+            setup({}, '', {isWideScreen: true, isMobile: false});
+            await waitForLoad();
+            const node1Header = screen.getByRole('columnheader', {name: /node1/i});
+            fireEvent.click(node1Header);
+            await waitFor(() => expect(screen.getAllByRole('row').length).toBeGreaterThan(1));
+        });
     });
 
     describe('infinite scroll', () => {
         test('loads more items when scrolled past 80%', async () => {
-            setup(makeMany(50));
+            setup(makeMany(50), '', {isWideScreen: true, isMobile: false});
             await waitForLoad();
             expect(screen.getAllByRole('row').slice(1)).toHaveLength(30);
             const container = getScrollContainer();
@@ -846,7 +881,7 @@ describe('Objects Component', () => {
         });
 
         test('shows loading indicator while fetching the next page', async () => {
-            setup(makeMany(50));
+            setup(makeMany(50), '', {isWideScreen: true, isMobile: false});
             await waitForLoad();
             const container = getScrollContainer();
             setScroll(container, 500);
@@ -856,7 +891,10 @@ describe('Objects Component', () => {
         });
 
         test('scroll does nothing when no more items', async () => {
-            setup({objectStatus: {'a/b': {avail: 'up'}}, objectInstanceStatus: {}});
+            setup({objectStatus: {'a/b': {avail: 'up'}}, objectInstanceStatus: {}}, '', {
+                isWideScreen: true,
+                isMobile: false
+            });
             await waitForLoad();
             const container = getScrollContainer();
             fireEvent.scroll(container);
@@ -864,7 +902,7 @@ describe('Objects Component', () => {
         });
 
         test('scroll is ignored while a load is already in progress', async () => {
-            setup(makeMany(80));
+            setup(makeMany(80), '', {isWideScreen: true, isMobile: false});
             await waitForLoad();
             const container = getScrollContainer();
             setScroll(container, 500);
@@ -876,7 +914,7 @@ describe('Objects Component', () => {
         });
 
         test('scroll below threshold does not load more', async () => {
-            setup(makeMany(50));
+            setup(makeMany(50), '', {isWideScreen: true, isMobile: false});
             await waitForLoad();
             const container = getScrollContainer();
             setScroll(container, 100);
@@ -970,7 +1008,7 @@ describe('Objects Component', () => {
     });
 
     test('narrow screen hides node columns', async () => {
-        setup({}, '', false);
+        setup({}, '', {isWideScreen: false, isMobile: false});
         await waitForLoad();
         expect(screen.queryByRole('columnheader', {name: /node1/})).not.toBeInTheDocument();
     });
@@ -979,7 +1017,7 @@ describe('Objects Component', () => {
         setup(
             {objectStatus: {}, objectInstanceStatus: {}},
             '',
-            true,
+            {isWideScreen: true, isMobile: false},
             {daemon: {cluster: {object: {'daemon/svc/obj1': {avail: 'up', frozen: 'unfrozen'}}}}}
         );
         await waitFor(() =>
@@ -987,11 +1025,26 @@ describe('Objects Component', () => {
         );
     });
 
+    test('row menu for object from daemon fallback shows Freeze but not Unfreeze', async () => {
+        setup(
+            {objectStatus: {}, objectInstanceStatus: {}},
+            '',
+            {isWideScreen: true, isMobile: false},
+            {daemon: {cluster: {object: {'daemon/svc/obj1': {avail: 'up', frozen: 'unfrozen'}}}}}
+        );
+        await waitFor(() => expect(screen.getByRole('row', {name: /daemon\/svc\/obj1/})).toBeInTheDocument());
+        const row = screen.getByRole('row', {name: /daemon\/svc\/obj1/});
+        fireEvent.click(within(row).getByRole('button', {name: /more actions/i}));
+        await screen.findByRole('menu');
+        expect(screen.getByText('Freeze')).toBeInTheDocument();
+        expect(screen.queryByText('Unfreeze')).not.toBeInTheDocument();
+    });
+
     test('daemon fallback with no objects at all renders empty state', async () => {
         setup(
             {objectStatus: {}, objectInstanceStatus: {}},
             '',
-            true,
+            {isWideScreen: true, isMobile: false},
             {daemon: {cluster: {object: {}}}}
         );
         await waitForLoad();
@@ -999,7 +1052,7 @@ describe('Objects Component', () => {
     });
 
     test('unprovisioned object icon is shown', async () => {
-        setup();
+        setup({}, '', {isWideScreen: true, isMobile: false});
         await waitForLoad();
         const notProvisionedIcons = screen.getAllByLabelText('Object is not provisioned');
         expect(notProvisionedIcons.length).toBeGreaterThanOrEqual(2);
@@ -1019,7 +1072,7 @@ describe('Objects Component', () => {
             objectInstanceStatus: {standalone: {node1: {avail: 'up'}}},
         }, '/root/svc/standalone/action/restart'],
     ])('object name "%s" resolves to the expected action URL', async (rowName, customState, expectedUrl) => {
-        setup(customState);
+        setup(customState, '', {isWideScreen: true, isMobile: false});
         await waitForLoad();
         selectRow(rowName);
         openActionsMenu();
@@ -1042,7 +1095,7 @@ describe('Objects Component', () => {
                 validObj: {avail: 'up', frozen: 'unfrozen'},
             },
         };
-        setup(stateWithNonObject);
+        setup(stateWithNonObject, '', {isWideScreen: true, isMobile: false});
         await waitForLoad();
         expect(screen.queryByRole('row', {name: /someFunction/})).not.toBeInTheDocument();
         expect(screen.getByRole('row', {name: /validObj/})).toBeInTheDocument();
@@ -1060,7 +1113,7 @@ describe('Objects Component', () => {
     });
 
     test('resets visibleCount when sortedObjectNames changes', async () => {
-        setup(makeMany(50));
+        setup(makeMany(50), '', {isWideScreen: true, isMobile: false});
         await waitForLoad();
         const container = getScrollContainer();
         setScroll(container, 500);
@@ -1078,7 +1131,7 @@ describe('Objects Component', () => {
             ['Namespace', 'test-ns', () => screen.getByText('test-ns').closest('.MuiChip-root'), true],
             ['Kind', 'svc', () => screen.getByText('svc').closest('.MuiChip-root'), true],
         ])('rapidly toggling a %s chip twice re-adds it', async (label, option, getChip, useDeleteIcon) => {
-            setup();
+            setup({}, '', {isWideScreen: true, isMobile: false});
             await waitForLoad();
             await selectFilter(label, option);
             const chip = getChip();
