@@ -33,8 +33,15 @@ vi.mock('@mui/material', async (importOriginal) => {
     const actual = await importOriginal();
     return {
         ...actual,
-        Menu: ({open, children, ...props}) =>
-            open ? <div role="menu" {...props}>{children}</div> : null,
+        Menu: ({open, children, onClose, ...props}) =>
+            open ? (
+                <div role="menu" {...props}>
+                    {children}
+                    <button type="button" data-testid="menu-backdrop-close" onClick={onClose}>
+                        close-menu
+                    </button>
+                </div>
+            ) : null,
         MenuItem: ({onClick, children, ...props}) => (
             <div role="menuitem" onClick={onClick} {...props}>
                 {children}
@@ -42,8 +49,15 @@ vi.mock('@mui/material', async (importOriginal) => {
         ),
         ListItemIcon: (props) => <span {...props} />,
         ListItemText: (props) => <span {...props} />,
-        Dialog: ({open, children, ...props}) =>
-            open ? <div role="dialog" {...props}>{children}</div> : null,
+        Dialog: ({open, children, onClose, ...props}) =>
+            open ? (
+                <div role="dialog" {...props}>
+                    {children}
+                    <button type="button" data-testid="dialog-backdrop-close" onClick={onClose}>
+                        close-dialog
+                    </button>
+                </div>
+            ) : null,
         DialogTitle: (props) => <div {...props} />,
         DialogContent: (props) => <div {...props} />,
         DialogActions: (props) => <div {...props} />,
@@ -1007,6 +1021,54 @@ describe('ObjectDetail Component', () => {
         Object.defineProperty(window, 'innerWidth', {writable: true, configurable: true, value: 1024});
     });
 
+    test('the onClose of the "Actions on selected nodes" menu is called and closes the menu', async () => {
+        await renderReadySvc();
+        await user.click(screen.getByLabelText(/select node node1/i));
+        await user.click(screen.getByRole('button', {name: /Actions on selected nodes/i}));
+        await waitFor(() => expect(screen.queryAllByRole('menu').length).toBeGreaterThan(0));
+        const menu = screen.getAllByRole('menu')[0];
+        await user.click(within(menu).getByTestId('menu-backdrop-close'));
+        await waitFor(() => expect(screen.queryAllByRole('menu').length).toBe(0));
+    });
+
+    test('the onClose of the individual "Node actions" menu is called and closes the menu', async () => {
+        await renderReadySvc();
+        await user.click(screen.getByRole('button', {name: /Node node1 actions/i}));
+        await waitFor(() => expect(screen.queryAllByRole('menu').length).toBeGreaterThan(0));
+        const menu = screen.getAllByRole('menu')[0];
+        await user.click(within(menu).getByTestId('menu-backdrop-close'));
+        await waitFor(() => expect(screen.queryAllByRole('menu').length).toBe(0));
+    });
+
+    test('the onClose of the console Dialog (distinct from Cancel button) closes the dialog', async () => {
+        await withConsoleAction(async () => {
+            renderSvc();
+            const dialog = await openConsoleDialogFn();
+            if (!dialog) return;
+            await user.click(within(dialog).getByTestId('dialog-backdrop-close'));
+            await waitFor(() =>
+                expect(
+                    screen.queryAllByRole('dialog').filter((d) => d.textContent.includes('terminal console')).length
+                ).toBe(0)
+            );
+        });
+    });
+
+    test('a touchcancel during logs drawer resizing correctly ends the drag', async () => {
+        renderSvc();
+        await waitForNode('node1');
+        await user.click(screen.getAllByRole('button', {name: /logs/i})[0]);
+        await waitFor(() => expect(screen.getByLabelText('Resize drawer')).toBeInTheDocument());
+        const handle = screen.getByLabelText('Resize drawer');
+
+        fireEvent.touchStart(handle, {touches: [{clientX: 100}]});
+        expect(document.body.style.cursor).toBe('ew-resize');
+
+        fireEvent(document, new Event('touchcancel', {bubbles: true}));
+
+        await waitFor(() => expect(document.body.style.cursor).toBe('default'));
+    });
+
     test('closing logs drawer resets state', async () => {
         renderSvc();
         await waitForNode('node1');
@@ -1346,6 +1408,38 @@ describe('ObjectDetail Component', () => {
             act(() => vi.advanceTimersByTime(5000));
             await waitFor(() => {
                 expect(s.setInstanceStatuses).toHaveBeenCalledWith({'root/svc/svc1': {}}, true);
+            });
+        });
+
+        test('hasInstances short-circuit: does not overwrite store if getState() already has instances at fallback time', async () => {
+            const reactiveEmptyState = emptyState();
+            const storeStateWithInstances = buildState();
+
+            vi.mocked(useEventStore).mockImplementation((selector) => selector(reactiveEmptyState));
+            vi.mocked(useEventStore.getState).mockReturnValue(storeStateWithInstances);
+
+            renderSvc();
+            expect(screen.getByText(/Loading object data.../i)).toBeInTheDocument();
+
+            act(() => vi.advanceTimersByTime(5000));
+
+            // The fallback fetch does start (we passed the hasFallbackFired guard)
+            await waitFor(() => {
+                expect(global.fetch).toHaveBeenCalledWith(
+                    expect.stringMatching(/\/api\/object\/path\/root(%2F|\/)svc(%2F|\/)svc1/),
+                    expect.any(Object)
+                );
+                expect(global.fetch).toHaveBeenCalledWith(
+                    expect.stringMatching(/\/api\/node\/name\/all\/instance\/path\/root(%2F|\/)svc(%2F|\/)svc1/),
+                    expect.any(Object)
+                );
+            });
+
+            // hasInstances === true (Object.keys(...).length > 0, line 211), so
+            // we must not overwrite the already present data.
+            await waitFor(() => {
+                expect(storeStateWithInstances.setObjectStatuses).not.toHaveBeenCalled();
+                expect(storeStateWithInstances.setInstanceStatuses).not.toHaveBeenCalled();
             });
         });
     });
