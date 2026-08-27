@@ -271,6 +271,15 @@ describe('Pools Component', () => {
             expect(screen.getByTestId('KeyboardArrowDownIcon')).toBeInTheDocument();
         });
 
+        fireEvent.click(screen.getByText('Name'));
+        await waitFor(() => {
+            const rows = getRows();
+            expect(within(rows[0]).getByText('pool1')).toBeInTheDocument();
+            expect(within(rows[1]).getByText('pool2')).toBeInTheDocument();
+            expect(within(rows[2]).getByText('pool3')).toBeInTheDocument();
+            expect(screen.getByTestId('KeyboardArrowUpIcon')).toBeInTheDocument();
+        });
+
         // type asc
         fireEvent.click(screen.getByText('Type'));
         await waitFor(() => {
@@ -389,5 +398,118 @@ describe('Pools Component', () => {
         });
 
         expect(axios.get).toHaveBeenCalledTimes(2);
+    });
+
+    test('covers sort fallback for missing name/type/head', async () => {
+        const poolsWithMissingStrings = [
+            {name: null, type: 'zfs', volume_count: 5, used: 50, size: 100, head: 'node1'},
+            {name: 'pool2', type: null, volume_count: 3, used: 0, size: 200, head: null},
+            {name: 'pool3', type: 'ext4', volume_count: 10, used: 75, size: 100, head: 'node3'},
+        ];
+        axios.get.mockResolvedValueOnce({data: {items: poolsWithMissingStrings}});
+
+        render(<Pools/>);
+        await waitFor(() => expect(screen.getByText('pool2')).toBeInTheDocument());
+
+        // Initial state: sort by name asc (null first, then pool2, pool3)
+        let rows = screen.getAllByRole('row', {name: /pool|N\/A/});
+        expect(within(rows[0]).getByText('N/A')).toBeInTheDocument();
+        expect(within(rows[1]).getByText('pool2')).toBeInTheDocument();
+        expect(within(rows[2]).getByText('pool3')).toBeInTheDocument();
+
+        // Click Name to sort desc: order becomes pool3, pool2, N/A
+        fireEvent.click(screen.getByText('Name'));
+        await waitFor(() => {
+            rows = screen.getAllByRole('row', {name: /pool|N\/A/});
+            expect(within(rows[0]).getByText('pool3')).toBeInTheDocument();
+            expect(within(rows[1]).getByText('pool2')).toBeInTheDocument();
+            expect(within(rows[2]).getByText('N/A')).toBeInTheDocument();
+        });
+
+        // Click Name again to sort asc: back to N/A, pool2, pool3
+        fireEvent.click(screen.getByText('Name'));
+        await waitFor(() => {
+            rows = screen.getAllByRole('row', {name: /pool|N\/A/});
+            expect(within(rows[0]).getByText('N/A')).toBeInTheDocument();
+            expect(within(rows[1]).getByText('pool2')).toBeInTheDocument();
+            expect(within(rows[2]).getByText('pool3')).toBeInTheDocument();
+        });
+
+        // Sort by type asc: null type first ('' < 'ext4' < 'zfs')
+        fireEvent.click(screen.getByText('Type'));
+        await waitFor(() => {
+            rows = screen.getAllByRole('row', {name: /pool|N\/A/});
+            expect(within(rows[0]).getByText('pool2')).toBeInTheDocument(); // null type
+            expect(within(rows[1]).getByText('pool3')).toBeInTheDocument(); // ext4
+            expect(within(rows[2]).getByText('N/A')).toBeInTheDocument(); // zfs (row with name null)
+        });
+
+        // Sort by head asc: null head first ('' < 'node1' < 'node3')
+        fireEvent.click(screen.getByText('Head'));
+        await waitFor(() => {
+            rows = screen.getAllByRole('row', {name: /pool|N\/A/});
+            expect(within(rows[0]).getByText('pool2')).toBeInTheDocument(); // null head
+            expect(within(rows[1]).getByText('N/A')).toBeInTheDocument(); // node1 (row with name null)
+            expect(within(rows[2]).getByText('pool3')).toBeInTheDocument(); // node3
+        });
+    });
+
+    test('covers sort fallback for missing volume_count', async () => {
+        const poolsWithMissingVolume = [
+            {name: 'pool1', type: 'zfs', volume_count: 5, used: 50, size: 100, head: 'node1'},
+            {name: 'pool2', type: 'lvm', volume_count: null, used: 0, size: 200, head: 'node2'},
+            {name: 'pool3', type: 'ext4', volume_count: 10, used: 75, size: 100, head: 'node3'},
+        ];
+        axios.get.mockResolvedValueOnce({data: {items: poolsWithMissingVolume}});
+
+        render(<Pools/>);
+        await waitFor(() => expect(screen.getByText('pool1')).toBeInTheDocument());
+
+        fireEvent.click(screen.getByText('Volume Count'));
+        await waitFor(() => {
+            const rows = screen.getAllByRole('row', {name: /pool[1-3]/});
+            // null volume_count treated as 0, so order: pool2 (0), pool1 (5), pool3 (10)
+            expect(within(rows[0]).getByText('pool2')).toBeInTheDocument();
+            expect(within(rows[1]).getByText('pool1')).toBeInTheDocument();
+            expect(within(rows[2]).getByText('pool3')).toBeInTheDocument();
+        });
+    });
+
+    test('covers usage sort with zero size (false branch)', async () => {
+        const poolsWithZeroSize = [
+            {name: 'pool1', type: 'zfs', volume_count: 5, used: 50, size: 100, head: 'node1'},
+            {name: 'pool2', type: 'lvm', volume_count: 3, used: 0, size: 0, head: 'node2'}, // size = 0
+            {name: 'pool3', type: 'ext4', volume_count: 10, used: 75, size: 100, head: 'node3'},
+        ];
+        axios.get.mockResolvedValueOnce({data: {items: poolsWithZeroSize}});
+
+        render(<Pools/>);
+        await waitFor(() => expect(screen.getByText('pool1')).toBeInTheDocument());
+
+        fireEvent.click(screen.getByText('Usage'));
+        await waitFor(() => {
+            const rows = screen.getAllByRole('row', {name: /pool[1-3]/});
+            // pool2 (size=0) treated as 0% (false branch of the ternary)
+            expect(within(rows[0]).getByText('pool2')).toBeInTheDocument();
+            expect(within(rows[1]).getByText('pool1')).toBeInTheDocument();
+            expect(within(rows[2]).getByText('pool3')).toBeInTheDocument();
+        });
+    });
+
+    test('covers retry success with non-array items', async () => {
+        axios.get.mockRejectedValueOnce(new Error('API Error'));
+
+        render(<Pools/>);
+        await waitFor(() => expect(screen.getByText('Failed to load pools. Please try again.')).toBeInTheDocument());
+
+        // Retry succeeds but items is null
+        axios.get.mockResolvedValueOnce({data: {items: null}});
+
+        const retryButton = screen.getByRole('button', {name: /retry/i});
+        fireEvent.click(retryButton);
+
+        await waitFor(() => {
+            expect(screen.getByText('No pools available.')).toBeInTheDocument();
+        });
     });
 });
