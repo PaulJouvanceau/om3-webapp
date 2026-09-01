@@ -98,7 +98,19 @@ html, body {
     background-color: var(--bg-secondary) !important;
 }
 
-.dark .MuiTableRow-root:hover {
+.dark .MuiTableRow-hover:hover {
+    background-color: var(--bg-tertiary) !important;
+}
+
+.dark .MuiTableRow-root.MuiTableRow-hover:hover {
+    background-color: var(--bg-tertiary) !important;
+}
+
+.dark .MuiTableRow-hover:hover .MuiTableCell-root {
+    background-color: var(--bg-tertiary) !important;
+}
+
+.dark .MuiTableRow-root.MuiTableRow-hover:hover .MuiTableCell-root {
     background-color: var(--bg-tertiary) !important;
 }
 

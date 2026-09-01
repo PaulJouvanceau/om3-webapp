@@ -331,7 +331,7 @@ const TableRowComponent = React.memo(({
     }, []);
 
     return (
-        <TableRow onClick={handleRowClick} sx={{cursor: "pointer"}}>
+        <TableRow onClick={handleRowClick} hover sx={{cursor: "pointer"}}>
             <TableCell sx={{
                 padding: "16px 0px 16px 16px",
                 minWidth: "60px",
