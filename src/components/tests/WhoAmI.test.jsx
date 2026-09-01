@@ -4,6 +4,7 @@ import {MemoryRouter} from 'react-router-dom';
 import WhoAmI from '../WhoAmI';
 import {URL_AUTH_WHOAMI} from '../../config/apiPath';
 import {DarkModeProvider} from '../../context/DarkModeContext';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 
 const {
@@ -30,6 +31,8 @@ const {
         clear: vi.fn(),
     },
 }));
+
+let mockIsDarkMode = false;
 
 // ── Mocks ──────────────────────────────────────────────────────────────
 vi.mock('react-router-dom', async (importOriginal) => {
@@ -63,11 +66,15 @@ vi.mock('../../context/DarkModeContext', async (importOriginal) => {
     return {
         ...actual,
         useDarkMode: () => ({
-            isDarkMode: false,
+            isDarkMode: mockIsDarkMode,
             toggleDarkMode: mockToggleDarkMode,
         }),
     };
 });
+
+vi.mock('@mui/material/useMediaQuery', () => ({
+    default: vi.fn(),
+}));
 
 Object.defineProperty(window, 'localStorage', {value: mockLocalStorage});
 
@@ -92,7 +99,8 @@ describe('WhoAmI', () => {
     const setupMocks = (overrides = {}) => {
         vi.clearAllMocks();
 
-        // localStorage
+        mockIsDarkMode = overrides.isDarkMode ?? false;
+
         mockLocalStorage.getItem.mockImplementation((key) => {
             if (key === 'authToken') return 'authToken' in overrides ? overrides.authToken : mockToken;
             if (key === 'darkMode') return 'false';
@@ -101,13 +109,11 @@ describe('WhoAmI', () => {
             return null;
         });
 
-        // Auth context
-        mockUseAuth.mockReturnValue({
+        mockUseAuth.mockReturnValue(overrides.auth ?? {
             authChoice: overrides.authChoice ?? 'local',
             authToken: mockToken,
         });
 
-        // OIDC context
         mockUseOidc.mockReturnValue({
             userManager: {
                 signoutRedirect: mockSignoutRedirect,
@@ -115,20 +121,23 @@ describe('WhoAmI', () => {
             },
         });
 
-        // Daemon status hook
         mockUseFetchDaemonStatus.mockReturnValue({
             daemon: overrides.daemon ?? defaultDaemon,
             fetchNodes: mockFetchNodes,
         });
 
-        // Fetch
+        const mockMediaQuery = vi.mocked(useMediaQuery);
+        mockMediaQuery.mockReturnValue(overrides.isMobile ?? false);
+
         global.fetch.mockImplementation((url) => {
             if (url.includes('github')) {
                 if (overrides.githubError) {
                     return Promise.reject(new Error('GitHub error'));
                 }
+                // Use override.githubData if provided, else default
+                const githubData = overrides.githubData || [{tag_name: 'v1.2.3'}];
                 return Promise.resolve({
-                    json: () => Promise.resolve([{tag_name: 'v1.2.3'}]),
+                    json: () => Promise.resolve(githubData),
                 });
             }
             if (url === URL_AUTH_WHOAMI) {
@@ -258,12 +267,68 @@ describe('WhoAmI', () => {
                 expectedVersion: 'vUnknown',
                 githubCalled: true,
             },
+            {
+                name: 'cacheTime missing but appVersion present',
+                appVersion: '1.0.0',
+                appVersionTime: null,
+                githubError: false,
+                expectedVersion: 'v1.2.3',
+                githubCalled: true,
+            },
+            {
+                name: 'cacheTime invalid (NaN)',
+                appVersion: '1.0.0',
+                appVersionTime: 'invalid',
+                githubError: false,
+                expectedVersion: 'v1.2.3',
+                githubCalled: true,
+            },
+            {
+                name: 'appVersion null but cacheTime present',
+                appVersion: null,
+                appVersionTime: String(Date.now()),
+                githubError: false,
+                expectedVersion: 'v1.2.3',
+                githubCalled: true,
+            },
+            {
+                name: 'appVersion null and cacheTime null but GitHub succeeds',
+                appVersion: null,
+                appVersionTime: null,
+                githubError: false,
+                expectedVersion: 'v1.2.3',
+                githubCalled: true,
+            },
+            {
+                name: 'GitHub returns empty array -> Unknown',
+                appVersion: null,
+                appVersionTime: null,
+                githubData: [], // data[0] is undefined
+                expectedVersion: 'vUnknown',
+                githubCalled: true,
+            },
+            {
+                name: 'GitHub returns object without tag_name -> Unknown',
+                appVersion: null,
+                appVersionTime: null,
+                githubData: [{}], // data[0] exists but tag_name undefined
+                expectedVersion: 'vUnknown',
+                githubCalled: true,
+            },
+            {
+                name: 'GitHub tag_name does not start with v',
+                appVersion: null,
+                appVersionTime: null,
+                githubData: [{tag_name: '1.0.0'}], // no 'v' prefix
+                expectedVersion: 'v1.0.0',
+                githubCalled: true,
+            },
         ];
 
         it.each(versionCases)(
             '$name',
-            async ({appVersion, appVersionTime, githubError, expectedVersion, githubCalled}) => {
-                setupMocks({appVersion, appVersionTime, githubError});
+            async ({appVersion, appVersionTime, githubError, githubData, expectedVersion, githubCalled}) => {
+                setupMocks({appVersion, appVersionTime, githubError, githubData});
                 renderComponent();
                 await waitFor(() => {
                     expect(screen.getByText(expectedVersion)).toBeInTheDocument();
@@ -325,18 +390,20 @@ describe('WhoAmI', () => {
             fireEvent.click(button);
             expect(mockToggleDarkMode).toHaveBeenCalled();
         });
+
+        test('renders correctly when dark mode is enabled', async () => {
+            setupMocks({isDarkMode: true});
+            renderComponent();
+
+            const button = await screen.findByRole('button', {name: /light mode/i});
+            expect(button).toBeInTheDocument();
+        });
     });
 
     describe('logout', () => {
         test.each([
-            {
-                authChoice: 'openid',
-                shouldCallOidc: true,
-            },
-            {
-                authChoice: 'local',
-                shouldCallOidc: false,
-            },
+            {authChoice: 'openid', shouldCallOidc: true},
+            {authChoice: 'local', shouldCallOidc: false},
         ])('handles logout for $authChoice', async ({authChoice, shouldCallOidc}) => {
             setupMocks({authChoice});
             renderComponent();
@@ -354,6 +421,35 @@ describe('WhoAmI', () => {
             expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('authToken');
             expect(mockAuthDispatch).toHaveBeenCalledWith({type: 'LOGOUT'});
             expect(mockNavigate).toHaveBeenCalledWith('/auth-choice');
+        });
+
+        test('handles logout when auth is null', async () => {
+            setupMocks({auth: null});
+            renderComponent();
+            const button = await screen.findByRole('button', {name: /logout/i});
+            fireEvent.click(button);
+
+            expect(mockSignoutRedirect).not.toHaveBeenCalled();
+            expect(mockRemoveUser).not.toHaveBeenCalled();
+            expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('authToken');
+            expect(mockAuthDispatch).toHaveBeenCalledWith({type: 'LOGOUT'});
+            expect(mockNavigate).toHaveBeenCalledWith('/auth-choice');
+        });
+    });
+
+    describe('mobile layout', () => {
+        test('renders mobile layout when viewport is small', async () => {
+            setupMocks({isMobile: true});
+            renderComponent();
+
+            await waitFor(() => {
+                expect(screen.getAllByText('My Information')[0]).toBeInTheDocument();
+                expect(screen.getByText('testuser')).toBeInTheDocument();
+                expect(screen.getByText('Permission Details')).toBeInTheDocument();
+                expect(screen.getByText('Server Information')).toBeInTheDocument();
+                expect(screen.getByRole('button', {name: /dark mode/i})).toBeInTheDocument();
+                expect(screen.getByRole('button', {name: /logout/i})).toBeInTheDocument();
+            });
         });
     });
 });
