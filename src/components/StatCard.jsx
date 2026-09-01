@@ -17,21 +17,26 @@ const StatCard = memo(({
     return (
         <Paper
             elevation={3}
-            sx={{
+            sx={(theme) => ({
                 p: 2,
                 height: dynamicHeight ? 'auto' : '240px',
                 minHeight: dynamicHeight ? '120px' : undefined,
                 display: 'flex',
                 flexDirection: 'column',
                 cursor: onClick && !isLoading ? 'pointer' : 'default',
-                transition: 'box-shadow 0.3s',
-                '&:hover': onClick && !isLoading ? {boxShadow: 6} : {},
+                transition: 'box-shadow 0.3s ease, background-color 0.3s ease, border-color 0.3s ease',
+                border: '2px solid transparent',
+                '&:hover': onClick && !isLoading ? {
+                    boxShadow: theme.shadows[12],
+                    backgroundColor: theme.palette.action.hover,
+                    borderColor: theme.palette.primary.main,
+                } : {},
                 borderRadius: 2,
                 textAlign: 'center',
                 opacity: isLoading ? 0.7 : 1,
                 position: 'relative',
                 overflow: 'hidden'
-            }}
+            })}
             onClick={handleClick}
         >
             {isLoading && (
