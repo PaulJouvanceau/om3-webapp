@@ -108,6 +108,7 @@ const actions = [
     {testId: 'login', type: Login, data: 'testuser'},
     {testId: 'logout', type: Logout},
     {testId: 'setAccessToken', type: SetAccessToken, data: 'mock-token'},
+    {testId: 'setAccessToken2', type: SetAccessToken, data: 'second-token'},
     {testId: 'setAccessTokenNull', type: SetAccessToken, data: null},
     {testId: 'setAuthInfo', type: SetAuthInfo, data: {provider: 'openid'}},
     {testId: 'setAuthChoice', type: SetAuthChoice, data: 'sso'},
@@ -170,6 +171,20 @@ const renderProvider = () =>
 
 const click = (testId) => fireEvent.click(screen.getByTestId(testId));
 const getText = (id) => screen.getByTestId(id).textContent;
+
+function withLocalStorageDisabled(callback) {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    Object.defineProperty(window, 'localStorage', {value: undefined, configurable: true});
+    try {
+        return callback();
+    } finally {
+        if (originalDescriptor) {
+            Object.defineProperty(window, 'localStorage', originalDescriptor);
+        } else {
+            delete window.localStorage;
+        }
+    }
+}
 
 // ── Tests ───────────────────────────────────────────────────────────────
 describe('AuthProvider', () => {
@@ -247,6 +262,36 @@ describe('AuthProvider', () => {
             expect(localStorage.getItem('refreshToken')).toBeNull();
             expect(getText('isAuthenticated')).toBe('false');
         });
+
+        test('SetAccessToken with null when localStorage is unavailable', () => {
+            withLocalStorageDisabled(() => {
+                renderProvider();
+                click('setAccessTokenNull');
+                expect(getText('isAuthenticated')).toBe('false');
+                expect(getText('accessToken')).toBe('null');
+            });
+        });
+
+        test('SetAccessToken with token when localStorage is unavailable', () => {
+            withLocalStorageDisabled(() => {
+                renderProvider();
+                click('setAccessToken');
+                expect(getText('accessToken')).toBe('"mock-token"');
+                expect(getText('isAuthenticated')).toBe('true');
+                expect(updateEventSourceToken).toHaveBeenCalledWith('mock-token');
+            });
+        });
+
+        test('Logout when localStorage is unavailable', () => {
+            withLocalStorageDisabled(() => {
+                renderProvider();
+                click('login');
+                expect(getText('isAuthenticated')).toBe('true');
+                click('logout');
+                expect(getText('isAuthenticated')).toBe('false');
+                expect(getText('accessToken')).toBe('null');
+            });
+        });
     });
 
     describe('token refresh (non-OpenID)', () => {
@@ -269,6 +314,21 @@ describe('AuthProvider', () => {
                 await Promise.resolve();
             });
             expect(refreshToken).toHaveBeenCalled();
+        });
+
+        test('clears previous timeout when a new token is set', async () => {
+            const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
+            renderProvider();
+            click('setAccessToken'); // first token
+            await act(async () => {
+            }); // flush effect to schedule first timer
+            const firstCallCount = clearTimeoutSpy.mock.calls.length; // should be 0 (no clear yet)
+            click('setAccessToken2'); // second token (different value)
+            await act(async () => {
+            }); // flush effect to schedule second timer
+            // clearTimeout should have been called once to clear the first timer
+            expect(clearTimeoutSpy.mock.calls.length).toBeGreaterThan(firstCallCount);
+            clearTimeoutSpy.mockRestore();
         });
 
         test('broadcasts tokenUpdated on successful refresh', async () => {
@@ -314,6 +374,20 @@ describe('AuthProvider', () => {
             });
             expect(logger.debug).toHaveBeenCalledWith('Refresh skipped, token already updated by another tab');
             expect(decodeToken).toHaveBeenCalledWith('different-token');
+        });
+
+        test('refresh proceeds even if localStorage token is missing during timer', async () => {
+            renderProvider();
+            setValidToken();
+            localStorage.removeItem('authToken');
+            await act(async () => {
+                vi.runAllTimers();
+                await Promise.resolve();
+            });
+            expect(refreshToken).toHaveBeenCalled();
+            expect(logger.debug).not.toHaveBeenCalledWith(
+                'Refresh skipped, token already updated by another tab'
+            );
         });
 
         test('clears timeout on unmount', () => {
@@ -464,6 +538,40 @@ describe('AuthProvider', () => {
             expect(logger.error).toHaveBeenCalledWith('Silent renew failed:', expect.any(Error));
             await waitFor(() => expect(getText('isAuthenticated')).toBe('false'));
             expect(broadcastInstance._messages).toContainEqual({type: 'logout'});
+        });
+    });
+
+    describe('localStorage not available', () => {
+        test('initial state has null accessToken when localStorage is unavailable', () => {
+            withLocalStorageDisabled(() => {
+                renderProvider();
+                expect(getText('accessToken')).toBe('null');
+                expect(getText('isAuthenticated')).toBe('false');
+            });
+        });
+
+        test('reschedule refresh effect does not break when localStorage is unavailable', async () => {
+            withLocalStorageDisabled(() => {
+                renderProvider();
+                expect(logger.info).not.toHaveBeenCalledWith(
+                    'Token refresh scheduled in',
+                    expect.any(Number),
+                    'seconds'
+                );
+            });
+        });
+    });
+
+    describe('initial access token from localStorage', () => {
+        test('loads access token from localStorage on initial render', () => {
+            localStorage.setItem('authToken', 'stored-token');
+            renderProvider();
+            expect(getText('accessToken')).toBe('"stored-token"');
+            expect(logger.info).toHaveBeenCalledWith(
+                'Token refresh scheduled in',
+                expect.any(Number),
+                'seconds'
+            );
         });
     });
 });

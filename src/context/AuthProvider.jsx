@@ -52,7 +52,6 @@ const authReducer = (state, action) => {
             }
             return {...state, accessToken: action.data, isAuthenticated: !!action.data};
         }
-            return {...state, accessToken: action.data, isAuthenticated: !!action.data};
         case SetAuthInfo:
             return {...state, authInfo: action.data};
         case SetAuthChoice:
