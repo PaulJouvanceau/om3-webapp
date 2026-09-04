@@ -162,6 +162,16 @@ describe('useEventStore', () => {
                     .toEqual({cpu: 100});
             });
 
+            test('uses incoming resources when non-empty', () => {
+                act(() => {
+                    useEventStore.getState().setInstanceStatuses({
+                        svc: {n1: {encap: {c1: {resources: {memory: 256}}}}}
+                    });
+                });
+                expect(useEventStore.getState().objectInstanceStatus.svc.n1.encap.c1.resources)
+                    .toEqual({memory: 256});
+            });
+
             test('handles undefined encap', () => {
                 act(() => {
                     useEventStore.getState().setInstanceStatuses({svc: {n1: {encap: undefined}}});
@@ -200,6 +210,33 @@ describe('useEventStore', () => {
                     useEventStore.getState().setInstanceStatuses(data);
                 });
                 expect(useEventStore.getState().objectInstanceStatus).toEqual(first);
+            });
+
+            test('skips inherited properties in encap', () => {
+                const encapProto = {inheritedContainer: {resources: {cpu: 1}}};
+                const encap = Object.create(encapProto);
+                encap.c1 = {resources: {cpu: 100}};
+                act(() => {
+                    useEventStore.getState().setInstanceStatuses({svc: {n1: {encap}}});
+                });
+                const result = useEventStore.getState().objectInstanceStatus.svc.n1.encap;
+                expect(result).toHaveProperty('c1');
+                expect(result).not.toHaveProperty('inheritedContainer');
+            });
+
+            test('preserves existing encap resources when incoming resources is undefined', () => {
+                act(() => {
+                    useEventStore.getState().setInstanceStatuses({
+                        svc: {n1: {encap: {c1: {resources: {cpu: 100}}}}}
+                    });
+                });
+                act(() => {
+                    useEventStore.getState().setInstanceStatuses({
+                        svc: {n1: {encap: {c1: {}}}}
+                    });
+                });
+                expect(useEventStore.getState().objectInstanceStatus.svc.n1.encap.c1.resources)
+                    .toEqual({cpu: 100});
             });
         });
 
@@ -291,6 +328,20 @@ describe('useEventStore', () => {
             expect(useEventStore.getState().configUpdates[0].fullName).toBe('root/svc/svc1');
         });
 
+        test('ignores objects with unknown kind', () => {
+            act(() => {
+                useEventStore.getState().setConfigUpdated([{kind: 'SomethingElse'}]);
+            });
+            expect(useEventStore.getState().configUpdates).toEqual([]);
+        });
+
+        test('ignores empty objects', () => {
+            act(() => {
+                useEventStore.getState().setConfigUpdated([{}]);
+            });
+            expect(useEventStore.getState().configUpdates).toEqual([]);
+        });
+
         test('handles JSON strings', () => {
             act(() => {
                 useEventStore.getState().setConfigUpdated(['{"name":"svc1","node":"n1"}']);
@@ -303,6 +354,34 @@ describe('useEventStore', () => {
                 useEventStore.getState().setConfigUpdated(['not-json']);
             });
             expect(logger.warn).toHaveBeenCalled();
+            expect(useEventStore.getState().configUpdates).toEqual([]);
+        });
+
+        test('handles JSON string that parses to null', () => {
+            act(() => {
+                useEventStore.getState().setConfigUpdated(['null']);
+            });
+            expect(useEventStore.getState().configUpdates).toEqual([]);
+        });
+
+        test('handles JSON string missing node', () => {
+            act(() => {
+                useEventStore.getState().setConfigUpdated(['{"name":"svc1"}']);
+            });
+            expect(useEventStore.getState().configUpdates).toEqual([]);
+        });
+
+        test('handles JSON string missing name', () => {
+            act(() => {
+                useEventStore.getState().setConfigUpdated(['{"node":"n1"}']);
+            });
+            expect(useEventStore.getState().configUpdates).toEqual([]);
+        });
+
+        test('handles JSON string parsing to array', () => {
+            act(() => {
+                useEventStore.getState().setConfigUpdated(['[{"name":"svc1","node":"n1"}]']);
+            });
             expect(useEventStore.getState().configUpdates).toEqual([]);
         });
 
@@ -365,6 +444,29 @@ describe('useEventStore', () => {
             expect(useEventStore.getState().configUpdates).toEqual([]);
         });
 
+        test('removes by fullName with namespace', () => {
+            act(() => {
+                useEventStore.getState().setConfigUpdated([{
+                    kind: 'InstanceConfigUpdated',
+                    data: {path: 'svc1', node: 'n1', labels: {namespace: 'ns'}},
+                }]);
+            });
+            act(() => {
+                useEventStore.getState().clearConfigUpdate('ns/svc/svc1');
+            });
+            expect(useEventStore.getState().configUpdates).toEqual([]);
+        });
+
+        test('handles cluster path', () => {
+            act(() => {
+                useEventStore.getState().setConfigUpdated([{name: 'cluster', node: 'n1'}]);
+            });
+            act(() => {
+                useEventStore.getState().clearConfigUpdate('cluster');
+            });
+            expect(useEventStore.getState().configUpdates).toEqual([]);
+        });
+
         test('does not mutate state when nothing matched', () => {
             act(() => {
                 useEventStore.getState().setConfigUpdated([{name: 'svc1', node: 'n1'}]);
@@ -384,6 +486,26 @@ describe('useEventStore', () => {
                 useEventStore.getState().clearConfigUpdate({});
             })).not.toThrow();
         });
+
+        test('handles null and undefined input', () => {
+            expect(() => act(() => {
+                useEventStore.getState().clearConfigUpdate(null);
+            })).not.toThrow();
+            expect(() => act(() => {
+                useEventStore.getState().clearConfigUpdate(undefined);
+            })).not.toThrow();
+            expect(useEventStore.getState().configUpdates).toEqual([]);
+        });
+
+        test('handles empty string input', () => {
+            act(() => {
+                useEventStore.getState().setConfigUpdated([{name: 'svc1', node: 'n1'}]);
+            });
+            act(() => {
+                useEventStore.getState().clearConfigUpdate('');
+            });
+            expect(useEventStore.getState().configUpdates).toHaveLength(1);
+        });
     });
 
     // -----------------------------------------------------------------------
@@ -398,6 +520,22 @@ describe('useEventStore', () => {
                 useEventStore.getState().removeObject('o1');
             });
             expect(useEventStore.getState().objectStatus).toEqual({o2: {b: 2}});
+        });
+
+        test('removes object from a single slice only', () => {
+            act(() => {
+                useEventStore.setState({
+                    objectStatus: {o1: {a: 1}},
+                    objectInstanceStatus: {},
+                    instanceConfig: {},
+                });
+            });
+            act(() => {
+                useEventStore.getState().removeObject('o1');
+            });
+            expect(useEventStore.getState().objectStatus).toEqual({});
+            expect(useEventStore.getState().objectInstanceStatus).toEqual({});
+            expect(useEventStore.getState().instanceConfig).toEqual({});
         });
 
         test('returns unchanged state when object not found', () => {
@@ -449,14 +587,33 @@ describe('useEventStore', () => {
             expect(s.instanceMonitor['nA:svc1']).toBeUndefined();
         });
 
-        test('handles partial existence', () => {
+        test('handles partial existence (only objectInstanceStatus)', () => {
             act(() => {
-                useEventStore.setState({objectInstanceStatus: {svc1: {nA: {}}}});
+                useEventStore.setState({
+                    objectInstanceStatus: {svc1: {nA: {node: 'nA', path: 'svc1'}}},
+                });
             });
             act(() => {
                 useEventStore.getState().removeInstanceFromObject('svc1', 'nA');
             });
             expect(useEventStore.getState().objectInstanceStatus.svc1).toEqual({});
+            expect(useEventStore.getState().instanceConfig).toEqual({});
+            expect(useEventStore.getState().instanceMonitor).toEqual({});
+        });
+
+        test('handles partial existence (path exists but node missing)', () => {
+            act(() => {
+                useEventStore.setState({
+                    instanceConfig: {svc1: {nB: {cfg: 1}}},
+                    objectInstanceStatus: {svc1: {nB: {node: 'nB', path: 'svc1'}}},
+                });
+            });
+            act(() => {
+                useEventStore.getState().removeInstanceFromObject('svc1', 'nA');
+            });
+            const s = useEventStore.getState();
+            expect(s.objectInstanceStatus.svc1).toEqual({nB: {node: 'nB', path: 'svc1'}});
+            expect(s.instanceConfig.svc1).toEqual({nB: {cfg: 1}});
         });
 
         test('returns unchanged state when nothing to remove', () => {
@@ -494,6 +651,135 @@ describe('useEventStore', () => {
                 setNodeStatuses({});
             });
             expect(useEventStore.getState().nodeStatus).toBe(first);
+        });
+
+        test('objects with different keys length do not replace reference', () => {
+            const {setNodeStatuses} = useEventStore.getState();
+            act(() => {
+                setNodeStatuses({a: 1});
+            });
+            const first = useEventStore.getState().nodeStatus;
+            act(() => {
+                setNodeStatuses({a: 1, b: 2});
+            });
+            expect(useEventStore.getState().nodeStatus).not.toBe(first);
+        });
+
+        test('objects with same keys but different values do not replace reference', () => {
+            const {setNodeStatuses} = useEventStore.getState();
+            act(() => {
+                setNodeStatuses({a: 1});
+            });
+            const first = useEventStore.getState().nodeStatus;
+            act(() => {
+                setNodeStatuses({a: 2});
+            });
+            expect(useEventStore.getState().nodeStatus).not.toBe(first);
+        });
+    });
+
+    describe('localStorage persistence (debounced)', () => {
+        beforeEach(() => {
+            vi.useFakeTimers();
+            vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+            });
+            vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+            });
+            vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => null);
+        });
+
+        afterEach(() => {
+            vi.restoreAllMocks();
+            vi.useRealTimers();
+        });
+
+        test('setItem debounces and flushes after delay', () => {
+            act(() => {
+                useEventStore.getState().setObjectStatuses({obj1: {status: 'up'}});
+            });
+            expect(Storage.prototype.setItem).not.toHaveBeenCalled();
+            vi.advanceTimersByTime(800);
+            expect(Storage.prototype.setItem).toHaveBeenCalledTimes(1);
+            const [key, value] = Storage.prototype.setItem.mock.calls[0];
+            expect(key).toBe('om3-event-storage');
+            const parsed = JSON.parse(value);
+            expect(parsed.state.objectStatus).toEqual({obj1: {status: 'up'}});
+        });
+
+        test('flush clears pending and does not call setItem if no pending', () => {
+            act(() => {
+                useEventStore.getState().setObjectStatuses({obj1: {status: 'up'}});
+            });
+            vi.advanceTimersByTime(800);
+            act(() => {
+                useEventStore.getState().setObjectStatuses({obj2: {status: 'down'}});
+            });
+            expect(Storage.prototype.setItem).toHaveBeenCalledTimes(1);
+            vi.advanceTimersByTime(800);
+            expect(Storage.prototype.setItem).toHaveBeenCalledTimes(2);
+        });
+
+        test('clearStorage calls removeItem and clears pending timeout', () => {
+            act(() => {
+                useEventStore.getState().setObjectStatuses({obj1: {status: 'up'}});
+            });
+            act(() => {
+                useEventStore.persist.clearStorage();
+            });
+            expect(Storage.prototype.removeItem).toHaveBeenCalledWith('om3-event-storage');
+            vi.advanceTimersByTime(1000);
+            expect(Storage.prototype.setItem).not.toHaveBeenCalled();
+        });
+
+        test('flush catches localStorage.setItem errors and logs warning', () => {
+            Storage.prototype.setItem.mockImplementation(() => {
+                throw new Error('quota exceeded');
+            });
+            act(() => {
+                useEventStore.getState().setObjectStatuses({obj1: {status: 'up'}});
+            });
+            vi.advanceTimersByTime(800);
+            expect(logger.warn).toHaveBeenCalled();
+        });
+
+        test('getItem returns pending value if name matches pendingKey', () => {
+            act(() => {
+                useEventStore.getState().setObjectStatuses({obj1: {status: 'up'}});
+            });
+            const storage = useEventStore.persist.getOptions().storage;
+            const pendingValue = storage.getItem('om3-event-storage');
+            expect(pendingValue).toBeTruthy();
+            expect(pendingValue.state.objectStatus).toEqual({obj1: {status: 'up'}});
+        });
+
+        test('flush when no pending does nothing', () => {
+            act(() => {
+                document.dispatchEvent(new Event('visibilitychange'));
+            });
+            expect(Storage.prototype.setItem).not.toHaveBeenCalled();
+        });
+
+        test('flush on visibilitychange hidden when pending exists', () => {
+            // Set pending
+            act(() => {
+                useEventStore.getState().setObjectStatuses({obj1: {status: 'up'}});
+            });
+            // Mock visibilityState to 'hidden'
+            Object.defineProperty(document, 'visibilityState', {
+                configurable: true,
+                get: () => 'hidden',
+            });
+            act(() => {
+                document.dispatchEvent(new Event('visibilitychange'));
+            });
+            // Flush should be called immediately, no need to advance timers
+            expect(Storage.prototype.setItem).toHaveBeenCalledTimes(1);
+            const [key, value] = Storage.prototype.setItem.mock.calls[0];
+            expect(key).toBe('om3-event-storage');
+            const parsed = JSON.parse(value);
+            expect(parsed.state.objectStatus).toEqual({obj1: {status: 'up'}});
+            // Clean up
+            delete document.visibilityState;
         });
     });
 });
