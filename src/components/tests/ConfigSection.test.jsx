@@ -9,6 +9,7 @@ import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 const {
     mockUseParams,
     mockLocalStorage,
+    mockUseTheme,
 } = vi.hoisted(() => ({
     mockUseParams: vi.fn(),
     mockLocalStorage: {
@@ -16,6 +17,7 @@ const {
         setItem: vi.fn(),
         removeItem: vi.fn(),
     },
+    mockUseTheme: vi.fn(),
 }));
 
 // ── Mocks ──────────────────────────────────────────────────────────────
@@ -32,6 +34,7 @@ vi.mock('@mui/material', async (importOriginal) => {
     const {useState} = await import('react');
     const mocks = {
         ...actual,
+        useTheme: mockUseTheme,
         Dialog: ({children, open, onClose, ...props}) => open ? (
             <div
                 role="dialog"
@@ -204,6 +207,14 @@ const defaultFetchMock = (url, options) => {
                         scopable: true,
                         default: ''
                     },
+                    {
+                        option: 'debug',
+                        section: '',
+                        text: 'Debug mode',
+                        converter: 'boolean',
+                        scopable: false,
+                        default: 'false'
+                    },
                 ],
             }),
             headers: new Headers({Authorization: headers.Authorization || ''}),
@@ -245,6 +256,7 @@ describe('ConfigSection Component', () => {
         vi.clearAllMocks();
         mockLocalStorage.getItem.mockReturnValue('mock-token');
         mockUseParams.mockReturnValue({objectName: 'root/cfg/cfg1'});
+        mockUseTheme.mockReturnValue({palette: {mode: 'light'}});
         global.fetch = vi.fn(defaultFetchMock);
     });
 
@@ -362,12 +374,49 @@ describe('ConfigSection Component', () => {
         expect(global.fetch.mock.calls.filter(c => c[0].includes('/config/file')).length).toBeGreaterThanOrEqual(count);
     });
 
+    test('throttle blocks immediate re-fetch for same node', async () => {
+        const {rerender} = renderConfig();
+        await waitFor(() => {
+            const calls = global.fetch.mock.calls.filter(c => c[0].includes('/node1/'));
+            expect(calls.length).toBe(1);
+        });
+        global.fetch.mockClear();
+
+        rerender(<ConfigSection {...defaultProps} configNode="node2"/>);
+        await waitFor(() => {
+            const node2Calls = global.fetch.mock.calls.filter(c => c[0].includes('/node2/'));
+            expect(node2Calls.length).toBe(1);
+        });
+        global.fetch.mockClear();
+
+        rerender(<ConfigSection {...defaultProps} configNode="node1"/>);
+        await act(() => new Promise(r => setTimeout(r, 100)));
+
+        const node1Calls = global.fetch.mock.calls.filter(c => c[0].includes('/node1/'));
+        expect(node1Calls.length).toBe(0);
+    });
+
     test('refreshTrigger change triggers fetchConfig with forceBypassThrottle=true', async () => {
         const {rerender} = renderConfig();
         await waitFor(() => expect(global.fetch).toHaveBeenCalled());
         global.fetch.mockClear();
         rerender(<ConfigSection {...defaultProps} configRefreshTrigger={1}/>);
         await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('node1'), expect.any(Object)));
+    });
+
+    test('refreshTrigger bypasses throttle even with recent fetch', async () => {
+        const {rerender} = renderConfig();
+        await waitFor(() => {
+            const calls = global.fetch.mock.calls.filter(c => c[0].includes('/node1/'));
+            expect(calls.length).toBe(1);
+        });
+        global.fetch.mockClear();
+
+        rerender(<ConfigSection {...defaultProps} configRefreshTrigger={1}/>);
+        await waitFor(() => {
+            const calls = global.fetch.mock.calls.filter(c => c[0].includes('/node1/'));
+            expect(calls.length).toBe(1);
+        });
     });
 
     test('refreshTrigger change with null configNode does not fetch', async () => {
@@ -383,6 +432,19 @@ describe('ConfigSection Component', () => {
         renderConfig({decodedObjectName: 'cluster'});
         await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
         await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+    });
+
+    test('configNode null triggers fetchConfig reset', async () => {
+        renderConfig({configNode: null});
+        await waitFor(() => expect(screen.getByText(/No instance selected to view configuration/i)).toBeInTheDocument());
+    });
+
+    // ── Dark theme branch ────────────────────────────────────────────────
+    test('renders with dark theme', async () => {
+        mockUseTheme.mockReturnValue({palette: {mode: 'dark'}});
+        renderConfig();
+        await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+        expect(true).toBe(true);
     });
 
     // ── Update config dialog ─────────────────────────────────────────────
@@ -525,6 +587,23 @@ describe('ConfigSection Component', () => {
         await act(() => user.click(screen.getByRole('button', {name: /Apply/i})));
         await waitFor(() => expect(openSnackbar).toHaveBeenCalledWith('Successfully added 1 parameter(s)', 'success'));
         expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('set=fs%232.size=20GB'), expect.objectContaining({
+            method: 'PATCH',
+            headers: expect.objectContaining({Authorization: 'Bearer mock-token'}),
+        }));
+        await waitFor(() => expect(screen.queryByText(/Manage Configuration Parameters/i)).not.toBeInTheDocument());
+    });
+
+    test('manage params: add fs.size without index and apply', async () => {
+        const openSnackbar = vi.fn();
+        renderConfig({openSnackbar});
+        await openManageDialog(user);
+        await act(() => user.type(getComboboxes()[0], 'fs.size{Enter}'));
+        await act(() => user.click(screen.getByRole('button', {name: /Add Parameter/i})));
+        await waitFor(() => expect(screen.getByText('size')).toBeInTheDocument());
+        await act(() => user.type(screen.getByLabelText('Value'), '30GB'));
+        await act(() => user.click(screen.getByRole('button', {name: /Apply/i})));
+        await waitFor(() => expect(openSnackbar).toHaveBeenCalledWith('Successfully added 1 parameter(s)', 'success'));
+        expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('set=fs.size=30GB'), expect.objectContaining({
             method: 'PATCH',
             headers: expect.objectContaining({Authorization: 'Bearer mock-token'}),
         }));
@@ -852,6 +931,38 @@ describe('ConfigSection Component', () => {
         expect(cells[1]).not.toHaveTextContent('Duplicate nodes entry');
     });
 
+    test('keywords dialog: keywords without text/default show fallbacks', async () => {
+        global.fetch.mockImplementation((url) => {
+            if (url.includes('/config/keywords')) {
+                return Promise.resolve({
+                    ok: true, status: 200,
+                    json: () => Promise.resolve({
+                        items: [
+                            {
+                                option: 'orphan',
+                                section: '',
+                                converter: 'string',
+                                scopable: false,
+                            },
+                        ],
+                    }),
+                    headers: new Headers(),
+                });
+            }
+            return defaultFetchMock(url);
+        });
+        renderConfig();
+        await act(() => user.click(getKeywordsButton()));
+        const kd = getDialogByTitle('Configuration Keywords');
+        await waitFor(() => expect(within(kd).getByRole('table')).toBeInTheDocument());
+        const rows = within(kd).getAllByRole('row');
+        expect(rows).toHaveLength(2); // header + data
+        const dataRow = rows[1];
+        const cells = within(dataRow).getAllByRole('cell');
+        expect(cells[1]).toHaveTextContent('N/A'); // text fallback
+        expect(cells[2]).toHaveTextContent('None'); // default fallback
+    });
+
     test.each([
         ['HTTP error', () => ({
             ok: false,
@@ -872,6 +983,13 @@ describe('ConfigSection Component', () => {
             json: () => Promise.resolve({items: null}),
             headers: new Headers(),
         }), /Invalid response format/i],
+        ['undefined data', () => ({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve(undefined),
+            headers: new Headers(),
+        }), /Invalid response format/i],
+        ['network error', () => Promise.reject(new Error('Network failure')), /Failed to fetch keywords: Network failure/i],
     ])('keywords dialog: %s shows alert', async (_, fetchImpl, expected) => {
         global.fetch.mockImplementation((url) => {
             if (url.includes('/config/keywords')) return fetchImpl();
@@ -906,5 +1024,65 @@ describe('ConfigSection Component', () => {
         renderConfig();
         await openManageDialog(user);
         await waitFor(() => expect(getComboboxes()[0]).toHaveValue(''));
+    });
+
+    test('add parameter without section (empty section)', async () => {
+        const openSnackbar = vi.fn();
+        renderConfig({openSnackbar});
+        await openManageDialog(user);
+        await act(() => user.type(getComboboxes()[0], 'debug{Enter}'));
+        await act(() => user.click(screen.getByRole('button', {name: /Add Parameter/i})));
+        await waitFor(() => expect(screen.getByText('debug')).toBeInTheDocument());
+        expect(screen.getByLabelText('Section (optional)')).toBeInTheDocument();
+        await user.clear(screen.getByLabelText('Value'));
+        await user.type(screen.getByLabelText('Value'), 'true');
+        await act(() => user.click(screen.getByRole('button', {name: /Apply/i})));
+        await waitFor(() => expect(openSnackbar).toHaveBeenCalledWith('Successfully added 1 parameter(s)', 'success'));
+        expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('set=debug=true'), expect.any(Object));
+    });
+
+    test('manage params: add success with empty configNode does not refetch or open dialog', async () => {
+        const openSnackbar = vi.fn();
+        const setConfigDialogOpen = vi.fn();
+        renderConfig({openSnackbar, configNode: '', setConfigDialogOpen});
+        await openManageDialog(user);
+        await act(() => user.type(getComboboxes()[0], 'DEFAULT.orchestrate{Enter}'));
+        await act(() => user.click(screen.getByRole('button', {name: /Add Parameter/i})));
+        await waitFor(() => expect(screen.getByText('orchestrate')).toBeInTheDocument());
+        await user.clear(screen.getByLabelText('Value'));
+        await user.type(screen.getByLabelText('Value'), 'new-value');
+        const fetchCallsBefore = global.fetch.mock.calls.length;
+        await act(() => user.click(screen.getByRole('button', {name: /Apply/i})));
+        await waitFor(() => expect(openSnackbar).toHaveBeenCalledWith('Successfully added 1 parameter(s)', 'success'));
+        const fetchCallsAfter = global.fetch.mock.calls;
+        const configFileCallsAfter = fetchCallsAfter.slice(fetchCallsBefore).filter(call => call[0].includes('/config/file'));
+        expect(configFileCallsAfter).toHaveLength(0);
+        expect(setConfigDialogOpen).not.toHaveBeenCalledWith(true);
+    });
+
+    test('manage params: unset success with empty configNode does not refetch or open dialog', async () => {
+        const openSnackbar = vi.fn();
+        const setConfigDialogOpen = vi.fn();
+        renderConfig({openSnackbar, configNode: '', setConfigDialogOpen});
+        await openManageDialog(user);
+        await act(() => user.type(getComboboxes()[1], 'nodes{Enter}'));
+        await act(() => user.click(screen.getByRole('button', {name: /Apply/i})));
+        await waitFor(() => expect(openSnackbar).toHaveBeenCalledWith('Successfully unset 1 parameter(s)', 'success'));
+        const configFileCalls = global.fetch.mock.calls.filter(call => call[0].includes('/config/file'));
+        expect(configFileCalls).toHaveLength(0);
+        expect(setConfigDialogOpen).not.toHaveBeenCalledWith(true);
+    });
+
+    test('manage params: delete success with empty configNode does not refetch or open dialog', async () => {
+        const openSnackbar = vi.fn();
+        const setConfigDialogOpen = vi.fn();
+        renderConfig({openSnackbar, configNode: '', setConfigDialogOpen});
+        await openManageDialog(user);
+        await act(() => user.type(getComboboxes()[2], 'fs#1{Enter}'));
+        await act(() => user.click(screen.getByRole('button', {name: /Apply/i})));
+        await waitFor(() => expect(openSnackbar).toHaveBeenCalledWith('Successfully deleted 1 section(s)', 'success'));
+        const configFileCalls = global.fetch.mock.calls.filter(call => call[0].includes('/config/file'));
+        expect(configFileCalls).toHaveLength(0);
+        expect(setConfigDialogOpen).not.toHaveBeenCalledWith(true);
     });
 });
