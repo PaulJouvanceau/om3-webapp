@@ -6,7 +6,7 @@ import {vi, describe, test, expect, beforeEach, afterEach, afterAll} from 'vites
 import * as matchers from 'vitest-axe';
 import ClusterOverview from '../Cluster.jsx';
 import {URL_POOL, URL_NETWORK} from '../../config/apiPath.js';
-import {startEventReception} from '../../eventSourceManager';
+import {startEventReception, closeEventSource} from '../../eventSourceManager';
 import {
     useNodeStats,
     useObjectStats,
@@ -25,7 +25,6 @@ const {
     mockToken: 'mock-token',
 }));
 
-// ── Mocks ──────────────────────────────────────────────────────────────
 vi.mock('react-router-dom', async (importOriginal) => {
     const actual = await importOriginal();
     return {
@@ -132,6 +131,27 @@ vi.mock('../ClusterStatGrids.jsx', () => {
             >
                 View Running
             </button>
+            <button
+                aria-label="Heartbeats id status"
+                onClick={() => onClick && onClick('beating', 'running', 'node1')}
+                data-testid="id-status-button"
+            >
+                View Id
+            </button>
+            <button
+                aria-label="Heartbeats id without status"
+                onClick={() => onClick && onClick(undefined, undefined, 'node1')}
+                data-testid="id-only-button"
+            >
+                View Id Only
+            </button>
+            <button
+                aria-label="Heartbeats state only"
+                onClick={() => onClick && onClick(undefined, 'running')}
+                data-testid="state-only-button"
+            >
+                View State Only
+            </button>
         </div>
     );
     const GridPools = ({poolCount, onClick}) => (
@@ -170,9 +190,7 @@ vi.mock('../ClusterStatGrids.jsx', () => {
 describe('ClusterOverview', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        vi.useFakeTimers();
 
-        // Set mocks
         Storage.prototype.getItem = vi.fn(() => mockToken);
 
         useNodeStats.mockReturnValue({count: 2, frozen: 1});
@@ -212,11 +230,6 @@ describe('ClusterOverview', () => {
 
     afterEach(() => {
         vi.restoreAllMocks();
-        vi.clearAllTimers();
-    });
-
-    afterAll(() => {
-        vi.useRealTimers();
     });
 
     test('renders cluster overview with all stat cards and edge-case data', async () => {
@@ -306,9 +319,6 @@ describe('ClusterOverview', () => {
 
         const clickAndAssert = (role, expectedPath) => {
             fireEvent.click(screen.getByRole('button', {name: new RegExp(role, 'i')}));
-            act(() => {
-                vi.advanceTimersByTime(50);
-            });
             expect(mockNavigate).toHaveBeenCalledWith(expectedPath);
             mockNavigate.mockClear();
         };
@@ -322,31 +332,32 @@ describe('ClusterOverview', () => {
         clickAndAssert('Networks stat card', '/network');
 
         fireEvent.click(screen.getByTestId('up-status-button'));
-        act(() => {
-            vi.advanceTimersByTime(50);
-        });
         expect(mockNavigate).toHaveBeenCalledWith('/objects?globalState=up');
         mockNavigate.mockClear();
 
         fireEvent.click(screen.getByTestId('warn-status-button'));
-        act(() => {
-            vi.advanceTimersByTime(50);
-        });
         expect(mockNavigate).toHaveBeenCalledWith('/objects?globalState=warn');
         mockNavigate.mockClear();
 
         fireEvent.click(screen.getByTestId('beating-status-button'));
-        act(() => {
-            vi.advanceTimersByTime(50);
-        });
         expect(mockNavigate).toHaveBeenCalledWith('/heartbeats?status=beating');
         mockNavigate.mockClear();
 
         fireEvent.click(screen.getByTestId('running-state-button'));
-        act(() => {
-            vi.advanceTimersByTime(50);
-        });
         expect(mockNavigate).toHaveBeenCalledWith('/heartbeats?status=beating&state=running');
+        mockNavigate.mockClear();
+
+        fireEvent.click(screen.getByTestId('id-status-button'));
+        expect(mockNavigate).toHaveBeenCalledWith('/heartbeats?status=beating&state=running&id=node1');
+        mockNavigate.mockClear();
+
+        fireEvent.click(screen.getByTestId('id-only-button'));
+        expect(mockNavigate).toHaveBeenCalledWith('/heartbeats?id=node1');
+        mockNavigate.mockClear();
+
+        fireEvent.click(screen.getByTestId('state-only-button'));
+        expect(mockNavigate).toHaveBeenCalledWith('/heartbeats?state=running');
+        mockNavigate.mockClear();
     });
 
     test('handles empty data correctly', async () => {
@@ -424,6 +435,8 @@ describe('ClusterOverview', () => {
             </MemoryRouter>
         );
 
+        await waitFor(() => expect(axios.get).toHaveBeenCalledTimes(2));
+
         unmount();
         resolvePromise({data: {items: [{id: 'pool1'}], networks: []}});
 
@@ -432,5 +445,149 @@ describe('ClusterOverview', () => {
         });
 
         expect(mockNavigate).not.toHaveBeenCalled();
+    });
+
+    test('aborts in-flight request on unmount (covers cleanup abort)', async () => {
+        const abortSpy = vi.spyOn(AbortController.prototype, 'abort');
+        let resolvePromise;
+        const neverResolvingPromise = new Promise((resolve) => {
+            resolvePromise = resolve;
+        });
+        axios.get.mockImplementation(() => neverResolvingPromise);
+
+        const {unmount} = render(
+            <MemoryRouter>
+                <ClusterOverview/>
+            </MemoryRouter>
+        );
+
+        await waitFor(() => expect(axios.get).toHaveBeenCalledTimes(2));
+
+        await act(async () => {
+            unmount();
+        });
+
+        expect(abortSpy).toHaveBeenCalled();
+
+        resolvePromise({data: {items: [], networks: []}});
+        abortSpy.mockRestore();
+    });
+
+    test('does not abort when no request is in flight (covers false branch of cleanup)', async () => {
+        Storage.prototype.getItem = vi.fn(() => null);
+
+        const {unmount} = render(
+            <MemoryRouter>
+                <ClusterOverview/>
+            </MemoryRouter>
+        );
+
+        unmount();
+
+        expect(closeEventSource).toHaveBeenCalled();
+    });
+
+    test('shows loading indicator initially before data loads', async () => {
+        useNodeStats.mockReturnValue({count: 0, frozen: 0});
+        useObjectStats.mockReturnValue({
+            objectCount: 0,
+            statusCount: {up: 0, warn: 0, down: 0, 'n/a': 0, unprovisioned: 0},
+            namespaceCount: 0,
+            namespaceSubtitle: [],
+        });
+        useHeartbeatStats.mockReturnValue({
+            count: 0,
+            running: 0,
+            perHeartbeatStats: {beating: 0, stale: 0},
+        });
+        useKindData.mockReturnValue({statusByKind: {}, kinds: []});
+
+        let resolvePromise;
+        const slowPromise = new Promise((resolve) => {
+            resolvePromise = resolve;
+        });
+        axios.get.mockReturnValue(slowPromise);
+
+        render(
+            <MemoryRouter>
+                <ClusterOverview/>
+            </MemoryRouter>
+        );
+
+        expect(screen.getByText('Loading cluster data...')).toBeInTheDocument();
+
+        resolvePromise({data: {items: [], networks: []}});
+        await act(async () => {
+            await slowPromise;
+        });
+    });
+
+    test('uses fallback empty arrays when items are undefined', async () => {
+        axios.get.mockImplementation((url) => {
+            if (url === URL_POOL) return Promise.resolve({data: {}});
+            if (url === URL_NETWORK) return Promise.resolve({data: {}});
+            return Promise.reject(new Error('Unknown URL'));
+        });
+
+        render(
+            <MemoryRouter>
+                <ClusterOverview/>
+            </MemoryRouter>
+        );
+
+        await waitFor(() => {
+            expect(screen.getByTestId('pool-count')).toHaveTextContent('0');
+            expect(screen.getByTestId('network-count')).toHaveTextContent('0');
+        });
+    });
+
+    test('handles AbortError silently without updating state', async () => {
+        const abortError = new Error('Aborted');
+        abortError.name = 'AbortError';
+        axios.get.mockRejectedValue(abortError);
+
+        render(
+            <MemoryRouter>
+                <ClusterOverview/>
+            </MemoryRouter>
+        );
+
+        await act(async () => {
+            await Promise.resolve();
+        });
+
+        expect(screen.getByTestId('pool-count')).toHaveTextContent('0');
+        expect(screen.getByTestId('network-count')).toHaveTextContent('0');
+    });
+
+    test('does not update state if unmounted during error', async () => {
+        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+        });
+
+        let rejectPromise;
+        const promise = new Promise((_, reject) => {
+            rejectPromise = reject;
+        });
+        axios.get.mockReturnValue(promise);
+
+        const {unmount} = render(
+            <MemoryRouter>
+                <ClusterOverview/>
+            </MemoryRouter>
+        );
+
+        await waitFor(() => expect(axios.get).toHaveBeenCalledTimes(2));
+
+        unmount();
+
+        rejectPromise(new Error('Network error'));
+
+        await act(async () => {
+            await promise.catch(() => {
+            });
+        });
+
+        expect(consoleErrorSpy).not.toHaveBeenCalled();
+        consoleErrorSpy.mockRestore();
     });
 });
