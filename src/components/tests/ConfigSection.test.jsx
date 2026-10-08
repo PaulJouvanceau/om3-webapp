@@ -329,6 +329,133 @@ describe('ConfigSection Component', () => {
     });
 
     // ── Secrets ──────────────────────────────────────────────────────────
+    describe('editing the file', () => {
+        // The daemon file: `stored`, redacted on demand; a PUT answers `putResponse`.
+        const mockDaemon = ({stored, putResponse = {ok: true, status: 204}, onPut} = {}) => {
+            let file = stored;
+            global.fetch.mockImplementation((url, options) => {
+                if (url.includes('/config/file')) {
+                    if (options?.method === 'PUT') {
+                        onPut?.();
+                        if (putResponse.ok) file = options.body;
+                        return Promise.resolve({
+                            json: () => Promise.resolve(putResponse.problem ?? {}),
+                            ...putResponse,
+                        });
+                    }
+                    const text = url.includes('redact-secrets=false') ? file : file.replace(/secret = .*/, 'secret = ********');
+                    return Promise.resolve({ok: true, status: 200, text: () => Promise.resolve(text)});
+                }
+                return defaultFetchMock(url, options);
+            });
+            return {setFile: (text) => { file = text; }};
+        };
+        const configPuts = () => global.fetch.mock.calls.filter(([, options]) => options?.method === 'PUT');
+        const startEditing = async () => {
+            const edit = await screen.findByRole('button', {name: 'Edit configuration file'});
+            await act(() => user.click(edit));
+            return screen.findByRole('textbox', {name: 'Configuration file'});
+        };
+
+        test('edits the file as stored, secrets in clear, and uploads it', async () => {
+            const openSnackbar = vi.fn();
+            mockDaemon({stored: '[DEFAULT]\nnodes = *\nsecret = s3cr3t'});
+            renderConfig({openSnackbar});
+            expect(await screen.findByText(/secret = \*{8}/)).toBeInTheDocument();
+
+            const editor = await startEditing();
+            // Written back redacted, the secrets would become asterisks.
+            expect(editor).toHaveValue('[DEFAULT]\nnodes = *\nsecret = s3cr3t');
+            const save = screen.getByRole('button', {name: 'Save'});
+            expect(save).toBeDisabled();
+
+            fireEvent.change(editor, {target: {value: '[DEFAULT]\nnodes = node1\nsecret = s3cr3t'}});
+            await act(() => user.click(save));
+
+            await waitFor(() => expect(configPuts()).toHaveLength(1));
+            const [url, options] = configPuts()[0];
+            expect(url).toBe(`${URL_OBJECT}/root/cfg/cfg1/config/file`);
+            expect(options.body).toBe('[DEFAULT]\nnodes = node1\nsecret = s3cr3t');
+            expect(options.headers.Authorization).toBe('Bearer mock-token');
+            expect(openSnackbar).toHaveBeenCalledWith('Configuration updated successfully');
+            // Back to the redacted view, reloaded.
+            expect(await screen.findByText(/nodes = node1/)).toBeInTheDocument();
+            expect(screen.queryByRole('textbox', {name: 'Configuration file'})).toBeNull();
+            expect(screen.queryByText(/s3cr3t/)).toBeNull();
+        });
+
+        test('cancel drops the changes without uploading', async () => {
+            mockDaemon({stored: '[DEFAULT]\nnodes = *'});
+            renderConfig();
+            const editor = await startEditing();
+            fireEvent.change(editor, {target: {value: '[DEFAULT]\nnodes = node9'}});
+            await act(() => user.click(screen.getByRole('button', {name: 'Cancel'})));
+            expect(screen.queryByRole('textbox', {name: 'Configuration file'})).toBeNull();
+            expect(configPuts()).toHaveLength(0);
+            expect(screen.queryByText(/node9/)).toBeNull();
+        });
+
+        test('keeps the changes while the dialog is closed and opened again', async () => {
+            mockDaemon({stored: '[DEFAULT]\nnodes = *'});
+            const {rerender} = renderConfig();
+            const editor = await startEditing();
+            fireEvent.change(editor, {target: {value: '[DEFAULT]\nnodes = node9'}});
+            rerender(<ConfigSection {...defaultProps} configDialogOpen={false}/>);
+            rerender(<ConfigSection {...defaultProps} configDialogOpen/>);
+            expect(screen.getByRole('textbox', {name: 'Configuration file'})).toHaveValue('[DEFAULT]\nnodes = node9');
+        });
+
+        test('refuses to overwrite a file changed by someone else meanwhile', async () => {
+            const daemon = mockDaemon({stored: '[DEFAULT]\nnodes = *'});
+            renderConfig();
+            const editor = await startEditing();
+            fireEvent.change(editor, {target: {value: '[DEFAULT]\nnodes = node9'}});
+            daemon.setFile('[DEFAULT]\nnodes = node2');
+            await act(() => user.click(screen.getByRole('button', {name: 'Save'})));
+
+            expect(await screen.findByText(/changed by someone else/)).toBeInTheDocument();
+            expect(configPuts()).toHaveLength(0);
+            expect(editor).toHaveValue('[DEFAULT]\nnodes = node9');
+
+            await act(() => user.click(screen.getByRole('button', {name: 'Start over from the current file'})));
+            await waitFor(() => expect(screen.getByRole('textbox', {name: 'Configuration file'})).toHaveValue('[DEFAULT]\nnodes = node2'));
+            expect(screen.queryByText(/changed by someone else/)).toBeNull();
+        });
+
+        test('shows why the daemon refused the file, and keeps the changes', async () => {
+            mockDaemon({
+                stored: '[DEFAULT]\nnodes = *',
+                putResponse: {ok: false, status: 400, problem: {detail: 'DEFAULT.bogus: unknown keyword'}},
+            });
+            renderConfig();
+            const editor = await startEditing();
+            fireEvent.change(editor, {target: {value: '[DEFAULT]\nbogus = 1'}});
+            await act(() => user.click(screen.getByRole('button', {name: 'Save'})));
+            expect(await screen.findByText('Failed to update config: DEFAULT.bogus: unknown keyword')).toBeInTheDocument();
+            expect(editor).toHaveValue('[DEFAULT]\nbogus = 1');
+            expect(screen.queryByRole('button', {name: 'Start over from the current file'})).toBeNull();
+        });
+
+        test('offers to start over when the daemon reports a conflict', async () => {
+            mockDaemon({stored: '[DEFAULT]\nnodes = *', putResponse: {ok: false, status: 409}});
+            renderConfig();
+            const editor = await startEditing();
+            fireEvent.change(editor, {target: {value: '[DEFAULT]\nnodes = node9'}});
+            await act(() => user.click(screen.getByRole('button', {name: 'Save'})));
+            expect(await screen.findByText('Failed to update config: HTTP 409')).toBeInTheDocument();
+            expect(screen.getByRole('button', {name: 'Start over from the current file'})).toBeInTheDocument();
+        });
+
+        test('says so when the file can not be loaded for editing', async () => {
+            renderConfig();
+            await screen.findByText(/nodes = \*/);
+            global.fetch.mockImplementation(() => Promise.resolve({ok: false, status: 403}));
+            await act(() => user.click(screen.getByRole('button', {name: 'Edit configuration file'})));
+            expect(await screen.findByText('Failed to fetch config: HTTP 403')).toBeInTheDocument();
+            expect(screen.queryByRole('textbox', {name: 'Configuration file'})).toBeNull();
+        });
+    });
+
     describe('secrets', () => {
         test('loads the object configuration with its secrets redacted by default', async () => {
             renderConfig();

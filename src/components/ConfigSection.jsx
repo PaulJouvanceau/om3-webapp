@@ -1,11 +1,11 @@
 import React, {useState, useEffect, useRef, useMemo, useReducer, useCallback, useId} from "react";
 import {Dialog} from "../ui/components/Dialog";
 import {Button, IconButton} from "../ui/components/Button";
-import {Field, Input, Checkbox} from "../ui/components/Field";
+import {Field, Input, Checkbox, Textarea} from "../ui/components/Field";
 import {Table, HeaderRow, HeaderCell, Row, Cell} from "../ui/components/Table";
 import {Alert} from "../ui/components/Alert";
 import {Spinner} from "../ui/components/Spinner";
-import {EyeIcon, EyeOffIcon, FileIcon, PencilIcon, LifeRingIcon, PlusIcon, TrashIcon} from "../ui/icons";
+import {CodeIcon, EyeIcon, EyeOffIcon, FileIcon, PencilIcon, LifeRingIcon, PlusIcon, TrashIcon} from "../ui/icons";
 import {formatSeconds, useAutoHide} from "../ui/lib/reveal";
 import {URL_OBJECT} from "../config/apiPath.js";
 import {parseObjectPath} from "../utils/objectUtils";
@@ -202,6 +202,29 @@ const useExistingParams = (decodedObjectName) => {
 };
 
 /** "section.option", or "option" alone for a keyword without section. */
+/** The configuration file of an object as stored, its secrets in clear, for editing. */
+const fetchRawConfigFile = async (decodedObjectName) => {
+    const {namespace, kind, name} = parseObjectPath(decodedObjectName);
+    const token = localStorage.getItem("authToken") || "";
+    const response = await fetch(`${URL_OBJECT}/${namespace}/${kind}/${name}/config/file?redact-secrets=false`, {
+        headers: {Authorization: `Bearer ${token}`},
+        cache: "no-cache",
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.text();
+};
+
+/** What the daemon says of a refused request: the detail of its problem, else the status. */
+const problemMessage = async (response) => {
+    try {
+        const problem = await response.json();
+        if (problem?.detail) return problem.detail;
+    } catch {
+        // Not a problem document: the status says enough.
+    }
+    return `HTTP ${response.status}`;
+};
+
 const keywordLabel = (keyword) => `${keyword.section ? `${keyword.section}.` : ""}${keyword.option}`;
 
 /**
@@ -317,7 +340,8 @@ const CheckboxGroup = ({legend, hint, choices, isChecked, onToggle, disabled, em
         {choices.length === 0 ? (
             <p className="text-ink-muted">{emptyText}</p>
         ) : (
-            <div className="max-h-40 space-y-1 overflow-y-auto rounded-(--radius-control) border border-line bg-surface px-2 py-1">
+            <div
+                className="max-h-40 space-y-1 overflow-y-auto rounded-(--radius-control) border border-line bg-surface px-2 py-1">
                 {choices.map(({key, label, value}) => (
                     <div key={key}>
                         <Checkbox
@@ -552,7 +576,8 @@ const ManageParamsDialog = ({
                                     <Cell>
                                         {hasSectionPrefix ? (
                                             <div className="flex items-center gap-1">
-                                                <span className="font-mono whitespace-nowrap">{param.sectionPrefix}#</span>
+                                                <span
+                                                    className="font-mono whitespace-nowrap">{param.sectionPrefix}#</span>
                                                 <Input
                                                     aria-label="Index"
                                                     list={sectionListId}
@@ -693,6 +718,79 @@ const ConfigSection = ({
     const [paramsToUnset, setParamsToUnset] = useState([]);
     const [paramsToDelete, setParamsToDelete] = useState([]);
     const [actionLoading, setActionLoading] = useState(false);
+
+    // Direct edition of the file: `base` is the file the edit started from, `text`
+    // the edited one. Kept when the dialog closes, so an edit is not lost to Escape.
+    const [edit, setEdit] = useState(null);
+    const [editLoading, setEditLoading] = useState(false);
+    const [editError, setEditError] = useState(null);
+    const [editConflict, setEditConflict] = useState(false);
+    const editDirty = edit !== null && edit.text !== edit.base;
+
+    const startEdit = async () => {
+        // The shown text is redacted: written back, it would replace every secret
+        // with asterisks. The edit starts from the file as stored.
+        setShowSecrets(false);
+        setEditError(null);
+        setEditConflict(false);
+        setEditLoading(true);
+        try {
+            const text = await fetchRawConfigFile(decodedObjectName);
+            setEdit({base: text, text});
+        } catch (err) {
+            setEditError(`Failed to fetch config: ${err.message}`);
+        } finally {
+            setEditLoading(false);
+        }
+    };
+
+    const cancelEdit = () => {
+        setEdit(null);
+        setEditError(null);
+        setEditConflict(false);
+    };
+
+    const saveEdit = async () => {
+        const token = localStorage.getItem("authToken");
+        if (!token) {
+            openSnackbar("Auth token not found.", "error");
+            return;
+        }
+        const {namespace, kind, name} = parseObjectPath(decodedObjectName);
+        setEditError(null);
+        setEditConflict(false);
+        setActionLoading(true);
+        try {
+            // The daemon writes the whole file: a change landed since the edit
+            // started would be undone without a word.
+            const current = await fetchRawConfigFile(decodedObjectName);
+            if (current !== edit.base) {
+                setEditConflict(true);
+                setEditError("The configuration was changed by someone else since you started editing it. Your changes are not saved.");
+                return;
+            }
+            const response = await fetch(`${URL_OBJECT}/${namespace}/${kind}/${name}/config/file`, {
+                method: "PUT",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/octet-stream",
+                },
+                body: edit.text,
+            });
+            if (!response.ok) {
+                if (response.status === 409) setEditConflict(true);
+                setEditError(`Failed to update config: ${await problemMessage(response)}`);
+                return;
+            }
+            setEdit(null);
+            openSnackbar("Configuration updated successfully");
+            if (configNode) await fetchConfig(configNode, true);
+        } catch (err) {
+            setEditError(`Failed to update config: ${err.message}`);
+        } finally {
+            setActionLoading(false);
+        }
+    };
 
     const handleOpenKeywordsDialog = () => {
         setKeywordsDialogOpen(true);
@@ -934,60 +1032,114 @@ const ConfigSection = ({
                 onClose={closeConfigDialog}
                 title="Configuration"
                 size="lg"
-                footer={<Button onClick={closeConfigDialog}>Close</Button>}
+                footer={edit ? (
+                    <>
+                        <Button onClick={cancelEdit} disabled={actionLoading}>Cancel</Button>
+                        <Button
+                            variant="primary"
+                            onClick={saveEdit}
+                            disabled={actionLoading || !editDirty}
+                            icon={actionLoading ? <Spinner label="Saving"/> : undefined}
+                        >
+                            Save
+                        </Button>
+                    </>
+                ) : (
+                    <Button onClick={closeConfigDialog}>Close</Button>
+                )}
             >
-                <div className="flex items-center justify-end gap-1">
-                    {configData !== null && !configLoading && (
-                        <p className="mr-auto text-data text-ink-muted">
-                            {showSecrets
-                                ? `Secrets masked again in ${formatSeconds(secondsLeft)}.`
-                                : "Secret values are shown as ********."}
+                {edit ? (
+                    <div className="space-y-2">
+                        <p className="text-data text-ink-muted">
+                            Editing the file as stored: secret values are shown in clear. Saving uploads the whole file.
                         </p>
-                    )}
-                    <IconButton
-                        label={showSecrets ? "Hide secrets" : "Show secrets"}
-                        aria-pressed={showSecrets}
-                        onClick={() => setShowSecrets((shown) => !shown)}
-                        disabled={configLoading}
-                    >
-                        {showSecrets ? <EyeOffIcon/> : <EyeIcon/>}
-                    </IconButton>
-                    <IconButton
-                        label="Upload new configuration file"
-                        onClick={() => setUpdateConfigDialogOpen(true)}
-                        disabled={actionLoading}
-                    >
-                        <FileIcon/>
-                    </IconButton>
-                    <IconButton
-                        label="Manage configuration parameters"
-                        onClick={handleOpenManageParamsDialog}
-                        disabled={actionLoading}
-                    >
-                        <PencilIcon/>
-                    </IconButton>
-                    <IconButton
-                        label="View configuration keywords"
-                        onClick={handleOpenKeywordsDialog}
-                        disabled={actionLoading}
-                    >
-                        <LifeRingIcon/>
-                    </IconButton>
-                </div>
-                {!configNode && !configLoading && !configError && (
-                    <p className="text-ink-muted">No instance selected to view configuration.</p>
-                )}
-                {configLoading && <Spinner label="Loading configuration"/>}
-                {configError && <Alert>{configError}</Alert>}
-                {!configLoading && !configError && configData === null && configNode && (
-                    <p className="text-ink-muted">No configuration available.</p>
-                )}
-                {!configLoading && !configError && configData !== null && (
-                    <div className="overflow-x-auto rounded-(--radius-control) border border-line bg-surface-sunken p-2">
-                        <pre key={configData} className="m-0 font-mono text-data whitespace-pre-wrap text-ink">
-                            {configData}
-                        </pre>
+                        {editError && (
+                            <Alert
+                                action={editConflict && (
+                                    <Button size="sm" onClick={startEdit} disabled={actionLoading || editLoading}>
+                                        Start over from the current file
+                                    </Button>
+                                )}
+                            >
+                                {editError}
+                            </Alert>
+                        )}
+                        <Textarea
+                            aria-label="Configuration file"
+                            value={edit.text}
+                            onChange={(e) => setEdit({...edit, text: e.target.value})}
+                            disabled={actionLoading}
+                            spellCheck={false}
+                            rows={Math.min(30, Math.max(10, edit.text.split("\n").length + 1))}
+                            className="font-mono text-data whitespace-pre"
+                        />
                     </div>
+                ) : (
+                    <>
+                        <div className="flex items-center justify-end gap-1">
+                            {configData !== null && !configLoading && (
+                                <p className="mr-auto text-data text-ink-muted">
+                                    {showSecrets
+                                        ? `Secrets masked again in ${formatSeconds(secondsLeft)}.`
+                                        : "Secret values are shown as ********."}
+                                </p>
+                            )}
+                            <IconButton
+                                label={showSecrets ? "Hide secrets" : "Show secrets"}
+                                aria-pressed={showSecrets}
+                                onClick={() => setShowSecrets((shown) => !shown)}
+                                disabled={configLoading}
+                            >
+                                {showSecrets ? <EyeOffIcon/> : <EyeIcon/>}
+                            </IconButton>
+                            <IconButton
+                                label="Edit configuration file"
+                                onClick={startEdit}
+                                disabled={actionLoading || editLoading || !configNode}
+                            >
+                                <CodeIcon/>
+                            </IconButton>
+                            <IconButton
+                                label="Upload new configuration file"
+                                onClick={() => setUpdateConfigDialogOpen(true)}
+                                disabled={actionLoading}
+                            >
+                                <FileIcon/>
+                            </IconButton>
+                            <IconButton
+                                label="Manage configuration parameters"
+                                onClick={handleOpenManageParamsDialog}
+                                disabled={actionLoading}
+                            >
+                                <PencilIcon/>
+                            </IconButton>
+                            <IconButton
+                                label="View configuration keywords"
+                                onClick={handleOpenKeywordsDialog}
+                                disabled={actionLoading}
+                            >
+                                <LifeRingIcon/>
+                            </IconButton>
+                        </div>
+                        {!configNode && !configLoading && !configError && (
+                            <p className="text-ink-muted">No instance selected to view configuration.</p>
+                        )}
+                        {editLoading && <Spinner label="Loading configuration for editing"/>}
+                        {editError && !editLoading && <Alert>{editError}</Alert>}
+                        {configLoading && <Spinner label="Loading configuration"/>}
+                        {configError && <Alert>{configError}</Alert>}
+                        {!configLoading && !configError && configData === null && configNode && (
+                            <p className="text-ink-muted">No configuration available.</p>
+                        )}
+                        {!configLoading && !configError && configData !== null && (
+                            <div
+                                className="overflow-x-auto rounded-(--radius-control) border border-line bg-surface-sunken p-2">
+                            <pre key={configData} className="m-0 font-mono text-data whitespace-pre-wrap text-ink">
+                                {configData}
+                            </pre>
+                            </div>
+                        )}
+                    </>
                 )}
             </Dialog>
 
