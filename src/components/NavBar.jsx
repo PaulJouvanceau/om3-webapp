@@ -1,6 +1,7 @@
 import {Link, useLocation} from "react-router-dom";
 import {SidebarIcon, UserIcon} from "../ui/icons";
 import {StateGlyph} from "../ui/components/StateGlyph";
+import {PRODUCT_NAME, ProductTag} from "../ui/components/ProductTag";
 import opensvcLogo from "../ui/assets/opensvc-logo.svg";
 import {useAuth} from "../context/AuthProvider.jsx";
 import {useEffect, useState, useCallback} from "react";
@@ -71,6 +72,13 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
         }
     }, [auth, fetchNodes, getPathBreadcrumbs, storedClusterName, clusterName]);
 
+    // The tab names the cluster and the product, as the header does.
+    useEffect(() => {
+        document.title = storedClusterName
+            ? `${storedClusterName} · OpenSVC ${PRODUCT_NAME}`
+            : `OpenSVC ${PRODUCT_NAME}`;
+    }, [storedClusterName]);
+
     // Breadcrumb generation
     useEffect(() => {
         const pathParts = location.pathname.split("/").filter(Boolean);
@@ -140,11 +148,13 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
                 </button>
             )}
 
-            {/* The oc3 top bar link: logo and product name, back to the home view. */}
+            {/* The oc3 top bar link: logo and product name, back to the home view,
+                tagged om3 not to be taken for the collector. */}
             <Link to="/" className="flex shrink-0 items-center gap-2 font-semibold tracking-tight text-ink">
                 {/* Decorative: the name that follows already names the link. */}
                 <img src={opensvcLogo} alt="" width={24} height={24} className="h-6 w-6"/>
                 OpenSVC
+                <ProductTag/>
             </Link>
 
             {breadcrumb.length > 0 && location.pathname !== '/login' && (

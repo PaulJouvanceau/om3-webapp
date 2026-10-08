@@ -2,6 +2,7 @@ import React, {useState, forwardRef} from 'react';
 import {useTranslation} from 'react-i18next';
 import {useNavigate} from 'react-router-dom';
 import opensvcLogo from '../ui/assets/opensvc-logo.svg';
+import {ProductTag} from "../ui/components/ProductTag";
 import {Button} from '../ui/components/Button';
 import {Field, Input} from '../ui/components/Field';
 import {Alert} from '../ui/components/Alert';
@@ -197,6 +198,7 @@ const Login = forwardRef((props, ref) => {
                 <h1 id="login-dialog" className="text-title font-semibold">
                     {t('Login')}
                 </h1>
+                <span className="ml-auto"><ProductTag/></span>
             </div>
             <Field label={t('Username')}>
                 {(control) => (

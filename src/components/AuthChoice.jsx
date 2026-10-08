@@ -1,5 +1,6 @@
 import React, {useEffect} from "react";
 import opensvcLogo from "../ui/assets/opensvc-logo.svg";
+import {ProductTag} from "../ui/components/ProductTag";
 import {Button} from "../ui/components/Button";
 import {Spinner} from "../ui/components/Spinner";
 import {KeyIcon, UserIcon} from "../ui/icons";
@@ -54,6 +55,7 @@ function AuthChoice({authInfo: authInfoProp}) {
                 <h1 id="auth-choice-title" className="text-title font-semibold">
                     Authentication Methods
                 </h1>
+                <span className="ml-auto"><ProductTag/></span>
             </div>
             <p className="text-ink-muted">
                 Please select one of the authentication methods the cluster advertises.
