@@ -78,7 +78,8 @@ export function MenuButton({
     ];
   }
 
-  // Placed against the window, under the trigger, before the menu is painted.
+  // Placed against the window, before the menu is painted: under the trigger, or
+  // over it when the room below is short, as for the last rows of a list.
   useLayoutEffect(() => {
     if (!open) {
       setPosition(null);
@@ -86,11 +87,11 @@ export function MenuButton({
     }
     const rect = button.current?.getBoundingClientRect();
     if (rect === undefined) return;
-    setPosition(
+    const horizontal =
       align === "end"
-        ? { top: rect.bottom + 4, right: document.documentElement.clientWidth - rect.right }
-        : { top: rect.bottom + 4, left: rect.left },
-    );
+        ? { right: document.documentElement.clientWidth - rect.right }
+        : { left: rect.left };
+    setPosition({ ...horizontal, ...verticalPlacement(rect, menu.current?.offsetHeight ?? 0) });
     function onMove(event: Event) {
       if (event.target instanceof Node && menu.current?.contains(event.target)) return;
       setOpen(false);
@@ -233,6 +234,38 @@ export function MenuButton({
   );
 }
 
+/** Space kept between a menu and the edges of the window. */
+const WINDOW_MARGIN = 8;
+/** Gap between a menu and its trigger. */
+const GAP = 4;
+
+/**
+ * Vertical place of a menu of `height` opened from `trigger`: under it when it
+ * fits, else over it when it fits there, else on the roomier side, cut to the room
+ * left and scrolled.
+ */
+export function verticalPlacement(trigger: DOMRect, height: number): CSSProperties {
+  const below = window.innerHeight - trigger.bottom - GAP - WINDOW_MARGIN;
+  const above = trigger.top - GAP - WINDOW_MARGIN;
+  if (height <= below) return { top: trigger.bottom + GAP };
+  if (height <= above) return { bottom: window.innerHeight - trigger.top + GAP };
+  return below >= above
+    ? { top: trigger.bottom + GAP, maxHeight: below, overflowY: "auto" }
+    : { bottom: window.innerHeight - trigger.top + GAP, maxHeight: above, overflowY: "auto" };
+}
+
+/**
+ * Shift of a submenu laid out at `rect` that keeps it in the window: up by what
+ * passes the bottom edge (never above the top one), and to the other side of its
+ * entry when it passes the right edge.
+ */
+export function submenuShift(rect: DOMRect): { up: number; flip: boolean } {
+  const overflow = rect.bottom - (window.innerHeight - WINDOW_MARGIN);
+  const up = Math.max(0, Math.min(overflow, rect.top - WINDOW_MARGIN));
+  const flip = rect.right > window.innerWidth - WINDOW_MARGIN;
+  return { up, flip };
+}
+
 /**
  * An entry of a menu: a choice, or the opener of a submenu shown beside it.
  */
@@ -242,6 +275,16 @@ function MenuEntry({ item, onChosen }: { item: MenuItem; onChosen: () => void })
   const submenu = useRef<HTMLDivElement>(null);
   const subId = useId();
   const sub = item.items;
+  // Shift keeping the submenu in the window, measured before it is painted.
+  const [shift, setShift] = useState<{ up: number; flip: boolean } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open || submenu.current === null) {
+      setShift(null);
+      return;
+    }
+    setShift(submenuShift(submenu.current.getBoundingClientRect()));
+  }, [open]);
 
   function subEntries(): HTMLElement[] {
     return [
@@ -344,7 +387,10 @@ function MenuEntry({ item, onChosen }: { item: MenuItem; onChosen: () => void })
           role="menu"
           aria-label={item.label}
           onKeyDown={onSubKeyDown}
-          className="absolute top-0 left-full z-40 ml-1 min-w-56 rounded-(--radius-panel) border border-line bg-surface-raised p-1 shadow-lg"
+          style={shift === null ? { visibility: "hidden", top: 0 } : { top: -shift.up }}
+          className={`absolute z-40 min-w-56 rounded-(--radius-panel) border border-line bg-surface-raised p-1 shadow-lg ${
+            shift?.flip === true ? "right-full mr-1" : "left-full ml-1"
+          }`}
         >
           {sub.map((child) => (
             <MenuEntry key={child.key} item={child} onChosen={onChosen} />
