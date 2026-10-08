@@ -10,6 +10,7 @@ import {useNavigate} from "react-router-dom";
 import logger from '../utils/logger.js';
 import useFetchDaemonStatus from "../hooks/useFetchDaemonStatus";
 import {useDarkMode} from "../context/DarkModeContext";
+import {clearObjectCache} from "../hooks/useEventStore.js";
 
 /** A labelled value of a panel: the label muted above, the value in monospace. */
 const Value = ({label, children}) => (
@@ -111,6 +112,7 @@ const WhoAmI = () => {
             void userManager.removeUser();
         }
         localStorage.removeItem("authToken");
+        clearObjectCache();
         if (authDispatch) {
             authDispatch({type: Logout});
         }

@@ -4,7 +4,11 @@
       "Bash(python3 -)",
       "Bash(cd /root/dev/om3/daemon/daemonapi && cat put_object_config_file.go lib_object_config_file.go | head -150; cat get_object_config_file.go | head -80)",
       "Bash(cd /root/dev/om3/daemon/daemonapi && sed -n 1,80p lib_config_base.go; grep -rn \"func serveConfigFile\" -A30 *.go | head -45; grep -rln \"Redact\\\\|redact\" . ../../core/object ../../util 2>/dev/null | head)",
-      "Bash(cd /root/dev/om3 && sed -n 1,80p core/object/redact.go; grep -n \"func configReadAccess\" -A30 daemon/daemonapi/*.go | head -40; grep -rn \"wait\" daemon/api/api.yaml | grep -i \"PutObjectConfigFile\\\\|config/file\" | head)"
+      "Bash(cd /root/dev/om3 && sed -n 1,80p core/object/redact.go; grep -n \"func configReadAccess\" -A30 daemon/daemonapi/*.go | head -40; grep -rn \"wait\" daemon/api/api.yaml | grep -i \"PutObjectConfigFile\\\\|config/file\" | head)",
+      "Bash(git diff *)",
+      "Bash(git reset *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   }
 }

@@ -1,7 +1,7 @@
 import useEventStore from './hooks/useEventStore.js';
 import useEventLogStore from './hooks/useEventLogStore.js';
 import {EventSourcePolyfill} from 'event-source-polyfill';
-import {URL_NODE_EVENT} from './config/apiPath.js';
+import {URL_NODE_EVENT, URL_OBJECT} from './config/apiPath.js';
 import logger from './utils/logger.js';
 
 // Detect Safari
@@ -399,6 +399,55 @@ const clearBuffers = () => {
     needsFlush = false;
 };
 
+/**
+ * Drops the objects the daemon no longer knows. The replay of a new connection
+ * only adds objects, and an ObjectDeleted is seen only by a stream open at the
+ * time and subscribed to it: one missed (another page, a reconnection, a closed
+ * browser, the store kept in localStorage) left the object listed for good.
+ *
+ * Only the objects held before the request can go: one created while it runs is
+ * in the store and not in the answer, and must stay.
+ */
+export const reconcileObjects = async (token) => {
+    const state = useEventStore.getState();
+    const held = new Set([
+        ...Object.keys(state.objectStatus),
+        ...Object.keys(state.objectInstanceStatus),
+        ...Object.keys(state.instanceConfig),
+        ...Object.keys(state.instanceMonitor).map((key) => key.slice(key.indexOf(':') + 1)),
+    ]);
+    if (held.size === 0) return;
+    let paths;
+    try {
+        const response = await fetch(`${URL_OBJECT}?path=${encodeURIComponent('**')}`, {
+            headers: {Authorization: `Bearer ${token}`},
+            cache: 'no-cache',
+        });
+        if (!response.ok) {
+            logger.warn(`Object list not reconciled: HTTP ${response.status}`);
+            return;
+        }
+        paths = await response.json();
+    } catch (e) {
+        logger.warn('Object list not reconciled:', e);
+        return;
+    }
+    if (!Array.isArray(paths)) return;
+    const known = new Set(paths);
+    const gone = [...held].filter((name) => !known.has(name));
+    if (gone.length === 0) return;
+    logger.info('🗑️ Dropping objects the daemon no longer knows:', gone);
+    for (const name of gone) {
+        delete buffers.objectStatus[name];
+        delete buffers.instanceStatus[name];
+        delete buffers.instanceConfig[name];
+    }
+    for (const key of Object.keys(buffers.instanceMonitor)) {
+        if (gone.includes(key.slice(key.indexOf(':') + 1))) delete buffers.instanceMonitor[key];
+    }
+    useEventStore.getState().removeObjects(gone);
+};
+
 export const clearEventBuffers = () => {
     clearBuffers();
 };
@@ -519,6 +568,8 @@ export const createEventSource = (url, token, filters = DEFAULT_FILTERS) => {
         if (eventCount > 0) {
             flushBuffers();
         }
+        // Deletions may have been missed while no stream was open.
+        void reconcileObjects(currentToken || token);
     };
 
     // Add event handlers for all API events in the filters

@@ -102,23 +102,31 @@ const useEventStore = create(
                 });
             },
 
-            removeObject: (objectName) =>
+            removeObject: (objectName) => get().removeObjects([objectName]),
+
+            /**
+             * Drops objects and everything held for their instances: their status,
+             * their instances' status, config and monitor (keyed `node:path`).
+             */
+            removeObjects: (objectNames) =>
                 set((state) => {
-                    if (!state.objectStatus[objectName] &&
-                        !state.objectInstanceStatus[objectName] &&
-                        !state.instanceConfig[objectName]) {
-                        return state;
-                    }
-                    const newObjectStatus = {...state.objectStatus};
-                    const newObjectInstanceStatus = {...state.objectInstanceStatus};
-                    const newInstanceConfig = {...state.instanceConfig};
-                    delete newObjectStatus[objectName];
-                    delete newObjectInstanceStatus[objectName];
-                    delete newInstanceConfig[objectName];
+                    const names = new Set(objectNames);
+                    const gone = [...names].filter((name) =>
+                        state.objectStatus[name] || state.objectInstanceStatus[name] || state.instanceConfig[name]
+                    );
+                    const goneMonitors = Object.keys(state.instanceMonitor)
+                        .filter((key) => names.has(key.slice(key.indexOf(':') + 1)));
+                    if (gone.length === 0 && goneMonitors.length === 0) return state;
+                    const without = (map, keys) => {
+                        const next = {...map};
+                        for (const key of keys) delete next[key];
+                        return next;
+                    };
                     return {
-                        objectStatus: newObjectStatus,
-                        objectInstanceStatus: newObjectInstanceStatus,
-                        instanceConfig: newInstanceConfig,
+                        objectStatus: without(state.objectStatus, gone),
+                        objectInstanceStatus: without(state.objectInstanceStatus, gone),
+                        instanceConfig: without(state.instanceConfig, gone),
+                        instanceMonitor: without(state.instanceMonitor, goneMonitors),
                     };
                 }),
 
@@ -320,5 +328,14 @@ const useEventStore = create(
         }
     )
 );
+
+/**
+ * Forgets the objects held, in memory and in localStorage: on logout, so the next
+ * user of the browser does not see the objects of the previous one.
+ */
+export const clearObjectCache = () => {
+    useEventStore.setState({objectStatus: {}, objectInstanceStatus: {}, instanceMonitor: {}, instanceConfig: {}});
+    useEventStore.persist.clearStorage();
+};
 
 export default useEventStore;

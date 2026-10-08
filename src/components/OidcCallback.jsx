@@ -5,6 +5,7 @@ import oidcConfiguration from "../config/oidcConfiguration.js";
 import useAuthInfo from "../hooks/AuthInfo.jsx";
 import {useOidc} from "../context/OidcAuthContext.tsx";
 import logger from '../utils/logger.js';
+import {clearObjectCache} from "../hooks/useEventStore.js";
 
 const OidcCallback = () => {
     const {userManager, recreateUserManager} = useOidc();
@@ -18,6 +19,7 @@ const OidcCallback = () => {
             authDispatch({type: SetAccessToken, data: null});
         }
         localStorage.removeItem('authToken');
+        clearObjectCache();
         localStorage.removeItem('tokenExpiration');
         localStorage.removeItem('authChoice');
 

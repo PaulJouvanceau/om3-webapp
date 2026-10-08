@@ -1,4 +1,4 @@
-import useEventStore from '../useEventStore.js';
+import useEventStore, {clearObjectCache} from '../useEventStore.js';
 import {act} from '@testing-library/react';
 
 vi.mock('../../utils/logger.js', () => ({
@@ -706,6 +706,57 @@ describe('useEventStore', () => {
                 useEventStore.getState().removeObject('ghost');
             });
             expect(useEventStore.getState()).toBe(initialState);
+        });
+    });
+
+    describe('removeObjects', () => {
+        test('removes the objects from every slice, their instance monitors included', () => {
+            act(() => {
+                useEventStore.setState({
+                    objectStatus: {o1: {a: 1}, o2: {b: 2}, o3: {c: 3}},
+                    objectInstanceStatus: {o1: {n1: {}}, o2: {n1: {}}},
+                    instanceConfig: {o1: {n1: {}}},
+                    instanceMonitor: {'n1:o1': {}, 'n2:o1': {}, 'n1:o2': {}, 'n1:ns/svc/o1': {}},
+                });
+            });
+            act(() => {
+                useEventStore.getState().removeObjects(['o1', 'o3']);
+            });
+            const state = useEventStore.getState();
+            expect(state.objectStatus).toEqual({o2: {b: 2}});
+            expect(state.objectInstanceStatus).toEqual({o2: {n1: {}}});
+            expect(state.instanceConfig).toEqual({});
+            expect(state.instanceMonitor).toEqual({'n1:o2': {}, 'n1:ns/svc/o1': {}});
+        });
+
+        test('removes the monitors left of an object otherwise gone', () => {
+            act(() => {
+                useEventStore.setState({objectStatus: {}, objectInstanceStatus: {}, instanceConfig: {}, instanceMonitor: {'n1:o1': {}}});
+            });
+            act(() => {
+                useEventStore.getState().removeObjects(['o1']);
+            });
+            expect(useEventStore.getState().instanceMonitor).toEqual({});
+        });
+    });
+
+    describe('clearObjectCache', () => {
+        test('forgets the objects held, and their copy in localStorage', () => {
+            const removeItem = vi.spyOn(Storage.prototype, 'removeItem');
+            act(() => {
+                useEventStore.setState({
+                    objectStatus: {o1: {}}, objectInstanceStatus: {o1: {}},
+                    instanceConfig: {o1: {}}, instanceMonitor: {'n1:o1': {}},
+                });
+            });
+            act(() => clearObjectCache());
+            const state = useEventStore.getState();
+            expect(state.objectStatus).toEqual({});
+            expect(state.objectInstanceStatus).toEqual({});
+            expect(state.instanceConfig).toEqual({});
+            expect(state.instanceMonitor).toEqual({});
+            expect(removeItem).toHaveBeenCalledWith('om3-event-storage');
+            removeItem.mockRestore();
         });
     });
 
