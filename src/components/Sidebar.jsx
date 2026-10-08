@@ -8,13 +8,18 @@ import useSidebarAlerts from "../hooks/useSidebarAlerts";
 // disks, objects as services, and the om3 kinds drawn from the same set.
 // The cluster overview and the user page are reached from the top bar: the logo
 // and the user button. Entries in alphabetical order.
+// Kinds and namespaces group the objects: they sit under the Objects entry.
 export const NAV_ROUTES = [
     {path: "/heartbeats", name: "Heartbeats", kind: "heartbeat"},
-    {path: "/kinds", name: "Kinds", kind: "kind"},
-    {path: "/namespaces", name: "Namespaces", kind: "namespace"},
     {path: "/network", name: "Networks", kind: "network"},
     {path: "/nodes", name: "Nodes", kind: "node"},
-    {path: "/objects", name: "Objects", kind: "service"},
+    {
+        path: "/objects", name: "Objects", kind: "service",
+        children: [
+            {path: "/kinds", name: "Kinds", kind: "kind"},
+            {path: "/namespaces", name: "Namespaces", kind: "namespace"},
+        ],
+    },
     {path: "/pools", name: "Pools", kind: "pool"},
 ];
 
@@ -119,6 +124,38 @@ export function useSidebarOpen() {
 const LINK = "flex items-center gap-2 rounded-(--radius-control) px-2 py-1 text-ink-muted hover:text-ink";
 
 /**
+ * Entries of the menu; the children of an entry are listed under it, indented
+ * along a line that ties them to it.
+ */
+function NavList({routes, alerts, nested = false}) {
+    return (
+        <ul className={cn(nested && "ml-4 border-l border-line pl-1")}>
+            {routes.map(({path, name, kind, children}) => (
+                <li key={path}>
+                    <div className="relative">
+                        <NavLink
+                            to={path}
+                            // Mouseover details of the entries that have some.
+                            title={alerts[path]?.details?.join("\n")}
+                            className={({isActive}) => cn(LINK, isActive && "bg-accent-soft text-ink")}
+                        >
+                            {/* The icon keeps its tint in every state: it identifies the view,
+                                the background and the label mark the selection. */}
+                            <ObjectIcon kind={kind} className="h-4 w-4"/>
+                            {name}
+                        </NavLink>
+                        {alerts[path]?.counts?.length > 0 && (
+                            <CountPills path={path} counts={alerts[path].counts}/>
+                        )}
+                    </div>
+                    {children && <NavList routes={children} alerts={alerts} nested/>}
+                </li>
+            ))}
+        </ul>
+    );
+}
+
+/**
  * Side menu, after the oc3 one. Foldable from the button at the top left of the
  * header: folded, it keeps its place in the layout but not its width, and `inert`
  * takes it out of the keyboard path.
@@ -135,26 +172,7 @@ export function Sidebar({open}) {
             )}
         >
             <nav aria-label="Main" className="w-60 p-2">
-                <ul>
-                    {NAV_ROUTES.map(({path, name, kind}) => (
-                        <li key={path} className="relative">
-                            <NavLink
-                                to={path}
-                                // Mouseover details of the entries that have some.
-                                title={alerts[path]?.details?.join("\n")}
-                                className={({isActive}) => cn(LINK, isActive && "bg-accent-soft text-ink")}
-                            >
-                                {/* The icon keeps its tint in every state: it identifies the view,
-                                    the background and the label mark the selection. */}
-                                <ObjectIcon kind={kind} className="h-4 w-4"/>
-                                {name}
-                            </NavLink>
-                            {alerts[path]?.counts?.length > 0 && (
-                                <CountPills path={path} counts={alerts[path].counts}/>
-                            )}
-                        </li>
-                    ))}
-                </ul>
+                <NavList routes={NAV_ROUTES} alerts={alerts}/>
             </nav>
         </aside>
     );

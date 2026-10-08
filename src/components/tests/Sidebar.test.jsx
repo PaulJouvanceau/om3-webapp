@@ -1,5 +1,5 @@
 import React from 'react';
-import {render, screen, act, renderHook} from '@testing-library/react';
+import {render, screen, act, renderHook, within} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {describe, test, expect, beforeEach, vi} from 'vitest';
 import {Sidebar, NAV_ROUTES, useSidebarOpen} from '../Sidebar';
@@ -134,18 +134,26 @@ describe('Sidebar', () => {
         expect(screen.queryByRole('link', {name: /^Who Am I/})).toBeNull();
     });
 
-    test('lists the views in alphabetical order', () => {
+    test('lists the views in alphabetical order, kinds and namespaces under objects', () => {
         renderSidebar();
         const names = screen.getAllByRole('link').map((link) => link.textContent);
         expect(names.map((name) => name.replace(/(all up|warn|down|no status|frozen|a .* is .*)$/, '')))
-            .toEqual(['Heartbeats', 'Kinds', 'Namespaces', 'Networks', 'Nodes', 'Objects', 'Pools']);
+            .toEqual(['Heartbeats', 'Networks', 'Nodes', 'Objects', 'Kinds', 'Namespaces', 'Pools']);
+    });
+
+    test('groups kinds and namespaces in a list nested under the objects entry', () => {
+        renderSidebar();
+        const objects = screen.getByRole('link', {name: /^Objects/}).closest('li');
+        const nested = within(objects).getByRole('list');
+        expect(within(nested).getAllByRole('link').map((link) => link.getAttribute('href')))
+            .toEqual(['/kinds', '/namespaces']);
     });
 
     test('lists every view', () => {
         renderSidebar();
         const nav = screen.getByRole('navigation', {name: 'Main'});
         expect(nav).toBeInTheDocument();
-        for (const {path, name} of NAV_ROUTES) {
+        for (const {path, name} of NAV_ROUTES.flatMap((route) => [route, ...(route.children ?? [])])) {
             expect(screen.getByRole('link', {name: new RegExp(`^${name}`)})).toHaveAttribute('href', path);
         }
     });
