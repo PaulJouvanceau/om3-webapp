@@ -47,6 +47,10 @@ vi.mock('../../hooks/useNamespaceData', () => ({
     useNamespaceData: mockUseNamespaceData,
 }));
 
+vi.mock('../NamespaceMetrics', () => ({
+    default: ({namespace}) => <div data-testid="namespace-metrics">{namespace}</div>,
+}));
+
 // ── Helpers ─────────────────────────────────────────────────────────────
 // The sort button of a column header (its arrow is hidden from the accessible name).
 const getHeaderCellFor = (columnName) => screen.getByRole('button', {name: columnName});
@@ -445,6 +449,15 @@ describe('Namespaces', () => {
         renderComponent();
         const cells = getCells(getBodyRows()[0]);
         expect(cells[4]).toHaveTextContent('1');
+    });
+
+    test('opens the metrics of a namespace without opening its objects', () => {
+        renderComponent();
+        expect(screen.getByRole('columnheader', {name: 'Metrics'})).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', {name: 'View metrics for namespace prod'}));
+        expect(screen.getByTestId('namespace-metrics')).toHaveTextContent('prod');
+        expect(screen.getByRole('dialog', {name: 'Metrics of prod'})).toBeInTheDocument();
+        expect(mockNavigate).not.toHaveBeenCalled();
     });
 
     test('labels the namespace filter', () => {

@@ -3,10 +3,14 @@ import {useNavigate, useLocation} from "react-router-dom";
 import {closeEventSource, startEventReception} from "../eventSourceManager.jsx";
 import EventLogger from "../components/EventLogger";
 import {useNamespaceData} from "../hooks/useNamespaceData";
-import {Table, HeaderRow, SortHeaderCell, Row, Cell, EmptyRow} from "../ui/components/Table";
+import {Table, HeaderRow, HeaderCell, SortHeaderCell, Row, Cell, EmptyRow} from "../ui/components/Table";
 import {StatusCount} from "../ui/components/StatusCount";
 import {Select} from "../ui/components/Field";
 import {Spinner} from "../ui/components/Spinner";
+import {IconButton} from "../ui/components/Button";
+import {SlideOver} from "../ui/components/SlideOver";
+import {CodeIcon} from "../ui/icons";
+import NamespaceMetrics from "./NamespaceMetrics";
 
 const STATUSES = ["up", "down", "warn", "n/a"];
 
@@ -36,7 +40,8 @@ const NamespaceTableRow = React.memo(({
                                           namespace,
                                           counts,
                                           onNamespaceClick,
-                                          onStatusClick
+                                          onStatusClick,
+                                          onOpenMetrics
                                       }) => {
     const total = useMemo(() =>
             counts.up + counts.down + counts.warn + counts["n/a"],
@@ -65,10 +70,24 @@ const NamespaceTableRow = React.memo(({
                 </Cell>
             ))}
             <Cell numeric className="font-semibold tabular-nums">{total}</Cell>
+            <Cell align="center">
+                <IconButton
+                    size="sm"
+                    className="align-middle"
+                    label={`View metrics for namespace ${namespace}`}
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        onOpenMetrics(namespace);
+                    }}
+                >
+                    <CodeIcon className="h-4 w-4"/>
+                </IconButton>
+            </Cell>
         </Row>
     );
 }, (prev, next) => {
     return prev.namespace === next.namespace &&
+        prev.onOpenMetrics === next.onOpenMetrics &&
         prev.counts.up === next.counts.up &&
         prev.counts.down === next.counts.down &&
         prev.counts.warn === next.counts.warn &&
@@ -89,6 +108,7 @@ const Namespaces = () => {
     const [selectedNamespace, setSelectedNamespace] = useState(urlNamespace || "all");
     const [visibleCount, setVisibleCount] = useState(50);
     const [loading, setLoading] = useState(false);
+    const [metricsNamespace, setMetricsNamespace] = useState(null);
 
     const {statusByNamespace, namespaces} = useNamespaceData();
 
@@ -187,6 +207,14 @@ const Namespaces = () => {
         navigate(url);
     }, [navigate]);
 
+    const handleOpenMetrics = useCallback((namespace) => {
+        setMetricsNamespace(namespace);
+    }, []);
+
+    const handleCloseMetrics = useCallback(() => {
+        setMetricsNamespace(null);
+    }, []);
+
     const handleScroll = useCallback(() => {
         if (loading) return;
 
@@ -274,6 +302,7 @@ const Namespaces = () => {
                             onSort={() => handleSort("total")}
                             align="right"
                         />
+                        <HeaderCell align="center">Metrics</HeaderCell>
                     </HeaderRow>
                 </thead>
                 <tbody>
@@ -285,10 +314,11 @@ const Namespaces = () => {
                                 counts={counts}
                                 onNamespaceClick={handleNamespaceClick}
                                 onStatusClick={handleStatusClick}
+                                onOpenMetrics={handleOpenMetrics}
                             />
                         ))
                     ) : (
-                        <EmptyRow colSpan={6}>
+                        <EmptyRow colSpan={7}>
                             <span data-testid="no-namespaces-message">
                                 {selectedNamespace !== "all"
                                     ? "No namespaces match the selected filter"
@@ -303,6 +333,17 @@ const Namespaces = () => {
                     <Spinner label="Loading more namespaces"/>
                 </div>
             )}
+
+            <SlideOver
+                open={metricsNamespace !== null}
+                title={metricsNamespace !== null ? `Metrics of ${metricsNamespace}` : "Metrics"}
+                onClose={handleCloseMetrics}
+                closeLabel="Close"
+                size="wide"
+                resizeLabel="Resize drawer"
+            >
+                {metricsNamespace !== null && <NamespaceMetrics namespace={metricsNamespace}/>}
+            </SlideOver>
 
             <EventLogger
                 eventTypes={namespaceEventTypes}
