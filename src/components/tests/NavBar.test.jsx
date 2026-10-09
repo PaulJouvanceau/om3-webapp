@@ -275,15 +275,15 @@ describe('NavBar', () => {
     });
 
     // ---------- logo ----------
-    test('names the tab after the cluster and om3, not to be taken for oc3', async () => {
+    test('names the tab after the cluster, tagged Cluster, not to be taken for oc3', async () => {
         setupMocks({clusterName: 'dev3'});
         renderNavBar();
-        await waitFor(() => expect(document.title).toBe('dev3 · OpenSVC om3'));
+        await waitFor(() => expect(document.title).toBe('dev3 · OpenSVC Cluster'));
     });
 
-    test('shows the OpenSVC logo link to the home view, as in oc3, tagged om3', () => {
+    test('shows the OpenSVC logo link to the home view, as in oc3, tagged Cluster', () => {
         renderNavBar();
-        const link = screen.getByRole('link', {name: 'OpenSVC om3'});
+        const link = screen.getByRole('link', {name: 'OpenSVC Cluster'});
         expect(link).toHaveAttribute('href', '/');
         const logo = link.querySelector('img');
         expect(logo).toHaveAttribute('alt', '');
