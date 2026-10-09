@@ -21,7 +21,7 @@ import {Checkbox, Input} from "../ui/components/Field";
 import {Alert} from "../ui/components/Alert";
 import {Spinner} from "../ui/components/Spinner";
 import {useMediaQuery} from "../ui/lib/media";
-import {AlertTriangleIcon, ChevronDownIcon, CloseIcon, FilterIcon, MoreIcon, SearchIcon} from "../ui/icons";
+import {AlertTriangleIcon, ChevronDownIcon, CloseIcon, FilterIcon, SearchIcon} from "../ui/icons";
 
 // The breakpoints of the MUI theme the view used: below md (900px) the filters fold
 // behind a button, from lg (1200px) the node columns are shown.
@@ -115,6 +115,46 @@ const NodeStatus = React.memo(({objectName, node}) => {
     );
 }, (prev, next) => prev.objectName === next.objectName && prev.node === next.node);
 
+/**
+ * The columns of the object properties, read from its status: how the daemon
+ * orchestrates it and how its instances are laid out. Objects without instances
+ * to place (cfg, sec, usr) have no orchestrate nor topology.
+ */
+export const PROPERTY_COLUMNS = [
+    {key: "orchestrate", label: "Orchestrate", value: (status) => status?.orchestrate},
+    {key: "topology", label: "Topology", value: (status) => status?.topology},
+];
+const PROPERTY_COLUMN = Object.fromEntries(PROPERTY_COLUMNS.map((column) => [column.key, column]));
+
+/** Values missing go last whatever the direction, as there is nothing to compare. */
+const compareProperty = (a, b, direction) => {
+    const missingA = a === undefined || a === null || a === "";
+    const missingB = b === undefined || b === null || b === "";
+    if (missingA || missingB) return missingA === missingB ? 0 : missingA ? 1 : -1;
+    const diff = typeof a === "number" && typeof b === "number" ? a - b : String(a).localeCompare(String(b));
+    return direction === "asc" ? diff : -diff;
+};
+
+/** The property cells of an object row, each read on its own from the store. */
+const PropertyCells = ({objectName}) => {
+    const status = (s) => s.objectStatus?.[objectName];
+    const orchestrate = useEventStore((s) => status(s)?.orchestrate);
+    const topology = useEventStore((s) => status(s)?.topology);
+    const flexMin = useEventStore((s) => status(s)?.flex?.min);
+    const flexMax = useEventStore((s) => status(s)?.flex?.max);
+    const isFlex = topology === "flex" && flexMin !== undefined && flexMax !== undefined;
+
+    return (
+        <>
+            <Cell className="whitespace-nowrap">{orchestrate}</Cell>
+            <Cell className="whitespace-nowrap">
+                {topology}
+                {isFlex && <> <SideText>{`${flexMin}-${flexMax}`}</SideText></>}
+            </Cell>
+        </>
+    );
+};
+
 const stopPropagation = (e) => e.stopPropagation();
 
 const TableRowComponent = React.memo(({
@@ -122,7 +162,6 @@ const TableRowComponent = React.memo(({
                                           isSelected,
                                           onSelectObject,
                                           onObjectClick,
-                                          onActionClick,
                                           allNodes,
                                           isWideScreen,
                                       }) => {
@@ -133,21 +172,6 @@ const TableRowComponent = React.memo(({
     const handleRowClick = useCallback(() => {
         onObjectClick(objectName);
     }, [onObjectClick, objectName]);
-
-    const isFrozen = objectData.frozen === "frozen";
-    const rowActions = useMemo(() => OBJECT_ACTIONS
-        .filter((action) =>
-            (!action.kinds || action.kinds.includes(parseObjectName(objectName).kind)) &&
-            isActionAllowedForSelection(action.name, [objectName]) &&
-            (action.name !== "freeze" || !isFrozen) &&
-            (action.name !== "unfreeze" || isFrozen)
-        )
-        .map((action) => ({
-            key: action.name,
-            label: capitalize(action.name),
-            icon: actionIcon(action),
-            onSelect: () => onActionClick(action.name, true, objectName),
-        })), [objectName, isFrozen, onActionClick]);
 
     return (
         <Row onActivate={handleRowClick} className={isSelected ? "bg-accent-soft" : undefined}>
@@ -168,24 +192,13 @@ const TableRowComponent = React.memo(({
                 />
             </Cell>
             <Cell className="text-data font-medium whitespace-nowrap">{objectName}</Cell>
+            <PropertyCells objectName={objectName}/>
             {isWideScreen &&
                 allNodes.map((node) => (
                     <Cell key={node} className="whitespace-nowrap">
                         <NodeStatus objectName={objectName} node={node}/>
                     </Cell>
                 ))}
-            <Cell align="center">
-                {/* The menu lives in the row: its clicks must not open the object. */}
-                <div className="inline-flex align-middle" onClick={stopPropagation}>
-                    <MenuButton
-                        label={`More actions for object ${objectName}`}
-                        icon={<MoreIcon className="h-4 w-4"/>}
-                        compact
-                        align="end"
-                        items={rowActions}
-                    />
-                </div>
-            </Cell>
         </Row>
     );
 }, (prevProps, nextProps) => {
@@ -467,8 +480,16 @@ const Objects = () => {
             return [...filteredObjectNames].sort(compareFn);
         }
 
+        const property = PROPERTY_COLUMN[deferredSortColumn];
+        if (property) {
+            return [...filteredObjectNames].sort((a, b) =>
+                compareProperty(property.value(objects[a]), property.value(objects[b]), deferredSortDirection) ||
+                a.localeCompare(b)
+            );
+        }
+
         return filteredObjectNames;
-    }, [filteredObjectNames, deferredSortColumn, deferredSortDirection, deferredStatusCycleIndex, objectStatus, objectInstanceStatus, allNodes]);
+    }, [objects, filteredObjectNames, deferredSortColumn, deferredSortDirection, deferredStatusCycleIndex, objectStatus, objectInstanceStatus, allNodes]);
 
     const visibleObjectNames = useMemo(() => {
         return sortedObjectNames.slice(0, visibleCount);
@@ -785,7 +806,7 @@ const Objects = () => {
             }));
     }, [selectedObjects, handleActionClick]);
 
-    const columnCount = 4 + (isWideScreen ? allNodes.length : 0);
+    const columnCount = 3 + PROPERTY_COLUMNS.length + (isWideScreen ? allNodes.length : 0);
 
     return (
         <div className="flex h-full flex-col gap-3 p-4">
@@ -887,6 +908,15 @@ const Objects = () => {
                             direction={sortDirection}
                             onSort={() => handleSort("object")}
                         />
+                        {PROPERTY_COLUMNS.map(({key, label}) => (
+                            <SortHeaderCell
+                                key={key}
+                                label={label}
+                                active={sortColumn === key}
+                                direction={sortDirection}
+                                onSort={() => handleSort(key)}
+                            />
+                        ))}
                         {isWideScreen && allNodes.map((node) => (
                             <SortHeaderCell
                                 key={node}
@@ -896,7 +926,6 @@ const Objects = () => {
                                 onSort={() => handleSort(node)}
                             />
                         ))}
-                        <HeaderCell align="center">Actions</HeaderCell>
                     </HeaderRow>
                 </thead>
                 <tbody>
@@ -907,7 +936,6 @@ const Objects = () => {
                             isSelected={selectedObjects.includes(objectName)}
                             onSelectObject={handleSelectObject}
                             onObjectClick={handleObjectClick}
-                            onActionClick={handleActionClick}
                             allNodes={allNodes}
                             isWideScreen={isWideScreen}
                         />

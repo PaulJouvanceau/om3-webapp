@@ -4,7 +4,7 @@ import {render, screen, fireEvent, waitFor, within, cleanup, act} from '@testing
 import {MemoryRouter} from 'react-router-dom';
 import {vi} from 'vitest';
 import {axe} from 'vitest-axe';
-import Objects from '../Objects';
+import Objects, {PROPERTY_COLUMNS} from '../Objects';
 
 // ── Hoisted mock variables ─────────────────────────────────────────────
 const {
@@ -176,9 +176,13 @@ const selectFilter = async (label, optionText) => {
 
 const objectRow = (name) => screen.getByRole('row', {name: new RegExp(name, 'i')});
 const rowCells = (row) => within(row).getAllByRole('cell');
-/** Cells: 0 selection, 1 status, 2 object, then one per node (node1, node2) on a wide screen, then actions. */
+/**
+ * Cells: 0 selection, 1 status, 2 object, 3 and 4 the properties (orchestrate, topology),
+ * then one per node (node1, node2) on a wide screen.
+ */
 const statusCell = (row) => rowCells(row)[1];
-const nodeCell = (row, index) => rowCells(row)[3 + index];
+const propertyCell = (row, label) => rowCells(row)[3 + PROPERTY_COLUMNS.findIndex((c) => c.label === label)];
+const nodeCell = (row, index) => rowCells(row)[3 + PROPERTY_COLUMNS.length + index];
 
 const selectRow = (name) => {
     const row = objectRow(name);
@@ -191,9 +195,6 @@ const rowCheckboxes = () => screen.getAllByRole('checkbox', {name: /^Select obje
 
 const openActionsMenu = () =>
     fireEvent.click(screen.getByRole('button', {name: /actions on selected objects/i}));
-
-const openRowMenu = (row) =>
-    fireEvent.click(within(row).getByRole('button', {name: /more actions/i}));
 
 const clickMenuItem = async (text) => {
     const menu = await screen.findByRole('menu');
@@ -319,6 +320,77 @@ describe('Objects Component', () => {
         // The object name in its own column, medium weight.
         expect(rowCells(row1)[2]).toHaveTextContent('test-ns/svc/test1');
         expect(rowCells(row1)[2]).toHaveClass('font-medium');
+    });
+
+    test('has no per-row actions column', async () => {
+        setup({}, '', {isWideScreen: true, isMobile: false});
+        await waitForLoad();
+        expect(screen.queryByRole('columnheader', {name: 'Actions'})).not.toBeInTheDocument();
+        expect(within(objectRow('test-ns/svc/test1')).queryByRole('button')).not.toBeInTheDocument();
+    });
+
+    describe('object property columns', () => {
+        const propertyState = {
+            objectStatus: {
+                'test-ns/svc/fo': {
+                    avail: 'up', frozen: 'unfrozen', provisioned: 'true',
+                    orchestrate: 'ha', topology: 'failover', placement_policy: 'nodes order',
+                    placement_state: 'optimal', up_instances_count: 1, scope: ['node1', 'node2'], priority: 10,
+                },
+                'test-ns/svc/fx': {
+                    avail: 'warn', frozen: 'unfrozen', provisioned: 'true',
+                    orchestrate: 'start', topology: 'flex', flex: {min: 1, max: 3, target: 2},
+                    placement_policy: 'spread', placement_state: 'non-optimal', up_instances_count: 2,
+                    scope: ['node1', 'node2', 'node3'], priority: 50,
+                },
+                'test-ns/cfg/c': {avail: 'n/a', frozen: 'unfrozen', provisioned: 'true', scope: ['node1'], priority: 50},
+            },
+            objectInstanceStatus: {},
+        };
+
+        test('show orchestrate and topology', async () => {
+            setup(propertyState);
+            await waitForLoad();
+            ['Placement', 'Up', 'Priority'].forEach((label) =>
+                expect(screen.queryByRole('columnheader', {name: new RegExp(`^${label}`)})).not.toBeInTheDocument()
+            );
+            PROPERTY_COLUMNS.forEach(({label}) =>
+                expect(screen.getByRole('columnheader', {name: new RegExp(`^${label}`)})).toBeInTheDocument()
+            );
+
+            const failover = objectRow('test-ns/svc/fo');
+            expect(propertyCell(failover, 'Orchestrate')).toHaveTextContent(/^ha$/);
+            expect(propertyCell(failover, 'Topology')).toHaveTextContent(/^failover$/);
+
+            const flex = objectRow('test-ns/svc/fx');
+            expect(propertyCell(flex, 'Topology')).toHaveTextContent('flex 1-3');
+        });
+
+        test('are empty for an object with no instances to place', async () => {
+            setup(propertyState);
+            await waitForLoad();
+            const cfg = objectRow('test-ns/cfg/c');
+            ['Orchestrate', 'Topology'].forEach((label) =>
+                expect(propertyCell(cfg, label)).toHaveTextContent(/^$/)
+            );
+        });
+
+        test('sort, objects without the property last', async () => {
+            setup(propertyState);
+            await waitForLoad();
+            clickHeader('Orchestrate');
+            await waitFor(() =>
+                expect(objectNamesInOrder()).toEqual(['test-ns/svc/fo', 'test-ns/svc/fx', 'test-ns/cfg/c'])
+            );
+            clickHeader('Orchestrate');
+            await waitFor(() =>
+                expect(objectNamesInOrder()).toEqual(['test-ns/svc/fx', 'test-ns/svc/fo', 'test-ns/cfg/c'])
+            );
+            clickHeader('Topology');
+            await waitFor(() =>
+                expect(objectNamesInOrder()).toEqual(['test-ns/svc/fo', 'test-ns/svc/fx', 'test-ns/cfg/c'])
+            );
+        });
     });
 
     test('per-node cells show avail, frozen, not provisioned and monitor state', async () => {
@@ -709,17 +781,6 @@ describe('Objects Component', () => {
             expect(mockSetObjectStatuses).toHaveBeenCalled();
         });
 
-        test.each([
-            ['test1', 'Unfreeze'],
-            ['test2', 'Freeze'],
-        ])('%s row menu does not offer "%s" (already in that state)', async (rowName, missingAction) => {
-            setup();
-            await waitForLoad();
-            const row = screen.getByRole('row', {name: new RegExp(rowName)});
-            fireEvent.click(within(row).getByRole('button', {name: /more actions/i}));
-            await screen.findByRole('menu');
-            expect(screen.queryByText(missingAction)).not.toBeInTheDocument();
-        });
 
         test('delete succeeds with confirmations', async () => {
             setup();
@@ -847,21 +908,6 @@ describe('Objects Component', () => {
             );
         });
 
-        test('single-object action via row menu targets only that object', async () => {
-            setup();
-            await waitForLoad();
-            selectRow('test-ns/svc/test1');
-            selectRow('test-ns/svc/test2');
-            const row = screen.getByRole('row', {name: /test-ns\/svc\/test1/});
-            fireEvent.click(within(row).getByRole('button', {name: /more actions/i}));
-            await clickMenuItem('Restart');
-            await confirmDialog();
-            await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
-            expect(global.fetch).toHaveBeenCalledWith(
-                expect.stringContaining('test-ns/svc/test1/action/restart'),
-                expect.any(Object)
-            );
-        });
 
         test('stop action succeeds', async () => {
             setup();
@@ -895,14 +941,6 @@ describe('Objects Component', () => {
             expect(within(menu).getByRole('menuitem', {name: /^Disable$/})).toBeEnabled();
         });
 
-        test('Enable and Disable appear in the row menu of a svc object', async () => {
-            setup();
-            await waitForLoad();
-            openRowMenu(objectRow('test-ns/svc/test1'));
-            const menu = await screen.findByRole('menu');
-            expect(within(menu).getByRole('menuitem', {name: /^Enable$/})).toBeInTheDocument();
-            expect(within(menu).getByRole('menuitem', {name: /^Disable$/})).toBeInTheDocument();
-        });
 
         test('Enable URL uses the object-path endpoint (no /action prefix)', async () => {
             setup();
@@ -934,26 +972,6 @@ describe('Objects Component', () => {
             );
         });
 
-        test('Enable is not present in the row menu for a non-svc object', async () => {
-            setup({
-                objectStatus: {
-                    ...defaultState.objectStatus,
-                    'test-ns/cfg/cfg1': {avail: 'up', frozen: 'unfrozen', provisioned: 'true'},
-                },
-                objectInstanceStatus: {
-                    ...defaultState.objectInstanceStatus,
-                    'test-ns/cfg/cfg1': {node1: {avail: 'up'}},
-                },
-            });
-            await waitForLoad();
-            const row = screen.getByRole('row', {name: /test-ns\/cfg\/cfg1/});
-            fireEvent.click(within(row).getByRole('button', {name: /more actions/i}));
-            const menu = await screen.findByRole('menu');
-            expect(within(menu).queryByRole('menuitem', {name: /^Enable$/})).not.toBeInTheDocument();
-            expect(within(menu).queryByRole('menuitem', {name: /^Disable$/})).not.toBeInTheDocument();
-            // The actions the kind allows are still there.
-            expect(within(menu).getByRole('menuitem', {name: /^Delete$/})).toBeInTheDocument();
-        });
 
         test('Enable/Disable not offered when a mixed-kind selection is made', async () => {
             setup({
@@ -1152,53 +1170,10 @@ describe('Objects Component', () => {
         expect(mockNavigate).not.toHaveBeenCalled();
     });
 
-    test('row menu button click does not trigger row navigation', async () => {
-        setup();
-        await waitForLoad();
-        const row = screen.getByRole('row', {name: /test-ns\/svc\/test1/});
-        fireEvent.click(within(row).getByRole('button', {name: /more actions/i}));
-        expect(mockNavigate).not.toHaveBeenCalled();
-    });
 
-    test('row context menu shows correct actions (unfrozen object)', async () => {
-        setup();
-        await waitForLoad();
-        const row = screen.getByRole('row', {name: /test1/});
-        fireEvent.click(within(row).getByRole('button', {name: /more actions/i}));
-        await waitFor(() => expect(screen.getByRole('menu')).toBeInTheDocument());
-        expect(screen.getByText('Freeze')).toBeInTheDocument();
-        expect(screen.queryByText('Unfreeze')).not.toBeInTheDocument();
-    });
 
-    test('row context menu for frozen object', async () => {
-        setup();
-        await waitForLoad();
-        const row = screen.getByRole('row', {name: /test2/});
-        fireEvent.click(within(row).getByRole('button', {name: /more actions/i}));
-        await waitFor(() => expect(screen.getByRole('menu')).toBeInTheDocument());
-        expect(screen.queryByText('Freeze')).not.toBeInTheDocument();
-        expect(screen.getByText('Unfreeze')).toBeInTheDocument();
-    });
 
-    test('row menu closes when pressing Escape', async () => {
-        setup();
-        await waitForLoad();
-        const row = screen.getByRole('row', {name: /test1/});
-        fireEvent.click(within(row).getByRole('button', {name: /more actions/i}));
-        const menu = await screen.findByRole('menu');
-        fireEvent.keyDown(menu, {key: 'Escape', code: 'Escape'});
-        await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
-    });
 
-    test('clicking inside the row actions menu does not propagate a click to the row', async () => {
-        setup();
-        await waitForLoad();
-        const row = screen.getByRole('row', {name: /test1/});
-        fireEvent.click(within(row).getByRole('button', {name: /more actions/i}));
-        const menu = await screen.findByRole('menu');
-        fireEvent.click(menu);
-        expect(mockNavigate).not.toHaveBeenCalled();
-    });
 
     test('global actions disabled when none selected', async () => {
         setup();
@@ -1507,20 +1482,6 @@ describe('Objects Component', () => {
         );
     });
 
-    test('row menu for object from daemon fallback shows Freeze but not Unfreeze', async () => {
-        setup(
-            {objectStatus: {}, objectInstanceStatus: {}},
-            '',
-            {isWideScreen: true, isMobile: false},
-            {daemon: {cluster: {object: {'daemon/svc/obj1': {avail: 'up', frozen: 'unfrozen'}}}}}
-        );
-        await waitFor(() => expect(screen.getByRole('row', {name: /daemon\/svc\/obj1/})).toBeInTheDocument());
-        const row = screen.getByRole('row', {name: /daemon\/svc\/obj1/});
-        fireEvent.click(within(row).getByRole('button', {name: /more actions/i}));
-        await screen.findByRole('menu');
-        expect(screen.getByText('Freeze')).toBeInTheDocument();
-        expect(screen.queryByText('Unfreeze')).not.toBeInTheDocument();
-    });
 
     test('daemon fallback with no objects at all renders empty state', async () => {
         setup(
