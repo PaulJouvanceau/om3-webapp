@@ -1,4 +1,5 @@
 import React from 'react';
+import i18n from '../../i18n';
 import {render, screen, fireEvent, within} from '@testing-library/react';
 import {
     FreezeDialog, StopDialog, RestartDialog, ClearDialog, DrainDialog,
@@ -649,5 +650,31 @@ describe('ActionDialogs', () => {
             fireEvent.click(cancelBtn);
             expect(onClose).toHaveBeenCalled();
         });
+    });
+});
+
+describe('ActionDialogs in French', () => {
+    beforeEach(async () => {
+        await i18n.changeLanguage('fr');
+    });
+    afterEach(async () => {
+        await i18n.changeLanguage('en');
+    });
+
+    test('PurgeDialog shows its French acknowledgements', () => {
+        render(<PurgeDialog open onClose={jest.fn()} onConfirm={jest.fn()}
+                            checkboxes={{dataLoss: false, configLoss: false, serviceInterruption: false}}
+                            setCheckboxes={jest.fn()} disabled={false}/>);
+        expect(screen.getByRole('dialog', {name: 'Confirmer la purge'})).toBeInTheDocument();
+        expect(screen.getByRole('checkbox', {name: 'Confirmer la perte de configuration'})).toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'Annuler'})).toBeInTheDocument();
+    });
+
+    test('SimpleConfirmDialog shows the translated action label', () => {
+        render(<SimpleConfirmDialog open onClose={jest.fn()} onConfirm={jest.fn()} action="restart daemon" target="node-1"/>);
+        expect(screen.getByRole('dialog')).toHaveTextContent(
+            "Voulez-vous vraiment exécuter l'action Redémarrer le démon sur node-1 ?"
+        );
+        expect(screen.getByText('Redémarrer le démon', {selector: 'strong'})).toBeInTheDocument();
     });
 });

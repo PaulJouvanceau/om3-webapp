@@ -6,7 +6,8 @@ import logger from '../utils/logger.js';
 import {closeEventSource, startEventReception, forceFlush} from "../eventSourceManager";
 import {URL_OBJECT} from "../config/apiPath.js";
 import {extractNamespace, isActionAllowedForSelection} from "../utils/objectUtils";
-import {OBJECT_ACTIONS} from "../constants/actions";
+import {OBJECT_ACTIONS, actionLabel} from "../constants/actions";
+import {useTranslation} from "react-i18next";
 import ActionDialogManager from "./ActionDialogManager";
 import EventLogger from "../components/EventLogger";
 import {useObjectData} from "../hooks/useObjectData";
@@ -71,11 +72,15 @@ const selectObjectInstanceStatus = (state) => state.objectInstanceStatus;
 const selectRemoveObject = (state) => state.removeObject;
 
 /** The not-provisioned mark: an icon in the down colour, named for screen readers. */
-const NotProvisionedMark = () => (
-    <span role="img" aria-label="Not provisioned" title="Not provisioned" className="inline-flex text-state-down">
-        <AlertTriangleIcon className="h-3.5 w-3.5"/>
-    </span>
-);
+const NotProvisionedMark = () => {
+    const {t} = useTranslation();
+    return (
+        <span role="img" aria-label={t("objects.notProvisioned")} title={t("objects.notProvisioned")}
+              className="inline-flex text-state-down">
+            <AlertTriangleIcon className="h-3.5 w-3.5"/>
+        </span>
+    );
+};
 
 /** Small muted text on one line: a global expect, a monitor state. */
 const SideText = ({children}) => (
@@ -121,8 +126,8 @@ const NodeStatus = React.memo(({objectName, node}) => {
  * to place (cfg, sec, usr) have no orchestrate nor topology.
  */
 export const PROPERTY_COLUMNS = [
-    {key: "orchestrate", label: "Orchestrate", value: (status) => status?.orchestrate},
-    {key: "topology", label: "Topology", value: (status) => status?.topology},
+    {key: "orchestrate", labelKey: "objects.columns.orchestrate", value: (status) => status?.orchestrate},
+    {key: "topology", labelKey: "objects.columns.topology", value: (status) => status?.topology},
 ];
 const PROPERTY_COLUMN = Object.fromEntries(PROPERTY_COLUMNS.map((column) => [column.key, column]));
 
@@ -165,6 +170,7 @@ const TableRowComponent = React.memo(({
                                           allNodes,
                                           isWideScreen,
                                       }) => {
+    const {t} = useTranslation();
     const objectData = useObjectData(objectName);
     const handleCheckboxChange = useCallback((e) => {
         onSelectObject(e, objectName);
@@ -175,12 +181,12 @@ const TableRowComponent = React.memo(({
 
     return (
         <Row onActivate={handleRowClick} className={isSelected ? "bg-accent-soft" : undefined}>
-            <Cell align="center" className="w-8">
+            <Cell className="w-8">
                 <Checkbox
                     checked={isSelected}
                     onChange={handleCheckboxChange}
                     onClick={stopPropagation}
-                    aria-label={`Select object ${objectName}`}
+                    aria-label={t("objects.selectObject", {name: objectName})}
                 />
             </Cell>
             <Cell className="whitespace-nowrap">
@@ -217,6 +223,7 @@ const TableRowComponent = React.memo(({
  * Escape closes the popover.
  */
 const FilterPopover = ({label, options, selected, onToggle}) => {
+    const {t} = useTranslation();
     const ref = useRef(null);
 
     useEffect(() => {
@@ -238,7 +245,7 @@ const FilterPopover = ({label, options, selected, onToggle}) => {
     };
 
     const labelOf = (value) => options.find((option) => option.value === value)?.text ?? value;
-    const summary = selected.length === 0 ? "All" : selected.map(labelOf).join(", ");
+    const summary = selected.length === 0 ? t("common.all") : selected.map(labelOf).join(", ");
 
     return (
         <details ref={ref} className="relative" onKeyDown={onKeyDown}>
@@ -253,7 +260,7 @@ const FilterPopover = ({label, options, selected, onToggle}) => {
                 aria-label={label}
                 className="absolute top-full left-0 z-30 mt-1 flex max-h-72 min-w-44 flex-col gap-1 overflow-auto rounded-(--radius-panel) border border-line bg-surface-raised p-2 shadow-lg"
             >
-                {options.length === 0 && <span className="text-ink-muted">None</span>}
+                {options.length === 0 && <span className="text-ink-muted">{t("common.none")}</span>}
                 {options.map((option) => (
                     <Checkbox
                         key={option.value}
@@ -284,6 +291,7 @@ const GLOBAL_STATE_MARKS = {
 };
 
 const Objects = () => {
+    const {t} = useTranslation();
     const location = useLocation();
     const navigate = useNavigate();
     const isMounted = useRef(true);
@@ -524,10 +532,10 @@ const Objects = () => {
         async (action) => {
             const token = localStorage.getItem("authToken");
             if (!token) {
-                setSnackbar({open: true, message: "Authentication token not found", severity: "error"});
+                setSnackbar({open: true, message: t("objects.feedback.authTokenNotFound"), severity: "error"});
                 return;
             }
-            setSnackbar({open: true, message: `Executing '${action}'...`, severity: "info"});
+            setSnackbar({open: true, message: t("objects.feedback.executing", {action}), severity: "info"});
             let successCount = 0;
             let errorCount = 0;
             const objectsToProcess = pendingAction?.target ? [pendingAction.target] : selectedObjects;
@@ -577,16 +585,16 @@ const Objects = () => {
                 open: true,
                 message:
                     successCount && !errorCount
-                        ? `'${action}' succeeded on ${successCount} object(s).`
+                        ? t("objects.feedback.succeeded", {action, count: successCount})
                         : successCount
-                            ? `'${action}' partially succeeded: ${successCount} ok, ${errorCount} errors.`
-                            : `'${action}' failed on all ${objectsToProcess.length} object(s).`,
+                            ? t("objects.feedback.partial", {action, ok: successCount, errors: errorCount})
+                            : t("objects.feedback.failed", {action, count: objectsToProcess.length}),
                 severity: successCount && !errorCount ? "success" : successCount ? "warning" : "error",
             });
             setSelectedObjects([]);
             setPendingAction(null);
         },
-        [pendingAction, selectedObjects, objectStatus, removeObject, updateFrozenStatusOptimistic]
+        [pendingAction, selectedObjects, objectStatus, removeObject, updateFrozenStatusOptimistic, t]
     );
 
     const handleObjectClick = useCallback(
@@ -777,10 +785,11 @@ const Objects = () => {
     const globalStateOptions = useMemo(
         () => withSelected(globalStates, selectedGlobalStates).map((state) => ({
             value: state,
-            text: capitalize(state),
+            // The availabilities are daemon values, shown as such; unprovisioned is a word of the view.
+            text: state === "unprovisioned" ? t("objects.filters.unprovisioned") : capitalize(state),
             mark: GLOBAL_STATE_MARKS[state],
         })),
-        [globalStates, selectedGlobalStates]
+        [globalStates, selectedGlobalStates, t]
     );
     const namespaceOptions = useMemo(
         () => withSelected(namespaces, selectedNamespaces).map((namespace) => ({value: namespace, text: namespace})),
@@ -799,12 +808,12 @@ const Objects = () => {
                 (selectedKinds.size > 0 && [...selectedKinds].every((kind) => action.kinds.includes(kind))))
             .map((action) => ({
                 key: action.name,
-                label: capitalize(action.name),
+                label: actionLabel(action.name),
                 icon: actionIcon(action),
                 disabled: !isActionAllowedForSelection(action.name, selectedObjects),
                 onSelect: () => handleActionClick(action.name),
             }));
-    }, [selectedObjects, handleActionClick]);
+    }, [selectedObjects, handleActionClick, t]);
 
     const columnCount = 3 + PROPERTY_COLUMNS.length + (isWideScreen ? allNodes.length : 0);
 
@@ -817,36 +826,36 @@ const Objects = () => {
                         size="sm"
                         icon={<FilterIcon className="h-4 w-4"/>}
                         onClick={toggleShowFilters}
-                        aria-label={showFilters ? "Hide filters" : "Show filters"}
+                        aria-label={showFilters ? t("objects.filters.hide") : t("objects.filters.show")}
                         aria-expanded={showFilters}
                         aria-controls={filtersId}
                     >
-                        <span className="hidden sm:inline">Filters</span>
+                        <span className="hidden sm:inline">{t("common.filters")}</span>
                         <ChevronDownIcon className={showFilters ? "h-4 w-4 rotate-180" : "h-4 w-4"}/>
                     </Button>
                 )}
                 {(!isMobile || showFilters) && (
                     <div id={filtersId} className="flex flex-wrap items-center gap-3">
                         <FilterPopover
-                            label="Global State"
+                            label={t("objects.filters.globalState")}
                             options={globalStateOptions}
                             selected={selectedGlobalStates}
                             onToggle={handleGlobalStateChange}
                         />
                         <FilterPopover
-                            label="Namespace"
+                            label={t("objects.filters.namespace")}
                             options={namespaceOptions}
                             selected={selectedNamespaces}
                             onToggle={handleNamespaceChange}
                         />
                         <FilterPopover
-                            label="Kind"
+                            label={t("objects.filters.kind")}
                             options={kindOptions}
                             selected={selectedKinds}
                             onToggle={handleKindChange}
                         />
                         <label className="flex items-center gap-1 text-ink-muted">
-                            Name
+                            {t("common.name")}
                             <span className="relative flex items-center">
                                 <SearchIcon className="pointer-events-none absolute left-2 h-3.5 w-3.5"/>
                                 <Input
@@ -861,10 +870,10 @@ const Objects = () => {
                 )}
                 <div className="ml-auto flex items-center gap-3">
                     {selectedObjects.length > 0 && (
-                        <span className="whitespace-nowrap text-ink-muted">{selectedObjects.length} selected</span>
+                        <span className="whitespace-nowrap text-ink-muted">{t("common.selected", {count: selectedObjects.length})}</span>
                     )}
                     <MenuButton
-                        label="Actions on selected objects"
+                        label={t("objects.actionsMenu")}
                         disabled={!selectedObjects.length}
                         align="end"
                         items={bulkActions}
@@ -877,7 +886,7 @@ const Objects = () => {
                     tone={TONES[snackbar.severity] ?? "info"}
                     className="shrink-0"
                     action={
-                        <IconButton label="Close" bare onClick={handleSnackbarClose}>
+                        <IconButton label={t("common.close")} bare onClick={handleSnackbarClose}>
                             <CloseIcon className="h-4 w-4"/>
                         </IconButton>
                     }
@@ -886,32 +895,32 @@ const Objects = () => {
                 </Alert>
             )}
 
-            <Table ref={tableContainerRef} sticky aria-label="Objects" className="min-h-0 flex-1">
+            <Table ref={tableContainerRef} sticky aria-label={t("objects.tableLabel")} className="min-h-0 flex-1">
                 <thead>
                     <HeaderRow>
-                        <HeaderCell align="center" className="w-8">
+                        <HeaderCell className="w-8">
                             <Checkbox
                                 checked={selectedObjects.length === filteredObjectNames.length && filteredObjectNames.length > 0}
                                 onChange={handleSelectAll}
-                                aria-label="Select all objects"
+                                aria-label={t("objects.selectAll")}
                             />
                         </HeaderCell>
                         <SortHeaderCell
-                            label="Status"
+                            label={t("common.status")}
                             active={sortColumn === "status"}
                             direction={sortDirection}
                             onSort={() => handleSort("status")}
                         />
                         <SortHeaderCell
-                            label="Object"
+                            label={t("objects.columns.object")}
                             active={sortColumn === "object"}
                             direction={sortDirection}
                             onSort={() => handleSort("object")}
                         />
-                        {PROPERTY_COLUMNS.map(({key, label}) => (
+                        {PROPERTY_COLUMNS.map(({key, labelKey}) => (
                             <SortHeaderCell
                                 key={key}
-                                label={label}
+                                label={t(labelKey)}
                                 active={sortColumn === key}
                                 direction={sortDirection}
                                 onSort={() => handleSort(key)}
@@ -942,25 +951,28 @@ const Objects = () => {
                     ))}
                     {visibleObjectNames.length === 0 && (
                         <EmptyRow colSpan={columnCount}>
-                            No objects found matching the current filters.
+                            {t("objects.empty")}
                         </EmptyRow>
                     )}
                 </tbody>
             </Table>
             {loading && (
                 <div className="flex shrink-0 justify-center">
-                    <Spinner label="Loading more objects"/>
+                    <Spinner label={t("objects.loadingMore")}/>
                 </div>
             )}
 
             <ActionDialogManager
                 pendingAction={pendingAction}
                 handleConfirm={handleExecuteActionOnSelected}
-                target={pendingAction?.target ? `object ${pendingAction.target}` : `${selectedObjects.length} objects`}
+                target={pendingAction?.target
+                    ? t("objects.dialogTarget.object", {name: pendingAction.target})
+                    : t("objects.dialogTarget.objects", {count: selectedObjects.length})}
                 supportedActions={OBJECT_ACTIONS.map((action) => action.name)}
                 onClose={handleClosePendingAction}
             />
-            <EventLogger eventTypes={objectEventTypes} title="Object Events Logger" buttonLabel="Object Events"/>
+            <EventLogger eventTypes={objectEventTypes} title={t("objects.events.title")}
+                         buttonLabel={t("objects.events.button")}/>
         </div>
     );
 };

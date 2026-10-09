@@ -1,7 +1,8 @@
 import {Link, useLocation} from "react-router-dom";
+import {useTranslation} from "react-i18next";
 import {SidebarIcon, UserIcon} from "../ui/icons";
 import {StateGlyph} from "../ui/components/StateGlyph";
-import {PRODUCT_NAME, ProductTag} from "../ui/components/ProductTag";
+import {ProductTag} from "../ui/components/ProductTag";
 import opensvcLogo from "../ui/assets/opensvc-logo.svg";
 import {useAuth} from "../context/AuthProvider.jsx";
 import {useEffect, useState, useCallback} from "react";
@@ -13,6 +14,16 @@ import logger from '../utils/logger.js';
 const HEADER_BUTTON =
     "flex h-7 w-7 shrink-0 items-center justify-center rounded-(--radius-control) text-ink-muted hover:bg-surface-sunken hover:text-ink";
 
+/** First path segments named after a view: their breadcrumb is translated, the others are names. */
+const SEGMENTS = new Set(["heartbeats", "kinds", "namespaces", "network", "nodes", "objects", "pools", "whoami"]);
+
+/** Breadcrumb item of a path segment; `key` is the catalog key of its label, translated at render. */
+const crumb = (part, index, path) => ({
+    name: part,
+    path,
+    key: index === 0 && SEGMENTS.has(part) ? `nav.breadcrumb.segments.${part}` : undefined,
+});
+
 const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false}) => {
     const auth = useAuth();
     const location = useLocation();
@@ -20,22 +31,23 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
     const [breadcrumb, setBreadcrumb] = useState([]);
     const [storedClusterName, setStoredClusterName] = useState(null);
     const online = useOnlineStatus();
+    const {t} = useTranslation();
 
     const getPathBreadcrumbs = useCallback(() => {
         const pathParts = location.pathname.split("/").filter(Boolean);
         const breadcrumbItems = [];
         if (pathParts[0] !== "login" && pathParts.length > 1) {
             if (pathParts[0] === "network" && pathParts.length === 2) {
-                breadcrumbItems.push({name: "network", path: "/network"});
+                breadcrumbItems.push(crumb("network", 0, "/network"));
                 breadcrumbItems.push({name: pathParts[1], path: `/network/${pathParts[1]}`});
             } else if (pathParts[0] === "objects" && pathParts.length === 2) {
-                breadcrumbItems.push({name: "Objects", path: "/objects"});
+                breadcrumbItems.push({name: "Objects", path: "/objects", key: "nav.routes.objects"});
                 breadcrumbItems.push({name: pathParts[1], path: `/objects/${pathParts[1]}`});
             } else {
                 pathParts.forEach((part, index) => {
                     const fullPath = "/" + pathParts.slice(0, index + 1).join("/");
                     if (part !== "cluster") {
-                        breadcrumbItems.push({name: part, path: fullPath});
+                        breadcrumbItems.push(crumb(part, index, fullPath));
                     }
                 });
             }
@@ -49,7 +61,7 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
             const token = auth?.authToken || localStorage.getItem("authToken");
             if (!token) {
                 setBreadcrumb([
-                    {name: "Cluster", path: "/"},
+                    {name: "Cluster", path: "/", key: "nav.breadcrumb.cluster"},
                     ...getPathBreadcrumbs(),
                 ]);
                 return;
@@ -74,10 +86,11 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
 
     // The tab names the cluster and the product, as the header does.
     useEffect(() => {
+        const product = t("ui.productTag.name");
         document.title = storedClusterName
-            ? `${storedClusterName} · OpenSVC ${PRODUCT_NAME}`
-            : `OpenSVC ${PRODUCT_NAME}`;
-    }, [storedClusterName]);
+            ? t("nav.documentTitle", {cluster: storedClusterName, product})
+            : t("nav.documentTitleNoCluster", {product});
+    }, [storedClusterName, t]);
 
     // Breadcrumb generation
     useEffect(() => {
@@ -85,9 +98,10 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
         const breadcrumbItems = [];
 
         if (pathParts[0] !== "login") {
-            breadcrumbItems.push({
-                name: storedClusterName || (loading ? "Loading..." : "Cluster"),
+            breadcrumbItems.push(storedClusterName ? {name: storedClusterName, path: "/"} : {
+                name: loading ? "Loading..." : "Cluster",
                 path: "/",
+                key: loading ? "nav.breadcrumb.loading" : "nav.breadcrumb.cluster",
             });
 
             if (pathParts.length > 1 || (pathParts.length === 1 && pathParts[0] !== "cluster")) {
@@ -95,7 +109,7 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
                     const node = decodeURIComponent(pathParts[1]);
                     const objectName = decodeURIComponent(pathParts.slice(3).join("/"));
 
-                    breadcrumbItems.push({name: "objects", path: "/objects"});
+                    breadcrumbItems.push(crumb("objects", 0, "/objects"));
                     breadcrumbItems.push({
                         name: objectName,
                         path: `/objects/${encodeURIComponent(objectName)}`
@@ -106,21 +120,21 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
                     });
                 } else if (pathParts[0] === "objects" && pathParts.length >= 2) {
                     const objectName = decodeURIComponent(pathParts.slice(1).join("/"));
-                    breadcrumbItems.push({name: "objects", path: "/objects"});
+                    breadcrumbItems.push(crumb("objects", 0, "/objects"));
                     breadcrumbItems.push({
                         name: objectName,
                         path: location.pathname
                     });
                 } else if (pathParts[0] === "network" && pathParts.length === 2) {
-                    breadcrumbItems.push({name: "network", path: "/network"});
+                    breadcrumbItems.push(crumb("network", 0, "/network"));
                     breadcrumbItems.push({name: pathParts[1], path: `/network/${pathParts[1]}`});
                 } else if (pathParts[0] === "network" && pathParts.length === 1) {
-                    breadcrumbItems.push({name: "network", path: "/network"});
+                    breadcrumbItems.push(crumb("network", 0, "/network"));
                 } else {
                     pathParts.forEach((part, index) => {
                         const fullPath = "/" + pathParts.slice(0, index + 1).join("/");
                         if (part !== "cluster") {
-                            breadcrumbItems.push({name: part, path: fullPath});
+                            breadcrumbItems.push(crumb(part, index, fullPath));
                         }
                     });
                 }
@@ -138,8 +152,8 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
                     onClick={onToggleSidebar}
                     aria-expanded={sidebarOpen}
                     aria-controls="app-sidebar"
-                    aria-label={sidebarOpen ? "Hide menu" : "Show menu"}
-                    title={sidebarOpen ? "Hide menu" : "Show menu"}
+                    aria-label={sidebarOpen ? t("nav.hideMenu") : t("nav.showMenu")}
+                    title={sidebarOpen ? t("nav.hideMenu") : t("nav.showMenu")}
                     className={HEADER_BUTTON}
                 >
                     <SidebarIcon open={sidebarOpen} width={18} height={18}/>
@@ -156,40 +170,43 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
             </Link>
 
             {breadcrumb.length > 0 && location.pathname !== '/login' && (
-                <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 overflow-hidden font-medium whitespace-nowrap">
-                    {breadcrumb.map((item, index) => (
-                        <span key={index} className="flex min-w-0 items-center gap-1">
-                            {item.path ? (
-                                <Link
-                                    to={item.path}
-                                    aria-label={`Navigate to ${item.name}`}
-                                    className="truncate hover:underline"
-                                >
-                                    {item.name}
-                                </Link>
-                            ) : (
-                                <span className="truncate">{item.name}</span>
-                            )}
-                            {index < breadcrumb.length - 1 && (
-                                <span aria-hidden="true" className="text-ink-muted">{">"}</span>
-                            )}
-                        </span>
-                    ))}
+                <nav aria-label={t("nav.breadcrumb.label")} className="flex min-w-0 items-center gap-1 overflow-hidden font-medium whitespace-nowrap">
+                    {breadcrumb.map((item, index) => {
+                        const label = item.key ? t(item.key) : item.name;
+                        return (
+                            <span key={index} className="flex min-w-0 items-center gap-1">
+                                {item.path ? (
+                                    <Link
+                                        to={item.path}
+                                        aria-label={t("nav.breadcrumb.navigateTo", {name: label})}
+                                        className="truncate hover:underline"
+                                    >
+                                        {label}
+                                    </Link>
+                                ) : (
+                                    <span className="truncate">{label}</span>
+                                )}
+                                {index < breadcrumb.length - 1 && (
+                                    <span aria-hidden="true" className="text-ink-muted">{">"}</span>
+                                )}
+                            </span>
+                        );
+                    })}
                 </nav>
             )}
 
             <div className="ml-auto flex shrink-0 items-center gap-2">
                 {!online && (
                     <span
-                        title="You are offline — some features may be limited"
+                        title={t("nav.offlineTitle")}
                         className="inline-flex items-center gap-1 rounded-(--radius-control) bg-state-down-soft px-2 py-0.5 text-data font-semibold text-state-down"
                     >
                         <StateGlyph state="down" className="h-2 w-2"/>
-                        Offline
+                        {t("nav.offline")}
                     </span>
                 )}
 
-                <Link to="/whoami" aria-label="View user information" title="View user information" className={HEADER_BUTTON}>
+                <Link to="/whoami" aria-label={t("nav.viewUser")} title={t("nav.viewUser")} className={HEADER_BUTTON}>
                     <UserIcon width={16} height={16}/>
                 </Link>
             </div>

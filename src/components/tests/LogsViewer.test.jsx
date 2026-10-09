@@ -3,6 +3,7 @@ import {render, screen, fireEvent, waitFor, act} from '@testing-library/react';
 import '@testing-library/jest-dom';
 import {vi, beforeAll, afterAll, beforeEach, afterEach, describe, test, expect} from 'vitest';
 import LogsViewer from '../LogsViewer';
+import i18n from '../../i18n';
 
 // Hoist mocked functions for use in vi.mock factories
 const {
@@ -134,6 +135,18 @@ describe('LogsViewer', () => {
             mockSuccessfulFetch([]);
             renderComponent({type: 'instance', instanceName: ''});
             expect(await screen.findByText('Instance name is required', {exact: false})).toBeInTheDocument();
+        });
+
+        test('speaks French in a French browser', async () => {
+            await i18n.changeLanguage('fr');
+            try {
+                mockSuccessfulFetch([]);
+                renderComponent();
+                expect(await screen.findByText('Aucun journal disponible')).toBeInTheDocument();
+                expect(screen.getByPlaceholderText('Rechercher dans les journaux...')).toBeInTheDocument();
+            } finally {
+                await act(() => i18n.changeLanguage('en'));
+            }
         });
 
         test('shows loading spinner during fetch', async () => {

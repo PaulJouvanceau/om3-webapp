@@ -6,6 +6,7 @@ import {vi} from 'vitest';
 import ObjectInstanceView from '../ObjectInstanceView';
 import useEventStore from '../../hooks/useEventStore';
 import {startEventReception} from '../../eventSourceManager';
+import i18n from '../../i18n';
 
 // ── Hoisted mock variables ──────────────────────────────────────────────
 const {
@@ -63,7 +64,8 @@ vi.mock('../ConsoleTerminal.jsx', () => ({
     ) : null,
 }));
 
-vi.mock('../../constants/actions', () => ({
+vi.mock('../../constants/actions', async (importOriginal) => ({
+    actionLabel: (await importOriginal()).actionLabel,
     INSTANCE_ACTIONS: [
         {name: '', icon: 'EmptyIcon'},
         {name: 'start', icon: 'StartIcon', endpoint: 'start'},
@@ -279,7 +281,7 @@ describe('ObjectInstanceView', () => {
         setupWithStatus({avail: 'down', stopped_at: '2024-01-01T00:00:00Z', resources: {}});
         await waitLoaded();
         const mark = await screen.findByRole('img', {name: 'Instance is stopped'});
-        expect(mark).toHaveAttribute('title', `stopped at ${new Date('2024-01-01T00:00:00Z').toLocaleString()}`);
+        expect(mark).toHaveAttribute('title', `stopped at ${new Date('2024-01-01T00:00:00Z').toLocaleString(i18n.language)}`);
         // A glyph goes with the mark, not a colour alone.
         expect(mark.querySelector('svg')).not.toBeNull();
     });

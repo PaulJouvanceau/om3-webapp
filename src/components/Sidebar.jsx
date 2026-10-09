@@ -1,5 +1,6 @@
 import {useState, useCallback} from "react";
 import {Link, NavLink} from "react-router-dom";
+import {useTranslation} from "react-i18next";
 import {cn} from "../ui/cn";
 import {ObjectIcon} from "../ui/components/ObjectIcon";
 import useSidebarAlerts from "../hooks/useSidebarAlerts";
@@ -9,33 +10,35 @@ import useSidebarAlerts from "../hooks/useSidebarAlerts";
 // The cluster overview and the user page are reached from the top bar: the logo
 // and the user button. Entries in alphabetical order.
 // Kinds and namespaces group the objects: they sit under the Objects entry.
+// `labelKey` is the catalog key of the entry name, translated at render.
 export const NAV_ROUTES = [
-    {path: "/heartbeats", name: "Heartbeats", kind: "heartbeat"},
-    {path: "/network", name: "Networks", kind: "network"},
-    {path: "/nodes", name: "Nodes", kind: "node"},
+    {path: "/heartbeats", labelKey: "nav.routes.heartbeats", kind: "heartbeat"},
+    {path: "/network", labelKey: "nav.routes.networks", kind: "network"},
+    {path: "/nodes", labelKey: "nav.routes.nodes", kind: "node"},
     {
-        path: "/objects", name: "Objects", kind: "service",
+        path: "/objects", labelKey: "nav.routes.objects", kind: "service",
         children: [
-            {path: "/kinds", name: "Kinds", kind: "kind"},
-            {path: "/namespaces", name: "Namespaces", kind: "namespace"},
+            {path: "/kinds", labelKey: "nav.routes.kinds", kind: "kind"},
+            {path: "/namespaces", labelKey: "nav.routes.namespaces", kind: "namespace"},
         ],
     },
-    {path: "/pools", name: "Pools", kind: "pool"},
+    {path: "/pools", labelKey: "nav.routes.pools", kind: "pool"},
 ];
 
 // Pill colours: the oc3 state colours, and the oc3 frozen tint (FrozenMark).
-// `label` says what a count of this state is, unless the entry says otherwise.
+// `label` says what a count of this state is, unless the entry says otherwise:
+// the key of its label under `alerts.pills`, translated at render.
 export const PILLS = {
     up: {className: "bg-state-up", label: "up"},
     warn: {className: "bg-state-warn", label: "warn"},
     down: {className: "bg-state-down", label: "down"},
-    unknown: {className: "bg-state-unknown", label: "n/a"},
+    unknown: {className: "bg-state-unknown", label: "unknown"},
     frozen: {className: "bg-icon-network", label: "frozen"},
 };
 
-/** Labels of the counts whose state alone does not say what they are. */
+/** Labels (keys under `alerts.pills`) of the counts whose state alone does not say what they are. */
 const COUNT_LABELS = {
-    "/heartbeats": {up: "beating", down: "stale or stopped"},
+    "/heartbeats": {up: "beating", down: "staleOrStopped"},
     "/pools": {down: "full"},
     "/network": {down: "full"},
 };
@@ -58,13 +61,14 @@ const SEGMENT =
  * let the clicks through to the menu link under them.
  */
 function CountPills({path, counts}) {
+    const {t} = useTranslation();
     return (
         <span
             data-testid={`counts-${path.slice(1)}`}
             className="pointer-events-none absolute top-1/2 right-2 flex -translate-y-1/2 overflow-hidden rounded-full"
         >
             {counts.map(({state, count}) => {
-                const label = COUNT_LABELS[path]?.[state] ?? PILLS[state].label;
+                const label = t(`alerts.pills.${COUNT_LABELS[path]?.[state] ?? PILLS[state].label}`, {count});
                 const className = cn(SEGMENT, PILLS[state].className);
                 const filter = path === "/objects" ? OBJECTS_FILTER[state] : undefined;
                 if (filter) {
@@ -73,16 +77,16 @@ function CountPills({path, counts}) {
                             key={state}
                             to={`/objects?globalState=${encodeURIComponent(filter)}`}
                             data-state={state}
-                            title={`Show the ${label} objects`}
+                            title={t("alerts.showObjects", {label})}
                             className={cn(className, "pointer-events-auto hover:brightness-110")}
                         >
                             {count}
-                            <span className="sr-only"> {label}, show them</span>
+                            <span className="sr-only"> {t("alerts.showThem", {label})}</span>
                         </Link>
                     );
                 }
                 return (
-                    <span key={state} data-state={state} title={`${count} ${label}`} className={className}>
+                    <span key={state} data-state={state} title={t("alerts.countTitle", {count, label})} className={className}>
                         {count}
                         <span className="sr-only"> {label}</span>
                     </span>
@@ -128,9 +132,10 @@ const LINK = "flex items-center gap-2 rounded-(--radius-control) px-2 py-1 text-
  * along a line that ties them to it.
  */
 function NavList({routes, alerts, nested = false}) {
+    const {t} = useTranslation();
     return (
         <ul className={cn(nested && "ml-4 border-l border-line pl-1")}>
-            {routes.map(({path, name, kind, children}) => (
+            {routes.map(({path, labelKey, kind, children}) => (
                 <li key={path}>
                     <div className="relative">
                         <NavLink
@@ -142,7 +147,7 @@ function NavList({routes, alerts, nested = false}) {
                             {/* The icon keeps its tint in every state: it identifies the view,
                                 the background and the label mark the selection. */}
                             <ObjectIcon kind={kind} className="h-4 w-4"/>
-                            {name}
+                            {t(labelKey)}
                         </NavLink>
                         {alerts[path]?.counts?.length > 0 && (
                             <CountPills path={path} counts={alerts[path].counts}/>
@@ -162,6 +167,7 @@ function NavList({routes, alerts, nested = false}) {
  */
 export function Sidebar({open}) {
     const alerts = useSidebarAlerts();
+    const {t} = useTranslation();
     return (
         <aside
             id="app-sidebar"
@@ -171,7 +177,7 @@ export function Sidebar({open}) {
                 open ? "w-60" : "w-0 border-r-0"
             )}
         >
-            <nav aria-label="Main" className="w-60 p-2">
+            <nav aria-label={t("nav.main")} className="w-60 p-2">
                 <NavList routes={NAV_ROUTES} alerts={alerts}/>
             </nav>
         </aside>

@@ -3,6 +3,7 @@ import {render, screen, waitFor, within, fireEvent, act} from "@testing-library/
 import {MemoryRouter} from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import Heartbeats from "../Heartbeats";
+import i18n from "../../i18n";
 import useEventStore from "../../hooks/useEventStore.js";
 import {
     closeEventSource,
@@ -170,6 +171,21 @@ describe("Heartbeats Component", () => {
         expect(within(dataRows[0]).getByText("1.rx")).toBeInTheDocument();
         expect(within(dataRows[1]).getByText("2.rx")).toBeInTheDocument();
         expect(screen.queryByText(EMPTY_MESSAGE)).not.toBeInTheDocument();
+    });
+
+    test("speaks French to a French browser", async () => {
+        mockHeartbeatStore(buildStatus([{
+            node: "node1",
+            streams: [{id: "hb#1.rx", state: "running", type: "unicast", peers: {}}],
+        }]));
+        await i18n.changeLanguage("fr");
+        try {
+            renderWithRouter(<Heartbeats/>);
+            expect(screen.getByRole("columnheader", {name: "DERNIER BATTEMENT"})).toBeInTheDocument();
+            expect(screen.getByText("Aucun heartbeat ne correspond aux filtres actuels.")).toBeInTheDocument();
+        } finally {
+            await i18n.changeLanguage("en");
+        }
     });
 
     // ==================== STATE ICONS ====================

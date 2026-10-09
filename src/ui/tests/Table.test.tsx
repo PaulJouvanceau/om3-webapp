@@ -18,7 +18,7 @@ function renderTable(rows: React.ReactNode, sticky = false) {
       <thead>
         <HeaderRow>
           <HeaderCell>Name</HeaderCell>
-          <HeaderCell align="right">Size</HeaderCell>
+          <HeaderCell>Size</HeaderCell>
         </HeaderRow>
       </thead>
       <tbody>{rows}</tbody>
@@ -36,9 +36,46 @@ describe("Table", () => {
     );
     expect(screen.getByRole("table")).toHaveClass("w-full", "border-collapse", "text-data");
     expect(screen.getByRole("columnheader", { name: "Name" })).toHaveAttribute("scope", "col");
-    expect(screen.getByRole("columnheader", { name: "Size" })).toHaveClass("text-right");
-    expect(screen.getByRole("cell", { name: "1" })).toHaveClass("text-right");
     expect(screen.getByRole("cell", { name: "1" })).toHaveAttribute("data-numeric");
+    expect(screen.getByRole("cell", { name: "1" })).toHaveClass("tabular-nums");
+  });
+
+  test("centers every column, its title as its values, text and numbers alike", () => {
+    render(
+      <Table>
+        <thead>
+          <HeaderRow>
+            <HeaderCell>Name</HeaderCell>
+            <SortHeaderCell label="Size" active direction="asc" onSort={() => {}} />
+          </HeaderRow>
+        </thead>
+        <tbody>
+          <Row>
+            <Cell>a</Cell>
+            <Cell numeric>1</Cell>
+          </Row>
+        </tbody>
+      </Table>,
+    );
+    for (const header of screen.getAllByRole("columnheader")) expect(header).toHaveClass("text-center");
+    for (const cell of screen.getAllByRole("cell")) expect(cell).toHaveClass("text-center");
+    expect(screen.getByRole("button", { name: "Size" })).toHaveClass("text-center");
+  });
+
+  test("hangs the sort arrow past the title, so sorting does not move it", () => {
+    render(
+      <Table>
+        <thead>
+          <HeaderRow>
+            <SortHeaderCell label="Size" active direction="desc" onSort={() => {}} />
+          </HeaderRow>
+        </thead>
+      </Table>,
+    );
+    const arrow = screen.getByText("▼");
+    expect(arrow).toHaveAttribute("aria-hidden", "true");
+    expect(arrow).toHaveClass("absolute", "left-full");
+    expect(screen.getByRole("button", { name: "Size" })).toBeInTheDocument();
   });
 
   test("gives every row the 30px height of the other views", () => {
@@ -134,7 +171,7 @@ describe("Table", () => {
       </table>,
     );
     expect(screen.getByRole("columnheader")).toHaveAttribute("aria-sort", "descending");
-    expect(screen.getByRole("button")).toHaveTextContent("Name ▼");
+    expect(screen.getByRole("button")).toHaveTextContent("Name▼");
   });
 
   test("an empty table says so across all its columns", () => {

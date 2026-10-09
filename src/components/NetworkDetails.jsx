@@ -1,6 +1,7 @@
 import React, {useEffect, useState, useMemo, useRef} from "react";
 import {useParams} from "react-router-dom";
 import axios from "axios";
+import {useTranslation} from "react-i18next";
 import debounce from "lodash.debounce";
 import {URL_NETWORK_IP} from "../config/apiPath.js";
 import logger from '../utils/logger.js';
@@ -12,14 +13,16 @@ import {Spinner} from "../ui/components/Spinner";
 import {ChevronDownIcon} from "../ui/icons";
 
 const NetworkDetails = () => {
+    const {t} = useTranslation();
     const [ipDetails, setIpDetails] = useState([]);
-    const [networkType, setNetworkType] = useState("N/A");
+    // The type of the network, null while unknown.
+    const [networkType, setNetworkType] = useState(null);
     const [nodeFilter, setNodeFilter] = useState("");
     const [pathFilter, setPathFilter] = useState("");
     const [ridFilter, setRidFilter] = useState("");
     const [showFilters, setShowFilters] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState(null);
+    const [error, setError] = useState(false);
     const {networkName} = useParams();
     const containerRef = useRef(null);
 
@@ -35,7 +38,7 @@ const NetworkDetails = () => {
         let isMounted = true;
         const fetchIpDetails = async () => {
             setIsLoading(true);
-            setError(null);
+            setError(false);
             try {
                 const token = localStorage.getItem("authToken");
                 const res = await axios.get(URL_NETWORK_IP, {
@@ -51,16 +54,16 @@ const NetworkDetails = () => {
                     setIpDetails(filteredItems);
                     setNetworkType(
                         filteredItems.length > 0
-                            ? filteredItems[0].network?.type || "N/A"
-                            : "N/A"
+                            ? filteredItems[0].network?.type || null
+                            : null
                     );
                 }
             } catch (err) {
                 logger.error("Error retrieving network IP details", err);
                 if (isMounted) {
-                    setError("Failed to load network details. Please try again.");
+                    setError(true);
                     setIpDetails([]);
-                    setNetworkType("N/A");
+                    setNetworkType(null);
                 }
             } finally {
                 if (isMounted) {
@@ -72,7 +75,7 @@ const NetworkDetails = () => {
         if (networkName) {
             fetchIpDetails();
         } else {
-            setNetworkType("N/A");
+            setNetworkType(null);
             setIpDetails([]);
             setIsLoading(false);
         }
@@ -123,27 +126,29 @@ const NetworkDetails = () => {
         );
     }, [ipDetails, nodeFilter, pathFilter, ridFilter]);
 
+    const notAvailable = t("common.notAvailable");
+
     return (
         <div ref={containerRef} className="p-4 space-y-3">
             <h1 className="text-title font-semibold">
-                Network Details: {networkName || "N/A"} ({networkType})
+                {t("networks.details.title", {name: networkName || notAvailable, type: networkType || notAvailable})}
             </h1>
-            {error && <Alert>{error}</Alert>}
+            {error && <Alert>{t("networks.details.loadError")}</Alert>}
             <div className="flex flex-wrap items-center gap-3">
                 <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowFilters(!showFilters)}
                     icon={<ChevronDownIcon className={showFilters ? "rotate-180" : undefined}/>}
-                    aria-label={showFilters ? "Hide filters" : "Show filters"}
+                    aria-label={showFilters ? t("networks.details.hideFilters") : t("networks.details.showFilters")}
                     aria-expanded={showFilters}
                 >
-                    {showFilters ? "Hide filters" : "Show filters"}
+                    {showFilters ? t("networks.details.hideFilters") : t("networks.details.showFilters")}
                 </Button>
                 {showFilters && (
                     <>
                         <label className="flex items-center gap-1 text-ink-muted">
-                            Node
+                            {t("common.node")}
                             <Input
                                 className="h-7 w-48"
                                 value={nodeFilter}
@@ -151,7 +156,7 @@ const NetworkDetails = () => {
                             />
                         </label>
                         <label className="flex items-center gap-1 text-ink-muted">
-                            Path
+                            {t("networks.details.path")}
                             <Input
                                 className="h-7 w-48"
                                 value={pathFilter}
@@ -159,7 +164,7 @@ const NetworkDetails = () => {
                             />
                         </label>
                         <label className="flex items-center gap-1 text-ink-muted">
-                            RID
+                            {t("networks.details.rid")}
                             <Input
                                 className="h-7 w-48"
                                 value={ridFilter}
@@ -171,31 +176,31 @@ const NetworkDetails = () => {
             </div>
             {isLoading ? (
                 <div className="flex justify-center py-8">
-                    <Spinner label="Loading network details"/>
+                    <Spinner label={t("networks.details.loading")}/>
                 </div>
             ) : (
                 <Table sticky>
-                    <caption className="sr-only">Network details</caption>
+                    <caption className="sr-only">{t("networks.details.caption")}</caption>
                     <thead>
                         <HeaderRow>
-                            <HeaderCell>IP</HeaderCell>
-                            <HeaderCell>Node</HeaderCell>
-                            <HeaderCell>Path</HeaderCell>
-                            <HeaderCell>RID</HeaderCell>
+                            <HeaderCell>{t("networks.details.ip")}</HeaderCell>
+                            <HeaderCell>{t("common.node")}</HeaderCell>
+                            <HeaderCell>{t("networks.details.path")}</HeaderCell>
+                            <HeaderCell>{t("networks.details.rid")}</HeaderCell>
                         </HeaderRow>
                     </thead>
                     <tbody>
                         {filteredIpDetails.length > 0 ? (
                             filteredIpDetails.map((detail, index) => (
                                 <Row key={`${detail.rid}-${index}`}>
-                                    <Cell className="font-medium">{detail.ip || "N/A"}</Cell>
-                                    <Cell>{detail.node || "N/A"}</Cell>
-                                    <Cell>{detail.path || "N/A"}</Cell>
-                                    <Cell>{detail.rid || "N/A"}</Cell>
+                                    <Cell className="font-medium">{detail.ip || notAvailable}</Cell>
+                                    <Cell>{detail.node || notAvailable}</Cell>
+                                    <Cell>{detail.path || notAvailable}</Cell>
+                                    <Cell>{detail.rid || notAvailable}</Cell>
                                 </Row>
                             ))
                         ) : (
-                            <EmptyRow colSpan={4}>No IP details available for this network.</EmptyRow>
+                            <EmptyRow colSpan={4}>{t("networks.details.empty")}</EmptyRow>
                         )}
                     </tbody>
                 </Table>

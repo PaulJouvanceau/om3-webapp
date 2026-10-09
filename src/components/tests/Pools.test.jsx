@@ -4,6 +4,7 @@ import '@testing-library/jest-dom';
 import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 import axios from 'axios';
 import Pools from '../Pools';
+import i18n from '../../i18n';
 import {URL_POOL} from '../../config/apiPath.js';
 
 // ── Mocks ──────────────────────────────────────────────────────────────
@@ -54,6 +55,18 @@ describe('Pools Component', () => {
         expect(header('Name')).toHaveAttribute('aria-sort', 'ascending');
         expect(header('Type')).toHaveAttribute('aria-sort', 'none');
         expect(screen.getByRole('table', {name: 'Pools'})).toBeInTheDocument();
+    });
+
+    test('speaks French to a French browser', async () => {
+        axios.get.mockRejectedValueOnce(new Error('Network error'));
+        await i18n.changeLanguage('fr');
+        try {
+            render(<Pools/>);
+            expect(await screen.findByText('Échec du chargement des pools. Veuillez réessayer.')).toBeInTheDocument();
+            expect(screen.getByRole('button', {name: 'Réessayer'})).toBeInTheDocument();
+        } finally {
+            await i18n.changeLanguage('en');
+        }
     });
 
     test('displays pool data correctly when API call succeeds', async () => {

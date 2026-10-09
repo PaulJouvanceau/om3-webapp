@@ -1,13 +1,14 @@
+import { useTranslation } from "react-i18next";
 import { cn } from "../cn";
-import type { ObjectState } from "./StatusBadge";
+import { STATE_LABEL_KEYS, type ObjectState } from "./StatusBadge";
 import { StateGlyph } from "./StateGlyph";
 
 /** The tints of `StatusBadge`; the shape (`StateGlyph`) tells the state without colour. */
-const MARKS: Record<ObjectState, { ink: string; label: string }> = {
-  up: { ink: "text-state-up", label: "up" },
-  warn: { ink: "text-state-warn", label: "warn" },
-  down: { ink: "text-state-down", label: "down" },
-  unknown: { ink: "text-state-unknown", label: "n/a" },
+const MARKS: Record<ObjectState, { ink: string }> = {
+  up: { ink: "text-state-up" },
+  warn: { ink: "text-state-warn" },
+  down: { ink: "text-state-down" },
+  unknown: { ink: "text-state-unknown" },
 };
 
 /**
@@ -25,8 +26,9 @@ export function StatusMark({
   label?: string;
   className?: string;
 }) {
+  const { t } = useTranslation();
   const mark = MARKS[state];
-  const text = label ?? mark.label;
+  const text = label ?? t(STATE_LABEL_KEYS[state]);
   return (
     <span
       title={text}

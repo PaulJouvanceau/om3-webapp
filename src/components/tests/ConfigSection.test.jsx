@@ -4,6 +4,7 @@ import ConfigSection from '../ConfigSection';
 import userEvent from '@testing-library/user-event';
 import {URL_OBJECT} from '../../config/apiPath.js';
 import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
+import i18n from '../../i18n';
 
 // ── Hoisted variables ─────────────────────────────────────────────────
 const {
@@ -186,6 +187,16 @@ describe('ConfigSection Component', () => {
         renderConfig({configDialogOpen: false});
         expect(getViewConfigButton()).toBeInTheDocument();
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    test('speaks French in a French browser', async () => {
+        await i18n.changeLanguage('fr');
+        try {
+            renderConfig({configDialogOpen: false});
+            expect(screen.getByRole('button', {name: 'Voir la configuration'})).toBeInTheDocument();
+        } finally {
+            await act(() => i18n.changeLanguage('en'));
+        }
     });
 
     test('clicking View Configuration calls setConfigDialogOpen(true)', async () => {

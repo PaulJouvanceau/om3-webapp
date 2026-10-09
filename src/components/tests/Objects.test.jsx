@@ -5,6 +5,7 @@ import {MemoryRouter} from 'react-router-dom';
 import {vi} from 'vitest';
 import {axe} from 'vitest-axe';
 import Objects, {PROPERTY_COLUMNS} from '../Objects';
+import i18n from '../../i18n';
 
 // ── Hoisted mock variables ─────────────────────────────────────────────
 const {
@@ -181,7 +182,7 @@ const rowCells = (row) => within(row).getAllByRole('cell');
  * then one per node (node1, node2) on a wide screen.
  */
 const statusCell = (row) => rowCells(row)[1];
-const propertyCell = (row, label) => rowCells(row)[3 + PROPERTY_COLUMNS.findIndex((c) => c.label === label)];
+const propertyCell = (row, label) => rowCells(row)[3 + PROPERTY_COLUMNS.findIndex((c) => i18n.t(c.labelKey) === label)];
 const nodeCell = (row, index) => rowCells(row)[3 + PROPERTY_COLUMNS.length + index];
 
 const selectRow = (name) => {
@@ -354,8 +355,8 @@ describe('Objects Component', () => {
             ['Placement', 'Up', 'Priority'].forEach((label) =>
                 expect(screen.queryByRole('columnheader', {name: new RegExp(`^${label}`)})).not.toBeInTheDocument()
             );
-            PROPERTY_COLUMNS.forEach(({label}) =>
-                expect(screen.getByRole('columnheader', {name: new RegExp(`^${label}`)})).toBeInTheDocument()
+            PROPERTY_COLUMNS.forEach(({labelKey}) =>
+                expect(screen.getByRole('columnheader', {name: new RegExp(`^${i18n.t(labelKey)}`)})).toBeInTheDocument()
             );
 
             const failover = objectRow('test-ns/svc/fo');
@@ -1028,7 +1029,7 @@ describe('Objects Component', () => {
             });
             const mark = stoppedMark(cell);
             expect(mark).toBeInTheDocument();
-            expect(mark).toHaveAttribute('title', `stopped at ${new Date('2025-05-16T10:00:00Z').toLocaleString()}`);
+            expect(mark).toHaveAttribute('title', `stopped at ${new Date('2025-05-16T10:00:00Z').toLocaleString(i18n.language)}`);
             expect(mark.querySelector('svg')).not.toBeNull();
         });
 

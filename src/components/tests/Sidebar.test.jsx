@@ -1,8 +1,9 @@
 import React from 'react';
 import {render, screen, act, renderHook, within} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
-import {describe, test, expect, beforeEach, vi} from 'vitest';
+import {describe, test, expect, beforeEach, afterEach, vi} from 'vitest';
 import {Sidebar, NAV_ROUTES, useSidebarOpen} from '../Sidebar';
+import i18n from '../../i18n';
 
 const {mockPills} = vi.hoisted(() => ({mockPills: {current: {}}}));
 vi.mock('../../hooks/useSidebarAlerts', () => ({default: () => mockPills.current}));
@@ -153,8 +154,8 @@ describe('Sidebar', () => {
         renderSidebar();
         const nav = screen.getByRole('navigation', {name: 'Main'});
         expect(nav).toBeInTheDocument();
-        for (const {path, name} of NAV_ROUTES.flatMap((route) => [route, ...(route.children ?? [])])) {
-            expect(screen.getByRole('link', {name: new RegExp(`^${name}`)})).toHaveAttribute('href', path);
+        for (const {path, labelKey} of NAV_ROUTES.flatMap((route) => [route, ...(route.children ?? [])])) {
+            expect(screen.getByRole('link', {name: new RegExp(`^${i18n.t(labelKey)}`)})).toHaveAttribute('href', path);
         }
     });
 
@@ -210,5 +211,27 @@ describe('useSidebarOpen', () => {
         } finally {
             spy.mockRestore();
         }
+    });
+});
+
+describe('Sidebar in French', () => {
+    afterEach(async () => {
+        await i18n.changeLanguage('en');
+    });
+
+    test('names the entries in French', async () => {
+        await i18n.changeLanguage('fr');
+        renderSidebar();
+        expect(screen.getByRole('navigation', {name: 'Principal'})).toBeInTheDocument();
+        expect(screen.getByRole('link', {name: /^Nœuds/})).toHaveAttribute('href', '/nodes');
+        expect(screen.getByRole('link', {name: /^Namespaces/})).toHaveAttribute('href', '/namespaces');
+    });
+
+    test('says what the counts are in French', async () => {
+        await i18n.changeLanguage('fr');
+        mockPills.current = {'/nodes': {counts: [{state: 'frozen', count: 2}]}};
+        renderSidebar();
+        expect(screen.getByTestId('counts-nodes').querySelector('[data-state="frozen"]'))
+            .toHaveAttribute('title', '2 gelés');
     });
 });

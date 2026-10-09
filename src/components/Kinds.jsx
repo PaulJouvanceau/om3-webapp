@@ -1,5 +1,6 @@
 import React, {useEffect, useState, useMemo, useCallback, useRef, useDeferredValue} from "react";
 import {useNavigate, useLocation} from "react-router-dom";
+import {useTranslation} from "react-i18next";
 import {closeEventSource, startEventReception} from "../eventSourceManager.jsx";
 import EventLogger from "../components/EventLogger";
 import {useKindData} from "../hooks/useKindData";
@@ -11,10 +12,10 @@ import {Spinner} from "../ui/components/Spinner";
 const STATUSES = ["up", "down", "warn", "unprovisioned"];
 
 const STATUS_COLUMNS = [
-    {column: "up", label: "Up"},
-    {column: "down", label: "Down"},
-    {column: "warn", label: "Warn"},
-    {column: "unprovisioned", label: "Unprovisioned"},
+    {column: "up", labelKey: "kinds.columns.up"},
+    {column: "down", labelKey: "kinds.columns.down"},
+    {column: "warn", labelKey: "kinds.columns.warn"},
+    {column: "unprovisioned", labelKey: "kinds.columns.unprovisioned"},
 ];
 
 const MARK_STATE = {up: "up", down: "down", warn: "warn", unprovisioned: "down"};
@@ -23,15 +24,18 @@ const areStatusDotPropsEqual = (prev, next) =>
     prev.status === next.status && prev.count === next.count && prev.kind === next.kind;
 
 /** A status mark and its count; the count opens the objects of the kind in that state. */
-const KindStatusCount = React.memo(({status, count, kind, onClick}) => (
-    <StatusCount
-        state={MARK_STATE[status]}
-        markLabel={status === "unprovisioned" ? "unprovisioned" : undefined}
-        count={count}
-        label={`Show the ${count} ${status} object${count === 1 ? "" : "s"} of ${kind}`}
-        onClick={() => onClick(status)}
-    />
-), (prev, next) => areStatusDotPropsEqual(prev, next) && prev.onClick === next.onClick);
+const KindStatusCount = React.memo(({status, count, kind, onClick}) => {
+    const {t} = useTranslation();
+    return (
+        <StatusCount
+            state={MARK_STATE[status]}
+            markLabel={status === "unprovisioned" ? "unprovisioned" : undefined}
+            count={count}
+            label={t("kinds.showObjects", {count, status, kind})}
+            onClick={() => onClick(status)}
+        />
+    );
+}, (prev, next) => areStatusDotPropsEqual(prev, next) && prev.onClick === next.onClick);
 
 const KindTableRow = React.memo(({
                                      kind,
@@ -77,6 +81,7 @@ const KindTableRow = React.memo(({
 });
 
 const Kinds = () => {
+    const {t} = useTranslation();
     const navigate = useNavigate();
     const location = useLocation();
     const isMounted = useRef(true);
@@ -235,10 +240,10 @@ const Kinds = () => {
         <div className="flex h-full flex-col gap-3 p-4">
             <div className="flex flex-wrap items-center gap-3">
                 <label className="flex items-center gap-1 text-ink-muted">
-                    Filter by kind
+                    {t("kinds.filterBy")}
                     <Select className="h-7" value={selectedKind} onChange={handleKindChange}>
                         {kindOptions.map((kind) => (
-                            <option key={kind} value={kind}>{kind}</option>
+                            <option key={kind} value={kind}>{kind === "all" ? t("kinds.allOption") : kind}</option>
                         ))}
                     </Select>
                 </label>
@@ -253,27 +258,25 @@ const Kinds = () => {
                 <thead>
                     <HeaderRow>
                         <SortHeaderCell
-                            label="Kind"
+                            label={t("kinds.columns.kind")}
                             active={sortColumn === "kind"}
                             direction={sortDirection}
                             onSort={() => handleSort("kind")}
                         />
-                        {STATUS_COLUMNS.map(({column, label}) => (
+                        {STATUS_COLUMNS.map(({column, labelKey}) => (
                             <SortHeaderCell
                                 key={column}
-                                label={label}
+                                label={t(labelKey)}
                                 active={sortColumn === column}
                                 direction={sortDirection}
                                 onSort={() => handleSort(column)}
-                                align="right"
                             />
                         ))}
                         <SortHeaderCell
-                            label="Total"
+                            label={t("kinds.columns.total")}
                             active={sortColumn === "total"}
                             direction={sortDirection}
                             onSort={() => handleSort("total")}
-                            align="right"
                         />
                     </HeaderRow>
                 </thead>
@@ -292,8 +295,8 @@ const Kinds = () => {
                         <EmptyRow colSpan={6}>
                             <span data-testid="no-kinds-message">
                                 {selectedKind !== "all"
-                                    ? "No kinds match the selected filter"
-                                    : "No kinds available"}
+                                    ? t("kinds.emptyFiltered")
+                                    : t("kinds.empty")}
                             </span>
                         </EmptyRow>
                     )}
@@ -301,14 +304,14 @@ const Kinds = () => {
             </Table>
             {loading && (
                 <div className="flex justify-center">
-                    <Spinner label="Loading more kinds"/>
+                    <Spinner label={t("kinds.loadingMore")}/>
                 </div>
             )}
 
             <EventLogger
                 eventTypes={kindEventTypes}
-                title="Kinds Events Logger"
-                buttonLabel="Kind Events"
+                title={t("kinds.eventsLogger")}
+                buttonLabel={t("kinds.events")}
             />
         </div>
     );

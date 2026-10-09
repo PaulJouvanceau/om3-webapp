@@ -9,6 +9,7 @@ import {CodeIcon, EyeIcon, EyeOffIcon, FileIcon, PencilIcon, LifeRingIcon, PlusI
 import {formatSeconds, useAutoHide} from "../ui/lib/reveal";
 import {URL_OBJECT} from "../config/apiPath.js";
 import {parseObjectPath} from "../utils/objectUtils";
+import {useTranslation} from "react-i18next";
 
 /**
  * The object configuration file, its secrets redacted unless `showSecrets`: the
@@ -36,6 +37,7 @@ const useConfig = (decodedObjectName, configNode, setConfigNode, refreshTrigger,
                 return state;
         }
     };
+    const {t} = useTranslation();
     const [state, dispatch] = useReducer(reducer, initialState);
     const lastFetch = useRef({});
 
@@ -61,15 +63,15 @@ const useConfig = (decodedObjectName, configNode, setConfigNode, refreshTrigger,
             });
             if (!response.ok) {
                 const error = new Error(`HTTP ${response.status}`);
-                dispatch({type: "FETCH_ERROR", payload: `Failed to fetch config: ${error.message}`});
+                dispatch({type: "FETCH_ERROR", payload: t("config.errors.fetchConfig", {message: error.message})});
                 return;
             }
             const text = await response.text();
             dispatch({type: "FETCH_SUCCESS", payload: text});
         } catch (err) {
-            dispatch({type: "FETCH_ERROR", payload: `Failed to fetch config: ${err.message}`});
+            dispatch({type: "FETCH_ERROR", payload: t("config.errors.fetchConfig", {message: err.message})});
         }
-    }, [decodedObjectName, setConfigNode, showSecrets]);
+    }, [decodedObjectName, setConfigNode, showSecrets, t]);
 
     // Showing or hiding the secrets always reloads, throttle or not, and drops the
     // text first: a revealed secret must not stay on screen while hiding them.
@@ -116,6 +118,7 @@ const useKeywords = (decodedObjectName) => {
                 return state;
         }
     };
+    const {t} = useTranslation();
     const [state, dispatch] = useReducer(reducer, initialState);
     const fetchKeywords = async () => {
         const {namespace, kind, name} = parseObjectPath(decodedObjectName);
@@ -133,12 +136,12 @@ const useKeywords = (decodedObjectName) => {
             clearTimeout(timeoutId);
             if (!response.ok) {
                 const error = new Error(`HTTP ${response.status}`);
-                dispatch({type: "FETCH_ERROR", payload: `Failed to fetch keywords: ${error.message}`});
+                dispatch({type: "FETCH_ERROR", payload: t("config.errors.fetchKeywords", {message: error.message})});
                 return;
             }
             const data = await response.json();
             if (!data || !Array.isArray(data.items)) {
-                const error = new Error("Invalid response format: missing items");
+                const error = new Error(t("config.errors.invalidFormat"));
                 dispatch({type: "FETCH_ERROR", payload: error.message});
                 return;
             }
@@ -151,7 +154,7 @@ const useKeywords = (decodedObjectName) => {
             });
             dispatch({type: "FETCH_SUCCESS", payload: uniqueKeywords});
         } catch (err) {
-            const errorMsg = err.name === "AbortError" ? "Request timed out after 60 seconds" : `Failed to fetch keywords: ${err.message}`;
+            const errorMsg = err.name === "AbortError" ? t("config.errors.timeout") : t("config.errors.fetchKeywords", {message: err.message});
             dispatch({type: "FETCH_ERROR", payload: errorMsg});
         }
     };
@@ -177,6 +180,7 @@ const useExistingParams = (decodedObjectName) => {
                 return state;
         }
     };
+    const {t} = useTranslation();
     const [state, dispatch] = useReducer(reducer, initialState);
     const fetchExistingParams = async () => {
         const {namespace, kind, name} = parseObjectPath(decodedObjectName);
@@ -189,13 +193,13 @@ const useExistingParams = (decodedObjectName) => {
             });
             if (!response.ok) {
                 const error = new Error(`HTTP ${response.status}`);
-                dispatch({type: "FETCH_ERROR", payload: `Failed to fetch existing parameters: ${error.message}`});
+                dispatch({type: "FETCH_ERROR", payload: t("config.errors.fetchParams", {message: error.message})});
                 return;
             }
             const data = await response.json();
             dispatch({type: "FETCH_SUCCESS", payload: data.items || []});
         } catch (err) {
-            dispatch({type: "FETCH_ERROR", payload: `Failed to fetch existing parameters: ${err.message}`});
+            dispatch({type: "FETCH_ERROR", payload: t("config.errors.fetchParams", {message: err.message})});
         }
     };
     return {...state, fetchExistingParams};
@@ -231,7 +235,9 @@ const keywordLabel = (keyword) => `${keyword.section ? `${keyword.section}.` : "
  * File picker: the native input, hidden but focusable, behind a label drawn as a
  * secondary button; the chosen file name beside it.
  */
-const FilePicker = ({id, file, onChange, disabled, emptyText}) => (
+const FilePicker = ({id, file, onChange, disabled, emptyText}) => {
+    const {t} = useTranslation();
+    return (
     <div className="flex items-center gap-3">
         <input
             id={id}
@@ -248,11 +254,12 @@ const FilePicker = ({id, file, onChange, disabled, emptyText}) => (
                     : "inline-flex h-8 cursor-pointer items-center rounded-(--radius-control) border border-line bg-surface-raised px-3 font-medium hover:bg-surface-sunken peer-focus-visible:outline-2 peer-focus-visible:outline-(--focus-ring)"
             }
         >
-            Choose File
+            {t("config.filePicker.choose")}
         </label>
         <span className={file ? "text-ink" : "text-ink-muted"}>{file ? file.name : emptyText}</span>
     </div>
-);
+    );
+};
 
 const UpdateConfigDialog = ({
                                 open,
@@ -261,22 +268,24 @@ const UpdateConfigDialog = ({
                                 setNewConfigFile,
                                 actionLoading,
                                 handleUpdateConfig,
-                            }) => (
+                            }) => {
+    const {t} = useTranslation();
+    return (
     <Dialog
         open={open}
         onClose={onClose}
-        title="Update Configuration"
+        title={t("config.update.title")}
         size="md"
         footer={
             <>
-                <Button onClick={onClose} disabled={actionLoading}>Cancel</Button>
+                <Button onClick={onClose} disabled={actionLoading}>{t("common.cancel")}</Button>
                 <Button
                     variant="primary"
                     onClick={handleUpdateConfig}
                     disabled={actionLoading || !newConfigFile}
-                    icon={actionLoading ? <Spinner label="Updating"/> : undefined}
+                    icon={actionLoading ? <Spinner label={t("config.update.updating")}/> : undefined}
                 >
-                    Update
+                    {t("config.update.submit")}
                 </Button>
             </>
         }
@@ -286,52 +295,56 @@ const UpdateConfigDialog = ({
             file={newConfigFile}
             onChange={setNewConfigFile}
             disabled={actionLoading}
-            emptyText="No file chosen"
+            emptyText={t("config.filePicker.noFile")}
         />
     </Dialog>
-);
+    );
+};
 
-const KeywordsDialog = ({open, onClose, keywordsData, keywordsLoading, keywordsError}) => (
+const KeywordsDialog = ({open, onClose, keywordsData, keywordsLoading, keywordsError}) => {
+    const {t} = useTranslation();
+    return (
     <Dialog
         open={open}
         onClose={onClose}
-        title="Configuration Keywords"
+        title={t("config.keywords.title")}
         size="lg"
-        footer={<Button onClick={onClose} disabled={keywordsLoading}>Close</Button>}
+        footer={<Button onClick={onClose} disabled={keywordsLoading}>{t("common.close")}</Button>}
     >
         {keywordsLoading && <Spinner/>}
         {keywordsError && <Alert>{keywordsError}</Alert>}
         {!keywordsLoading && !keywordsError && !keywordsData && (
-            <p className="text-ink-muted">No keywords available.</p>
+            <p className="text-ink-muted">{t("config.keywords.empty")}</p>
         )}
         {!keywordsLoading && !keywordsError && keywordsData && (
-            <Table aria-label="configuration keywords table">
+            <Table aria-label={t("config.keywords.tableLabel")}>
                 <thead>
                 <HeaderRow>
-                    <HeaderCell>Keyword</HeaderCell>
-                    <HeaderCell>Description</HeaderCell>
-                    <HeaderCell>Default</HeaderCell>
-                    <HeaderCell>Type</HeaderCell>
-                    <HeaderCell>Section</HeaderCell>
-                    <HeaderCell>Scopable</HeaderCell>
+                    <HeaderCell>{t("config.keywords.keyword")}</HeaderCell>
+                    <HeaderCell>{t("config.keywords.description")}</HeaderCell>
+                    <HeaderCell>{t("config.keywords.default")}</HeaderCell>
+                    <HeaderCell>{t("common.type")}</HeaderCell>
+                    <HeaderCell>{t("config.keywords.section")}</HeaderCell>
+                    <HeaderCell>{t("config.keywords.scopable")}</HeaderCell>
                 </HeaderRow>
                 </thead>
                 <tbody>
                 {keywordsData.map((keyword, index) => (
                     <Row key={`${keyword.section || "default"}.${keyword.option}-${index}`}>
                         <Cell className="font-mono whitespace-nowrap">{keyword.option}</Cell>
-                        <Cell>{keyword.text || "N/A"}</Cell>
-                        <Cell className="font-mono">{keyword.default || "None"}</Cell>
-                        <Cell className="whitespace-nowrap">{keyword.converter || "N/A"}</Cell>
-                        <Cell className="whitespace-nowrap">{keyword.section || "N/A"}</Cell>
-                        <Cell>{keyword.scopable ? "Yes" : "No"}</Cell>
+                        <Cell>{keyword.text || t("common.notAvailable")}</Cell>
+                        <Cell className="font-mono">{keyword.default || t("common.none")}</Cell>
+                        <Cell className="whitespace-nowrap">{keyword.converter || t("common.notAvailable")}</Cell>
+                        <Cell className="whitespace-nowrap">{keyword.section || t("common.notAvailable")}</Cell>
+                        <Cell>{keyword.scopable ? t("common.yes") : t("common.no")}</Cell>
                     </Row>
                 ))}
                 </tbody>
             </Table>
         )}
     </Dialog>
-);
+    );
+};
 
 /** A group of checkboxes, one per choice, in a bordered scrolling box. */
 const CheckboxGroup = ({legend, hint, choices, isChecked, onToggle, disabled, emptyText}) => (
@@ -377,6 +390,7 @@ const ManageParamsDialog = ({
                                 handleManageParamsSubmit,
                                 openSnackbar,
                             }) => {
+    const {t} = useTranslation();
     const listId = useId();
     // The text of the "add" field: a keyword when it names one, else free text.
     const [keywordInput, setKeywordInput] = useState("");
@@ -427,7 +441,7 @@ const ManageParamsDialog = ({
     const addParameter = () => {
         if (selectedKeyword) {
             if (typeof selectedKeyword === 'string') {
-                openSnackbar(`Invalid parameter: ${selectedKeyword}`, 'error');
+                openSnackbar(t("config.feedback.invalidParam", {name: selectedKeyword}), 'error');
                 return;
             }
             const keywordSection = selectedKeyword.section || "";
@@ -499,18 +513,18 @@ const ManageParamsDialog = ({
         <Dialog
             open={open}
             onClose={onClose}
-            title="Manage Configuration Parameters"
+            title={t("config.params.title")}
             size="lg"
             footer={
                 <>
-                    <Button onClick={onClose} disabled={actionLoading}>Cancel</Button>
+                    <Button onClick={onClose} disabled={actionLoading}>{t("common.cancel")}</Button>
                     <Button
                         variant="primary"
                         onClick={handleManageParamsSubmit}
                         disabled={actionLoading}
-                        icon={actionLoading ? <Spinner label="Applying"/> : undefined}
+                        icon={actionLoading ? <Spinner label={t("config.params.applying")}/> : undefined}
                     >
-                        Apply
+                        {t("config.params.apply")}
                     </Button>
                 </>
             }
@@ -520,15 +534,15 @@ const ManageParamsDialog = ({
             {existingParamsError && <Alert>{existingParamsError}</Alert>}
 
             <section className="space-y-2">
-                <h3 className="font-semibold">Add parameters</h3>
+                <h3 className="font-semibold">{t("config.params.addHeading")}</h3>
                 <div className="flex items-end gap-2">
                     <div className="min-w-0 flex-1">
-                        <Field label="Select parameter to add" hint="Select a parameter to add, then click Add">
+                        <Field label={t("config.params.selectLabel")} hint={t("config.params.selectHint")}>
                             {(control) => (
                                 <Input
                                     {...control}
                                     list={`${listId}-keywords`}
-                                    placeholder="Select parameter"
+                                    placeholder={t("config.params.selectPlaceholder")}
                                     autoComplete="off"
                                     className="font-mono"
                                     value={keywordInput}
@@ -550,20 +564,20 @@ const ManageParamsDialog = ({
                             onClick={addParameter}
                             disabled={!selectedKeyword || actionLoading}
                         >
-                            Add Parameter
+                            {t("config.params.addButton")}
                         </Button>
                     </div>
                 </div>
 
                 {paramsToSet.length > 0 && (
-                    <Table aria-label="Parameters to add">
+                    <Table aria-label={t("config.params.tableLabel")}>
                         <thead>
                         <HeaderRow>
-                            <HeaderCell className="w-1/4">Section</HeaderCell>
-                            <HeaderCell>Parameter</HeaderCell>
-                            <HeaderCell className="w-1/4">Value</HeaderCell>
-                            <HeaderCell>Description</HeaderCell>
-                            <HeaderCell><span className="sr-only">Actions</span></HeaderCell>
+                            <HeaderCell className="w-1/4">{t("config.params.section")}</HeaderCell>
+                            <HeaderCell>{t("config.params.parameter")}</HeaderCell>
+                            <HeaderCell className="w-1/4">{t("config.params.value")}</HeaderCell>
+                            <HeaderCell>{t("config.params.description")}</HeaderCell>
+                            <HeaderCell><span className="sr-only">{t("common.actions")}</span></HeaderCell>
                         </HeaderRow>
                         </thead>
                         <tbody>
@@ -579,10 +593,10 @@ const ManageParamsDialog = ({
                                                 <span
                                                     className="font-mono whitespace-nowrap">{param.sectionPrefix}#</span>
                                                 <Input
-                                                    aria-label="Index"
+                                                    aria-label={t("config.params.index")}
                                                     list={sectionListId}
                                                     autoComplete="off"
-                                                    placeholder="e.g., prod, 1, data"
+                                                    placeholder={t("config.params.indexPlaceholder")}
                                                     className="h-7 font-mono"
                                                     value={param.sectionSuffix}
                                                     onChange={(e) => updateParamSectionSuffix(index, e.target.value)}
@@ -597,10 +611,10 @@ const ManageParamsDialog = ({
                                         ) : (
                                             <>
                                                 <Input
-                                                    aria-label="Section (optional)"
+                                                    aria-label={t("config.params.sectionOptional")}
                                                     list={sectionListId}
                                                     autoComplete="off"
-                                                    placeholder="e.g., database, fs#data"
+                                                    placeholder={t("config.params.sectionPlaceholder")}
                                                     className="h-7 font-mono"
                                                     value={param.section || ""}
                                                     onChange={(e) => updateParamSection(index, e.target.value)}
@@ -619,7 +633,7 @@ const ManageParamsDialog = ({
                                     </Cell>
                                     <Cell>
                                         <Input
-                                            aria-label="Value"
+                                            aria-label={t("config.params.value")}
                                             className="h-7 font-mono"
                                             value={param.value}
                                             onChange={(e) => updateParamValue(index, e.target.value)}
@@ -627,12 +641,12 @@ const ManageParamsDialog = ({
                                         />
                                     </Cell>
                                     <Cell className="max-w-60 truncate text-ink-muted" title={keyword?.text || ""}>
-                                        {keyword?.text || "N/A"}
+                                        {keyword?.text || t("common.notAvailable")}
                                     </Cell>
-                                    <Cell align="right">
+                                    <Cell>
                                         <IconButton
                                             size="sm"
-                                            label="Remove parameter"
+                                            label={t("config.params.removeParam")}
                                             onClick={() => removeParameter(index)}
                                             disabled={actionLoading}
                                         >
@@ -648,9 +662,9 @@ const ManageParamsDialog = ({
             </section>
 
             <CheckboxGroup
-                legend="Unset parameters"
-                hint="Select existing parameters to remove their values"
-                emptyText="No parameters set."
+                legend={t("config.params.unsetLegend")}
+                hint={t("config.params.unsetHint")}
+                emptyText={t("config.params.unsetEmpty")}
                 choices={existingKeywords.map((keyword) => ({
                     key: keywordLabel(keyword),
                     label: keywordLabel(keyword),
@@ -662,9 +676,9 @@ const ManageParamsDialog = ({
             />
 
             <CheckboxGroup
-                legend="Delete sections"
-                hint="Select existing sections to delete"
-                emptyText="No sections."
+                legend={t("config.params.deleteLegend")}
+                hint={t("config.params.deleteHint")}
+                emptyText={t("config.params.deleteEmpty")}
                 choices={existingSections.map((section) => ({key: section, label: section, value: section}))}
                 isChecked={(section) => paramsToDelete.includes(section)}
                 onToggle={toggleDelete}
@@ -683,6 +697,7 @@ const ConfigSection = ({
                            setConfigDialogOpen,
                            configRefreshTrigger = 0,
                        }) => {
+    const {t} = useTranslation();
     // Secrets stay hidden until asked for, and hidden again each time the dialog opens.
     const [showSecrets, setShowSecrets] = useState(false);
     useEffect(() => {
@@ -738,7 +753,7 @@ const ConfigSection = ({
             const text = await fetchRawConfigFile(decodedObjectName);
             setEdit({base: text, text});
         } catch (err) {
-            setEditError(`Failed to fetch config: ${err.message}`);
+            setEditError(t("config.errors.fetchConfig", {message: err.message}));
         } finally {
             setEditLoading(false);
         }
@@ -753,7 +768,7 @@ const ConfigSection = ({
     const saveEdit = async () => {
         const token = localStorage.getItem("authToken");
         if (!token) {
-            openSnackbar("Auth token not found.", "error");
+            openSnackbar(t("config.feedback.tokenNotFound"), "error");
             return;
         }
         const {namespace, kind, name} = parseObjectPath(decodedObjectName);
@@ -766,7 +781,7 @@ const ConfigSection = ({
             const current = await fetchRawConfigFile(decodedObjectName);
             if (current !== edit.base) {
                 setEditConflict(true);
-                setEditError("The configuration was changed by someone else since you started editing it. Your changes are not saved.");
+                setEditError(t("config.feedback.conflict"));
                 return;
             }
             const response = await fetch(`${URL_OBJECT}/${namespace}/${kind}/${name}/config/file`, {
@@ -779,14 +794,14 @@ const ConfigSection = ({
             });
             if (!response.ok) {
                 if (response.status === 409) setEditConflict(true);
-                setEditError(`Failed to update config: ${await problemMessage(response)}`);
+                setEditError(t("config.feedback.updateFailed", {message: await problemMessage(response)}));
                 return;
             }
             setEdit(null);
-            openSnackbar("Configuration updated successfully");
+            openSnackbar(t("config.feedback.updated"));
             if (configNode) await fetchConfig(configNode, true);
         } catch (err) {
-            setEditError(`Failed to update config: ${err.message}`);
+            setEditError(t("config.feedback.updateFailed", {message: err.message}));
         } finally {
             setActionLoading(false);
         }
@@ -806,17 +821,17 @@ const ConfigSection = ({
     const handleUpdateConfig = async () => {
         /* istanbul ignore next */
         if (!newConfigFile) {
-            openSnackbar("Configuration file is required.", "error");
+            openSnackbar(t("config.feedback.fileRequired"), "error");
             return;
         }
         const token = localStorage.getItem("authToken");
         if (!token) {
-            openSnackbar("Auth token not found.", "error");
+            openSnackbar(t("config.feedback.tokenNotFound"), "error");
             return;
         }
         const {namespace, kind, name} = parseObjectPath(decodedObjectName);
         setActionLoading(true);
-        openSnackbar("Updating configuration…", "info");
+        openSnackbar(t("config.feedback.updating"), "info");
         try {
             const response = await fetch(`${URL_OBJECT}/${namespace}/${kind}/${name}/config/file`, {
                 method: "PUT",
@@ -827,17 +842,16 @@ const ConfigSection = ({
                 body: newConfigFile,
             });
             if (!response.ok) {
-                const error = new Error(`Failed to update config: ${response.status}`);
-                openSnackbar(`Error: ${error.message}`, "error");
+                openSnackbar(t("config.feedback.updateFailedStatus", {status: response.status}), "error");
                 return;
             }
-            openSnackbar("Configuration updated successfully");
+            openSnackbar(t("config.feedback.updated"));
             if (configNode) {
                 await fetchConfig(configNode, true);
                 setConfigDialogOpen(true);
             }
         } catch (err) {
-            openSnackbar(`Error: ${err.message}`, "error");
+            openSnackbar(t("config.feedback.error", {message: err.message}), "error");
         } finally {
             setActionLoading(false);
             setUpdateConfigDialogOpen(false);
@@ -848,12 +862,12 @@ const ConfigSection = ({
     const handleAddParams = async () => {
         /* istanbul ignore next */
         if (!paramsToSet.length) {
-            openSnackbar("Parameter input is required.", "error");
+            openSnackbar(t("config.feedback.paramRequired"), "error");
             return false;
         }
         const token = localStorage.getItem("authToken");
         if (!token) {
-            openSnackbar("Auth token not found.", "error");
+            openSnackbar(t("config.feedback.tokenNotFound"), "error");
             return false;
         }
         const {namespace, kind, name} = parseObjectPath(decodedObjectName);
@@ -875,13 +889,13 @@ const ConfigSection = ({
             try {
                 /* istanbul ignore next */
                 if (!keyword) {
-                    openSnackbar(`Invalid parameter: ${option}`, "error");
+                    openSnackbar(t("config.feedback.invalidParam", {name: option}), "error");
                     continue;
                 }
                 if (keyword.converter === "converters.TListLowercase" && value.includes(",")) {
                     const values = value.split(",").map((v) => v.trim().toLowerCase());
                     if (values.some((v) => !v)) {
-                        openSnackbar(`Invalid value for ${fullKeyword}: must be comma-separated lowercase strings`, "error");
+                        openSnackbar(t("config.feedback.invalidList", {keyword: fullKeyword}), "error");
                         continue;
                     }
                 }
@@ -892,16 +906,16 @@ const ConfigSection = ({
                 });
                 if (!response.ok) {
                     const error = new Error(`HTTP ${response.status}`);
-                    openSnackbar(`Error adding parameter ${fullKeyword}: ${error.message}`, "error");
+                    openSnackbar(t("config.feedback.addError", {keyword: fullKeyword, message: error.message}), "error");
                     continue;
                 }
                 successCount++;
             } catch (err) {
-                openSnackbar(`Error adding parameter ${fullKeyword}: ${err.message}`, "error");
+                openSnackbar(t("config.feedback.addError", {keyword: fullKeyword, message: err.message}), "error");
             }
         }
         if (successCount > 0) {
-            openSnackbar(`Successfully added ${successCount} parameter(s)`, "success");
+            openSnackbar(t("config.feedback.added", {count: successCount}), "success");
             if (configNode) {
                 await fetchConfig(configNode, true);
                 await fetchExistingParams();
@@ -916,7 +930,7 @@ const ConfigSection = ({
         if (!paramsToUnset.length) return false;
         const token = localStorage.getItem("authToken");
         if (!token) {
-            openSnackbar("Auth token not found.", "error");
+            openSnackbar(t("config.feedback.tokenNotFound"), "error");
             return false;
         }
         const {namespace, kind, name} = parseObjectPath(decodedObjectName);
@@ -927,7 +941,7 @@ const ConfigSection = ({
             try {
                 /* istanbul ignore next */
                 if (!option) {
-                    openSnackbar(`Error unsetting parameter ${param.option || "unknown"}`, "error");
+                    openSnackbar(t("config.feedback.unsetErrorUnknown", {keyword: param.option || t("config.feedback.unknownParam")}), "error");
                     continue;
                 }
                 const fullKeyword = section ? `${section}.${option}` : option;
@@ -937,17 +951,16 @@ const ConfigSection = ({
                     headers: {Authorization: `Bearer ${token}`},
                 });
                 if (!response.ok) {
-                    const error = new Error(`Failed to unset parameter ${fullKeyword}: ${response.status}`);
-                    openSnackbar(`Error unsetting parameter ${fullKeyword}: ${error.message}`, "error");
+                    openSnackbar(t("config.feedback.unsetFailedStatus", {keyword: fullKeyword, status: response.status}), "error");
                     continue;
                 }
                 successCount++;
             } catch (err) {
-                openSnackbar(`Error unsetting parameter ${option || "unknown"}: ${err.message}`, "error");
+                openSnackbar(t("config.feedback.unsetError", {keyword: option || t("config.feedback.unknownParam"), message: err.message}), "error");
             }
         }
         if (successCount > 0) {
-            openSnackbar(`Successfully unset ${successCount} parameter(s)`, "success");
+            openSnackbar(t("config.feedback.unset", {count: successCount}), "success");
             if (configNode) {
                 await fetchConfig(configNode, true);
                 await fetchExistingParams();
@@ -962,7 +975,7 @@ const ConfigSection = ({
         if (!paramsToDelete.length) return false;
         const token = localStorage.getItem("authToken");
         if (!token) {
-            openSnackbar("Auth token not found.", "error");
+            openSnackbar(t("config.feedback.tokenNotFound"), "error");
             return false;
         }
         const {namespace, kind, name} = parseObjectPath(decodedObjectName);
@@ -976,17 +989,16 @@ const ConfigSection = ({
                     headers: {Authorization: `Bearer ${token}`},
                 });
                 if (!response.ok) {
-                    const error = new Error(`Failed to delete section ${section}: ${response.status}`);
-                    openSnackbar(`Error deleting section ${section}: ${error.message}`, "error");
+                    openSnackbar(t("config.feedback.deleteFailedStatus", {section, status: response.status}), "error");
                     continue;
                 }
                 successCount++;
             } catch (err) {
-                openSnackbar(`Error deleting section ${section}: ${err.message}`, "error");
+                openSnackbar(t("config.feedback.deleteError", {section, message: err.message}), "error");
             }
         }
         if (successCount > 0) {
-            openSnackbar(`Successfully deleted ${successCount} section(s)`, "success");
+            openSnackbar(t("config.feedback.deleted", {count: successCount}), "success");
             if (configNode) {
                 await fetchConfig(configNode, true);
                 await fetchExistingParams();
@@ -1003,7 +1015,7 @@ const ConfigSection = ({
         if (paramsToUnset.length) anySuccess = await handleUnsetParams() || anySuccess;
         if (paramsToDelete.length) anySuccess = await handleDeleteParams() || anySuccess;
         if (!paramsToSet.length && !paramsToUnset.length && !paramsToDelete.length) {
-            openSnackbar("No selection made", "error");
+            openSnackbar(t("config.feedback.noSelection"), "error");
             return;
         }
         if (anySuccess) {
@@ -1024,40 +1036,40 @@ const ConfigSection = ({
                 onClick={() => setConfigDialogOpen(true)}
                 className="w-full min-w-0 overflow-hidden text-ellipsis"
             >
-                View Configuration
+                {t("config.view.button")}
             </Button>
 
             <Dialog
                 open={configDialogOpen}
                 onClose={closeConfigDialog}
-                title="Configuration"
+                title={t("config.view.title")}
                 size="lg"
                 footer={edit ? (
                     <>
-                        <Button onClick={cancelEdit} disabled={actionLoading}>Cancel</Button>
+                        <Button onClick={cancelEdit} disabled={actionLoading}>{t("common.cancel")}</Button>
                         <Button
                             variant="primary"
                             onClick={saveEdit}
                             disabled={actionLoading || !editDirty}
-                            icon={actionLoading ? <Spinner label="Saving"/> : undefined}
+                            icon={actionLoading ? <Spinner label={t("config.view.saving")}/> : undefined}
                         >
-                            Save
+                            {t("common.save")}
                         </Button>
                     </>
                 ) : (
-                    <Button onClick={closeConfigDialog}>Close</Button>
+                    <Button onClick={closeConfigDialog}>{t("common.close")}</Button>
                 )}
             >
                 {edit ? (
                     <div className="space-y-2">
                         <p className="text-data text-ink-muted">
-                            Editing the file as stored: secret values are shown in clear. Saving uploads the whole file.
+                            {t("config.view.editNotice")}
                         </p>
                         {editError && (
                             <Alert
                                 action={editConflict && (
                                     <Button size="sm" onClick={startEdit} disabled={actionLoading || editLoading}>
-                                        Start over from the current file
+                                        {t("config.view.startOver")}
                                     </Button>
                                 )}
                             >
@@ -1065,7 +1077,7 @@ const ConfigSection = ({
                             </Alert>
                         )}
                         <Textarea
-                            aria-label="Configuration file"
+                            aria-label={t("config.view.fileLabel")}
                             value={edit.text}
                             onChange={(e) => setEdit({...edit, text: e.target.value})}
                             disabled={actionLoading}
@@ -1080,12 +1092,12 @@ const ConfigSection = ({
                             {configData !== null && !configLoading && (
                                 <p className="mr-auto text-data text-ink-muted">
                                     {showSecrets
-                                        ? `Secrets masked again in ${formatSeconds(secondsLeft)}.`
-                                        : "Secret values are shown as ********."}
+                                        ? t("config.view.secretsMaskedIn", {time: formatSeconds(secondsLeft)})
+                                        : t("config.view.secretsHidden")}
                                 </p>
                             )}
                             <IconButton
-                                label={showSecrets ? "Hide secrets" : "Show secrets"}
+                                label={showSecrets ? t("config.view.hideSecrets") : t("config.view.showSecrets")}
                                 aria-pressed={showSecrets}
                                 onClick={() => setShowSecrets((shown) => !shown)}
                                 disabled={configLoading}
@@ -1093,28 +1105,28 @@ const ConfigSection = ({
                                 {showSecrets ? <EyeOffIcon/> : <EyeIcon/>}
                             </IconButton>
                             <IconButton
-                                label="Edit configuration file"
+                                label={t("config.view.editFile")}
                                 onClick={startEdit}
                                 disabled={actionLoading || editLoading || !configNode}
                             >
                                 <CodeIcon/>
                             </IconButton>
                             <IconButton
-                                label="Upload new configuration file"
+                                label={t("config.view.uploadFile")}
                                 onClick={() => setUpdateConfigDialogOpen(true)}
                                 disabled={actionLoading}
                             >
                                 <FileIcon/>
                             </IconButton>
                             <IconButton
-                                label="Manage configuration parameters"
+                                label={t("config.view.manageParams")}
                                 onClick={handleOpenManageParamsDialog}
                                 disabled={actionLoading}
                             >
                                 <PencilIcon/>
                             </IconButton>
                             <IconButton
-                                label="View configuration keywords"
+                                label={t("config.view.viewKeywords")}
                                 onClick={handleOpenKeywordsDialog}
                                 disabled={actionLoading}
                             >
@@ -1122,14 +1134,14 @@ const ConfigSection = ({
                             </IconButton>
                         </div>
                         {!configNode && !configLoading && !configError && (
-                            <p className="text-ink-muted">No instance selected to view configuration.</p>
+                            <p className="text-ink-muted">{t("config.view.noInstance")}</p>
                         )}
-                        {editLoading && <Spinner label="Loading configuration for editing"/>}
+                        {editLoading && <Spinner label={t("config.view.loadingForEdit")}/>}
                         {editError && !editLoading && <Alert>{editError}</Alert>}
-                        {configLoading && <Spinner label="Loading configuration"/>}
+                        {configLoading && <Spinner label={t("config.view.loading")}/>}
                         {configError && <Alert>{configError}</Alert>}
                         {!configLoading && !configError && configData === null && configNode && (
-                            <p className="text-ink-muted">No configuration available.</p>
+                            <p className="text-ink-muted">{t("config.view.empty")}</p>
                         )}
                         {!configLoading && !configError && configData !== null && (
                             <div

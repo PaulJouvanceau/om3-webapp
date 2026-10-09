@@ -8,6 +8,7 @@ import React, {
     useSyncExternalStore,
 } from "react";
 import {useLocation, useNavigate} from "react-router-dom";
+import {useTranslation} from "react-i18next";
 
 import useEventStore from "../hooks/useEventStore.js";
 import {closeEventSource, startEventReception} from "../eventSourceManager.jsx";
@@ -38,22 +39,37 @@ const useMediaQuery = (query) => useSyncExternalStore(
 /** A running stream is up, a stopped or failed one down, a warning one warn. */
 const STREAM_STATUS = {running: "up", warning: "warn", stopped: "down", failed: "down"};
 
-const StateMark = React.memo(({state}) => (
-    <StatusMark state={STREAM_STATUS[state] ?? "unknown"} label={`State ${state || "unknown"}`}/>
-), (prev, next) => prev.state === next.state);
+/** The columns of the table, their titles translated at render. */
+const COLUMNS = [
+    {labelKey: "heartbeats.columns.running", key: "state"},
+    {labelKey: "heartbeats.columns.beating", key: "beating"},
+    {labelKey: "heartbeats.columns.id", key: "id"},
+    {labelKey: "heartbeats.columns.node", key: "node"},
+    {labelKey: "heartbeats.columns.peer", key: "peer"},
+    {labelKey: "heartbeats.columns.type", key: "type"},
+    {labelKey: "heartbeats.columns.desc", key: "desc"},
+    {labelKey: "heartbeats.columns.changedAt", key: "changed_at"},
+    {labelKey: "heartbeats.columns.lastBeatingAt", key: "last_beating_at"}
+];
+
+const StateMark = React.memo(({state}) => {
+    const {t} = useTranslation();
+    return <StatusMark state={STREAM_STATUS[state] ?? "unknown"} label={t("heartbeats.marks.state", {state: state || "unknown"})}/>;
+}, (prev, next) => prev.state === next.state);
 
 /** A beating peer is up, a stale one down. A single node has no peer to miss: up. */
-const BeatingMark = React.memo(({isBeating, isSingleNode}) => (
-    isSingleNode || isBeating
-        ? <StatusMark state="up" label={isSingleNode ? "Healthy (single node)" : "Beating"}/>
-        : <StatusMark state="down" label="Stale"/>
-), (prev, next) => prev.isBeating === next.isBeating && prev.isSingleNode === next.isSingleNode);
+const BeatingMark = React.memo(({isBeating, isSingleNode}) => {
+    const {t} = useTranslation();
+    return isSingleNode || isBeating
+        ? <StatusMark state="up" label={t(isSingleNode ? "heartbeats.marks.healthySingleNode" : "heartbeats.marks.beating")}/>
+        : <StatusMark state="down" label={t("heartbeats.marks.stale")}/>;
+}, (prev, next) => prev.isBeating === next.isBeating && prev.isSingleNode === next.isSingleNode);
 
 const HeartbeatRow = React.memo(({row, isSingleNode}) => {
     return (
         <Row>
-            <Cell align="center"><StateMark state={row.state}/></Cell>
-            <Cell align="center"><BeatingMark isBeating={row.isBeating} isSingleNode={isSingleNode}/></Cell>
+            <Cell><StateMark state={row.state}/></Cell>
+            <Cell><BeatingMark isBeating={row.isBeating} isSingleNode={isSingleNode}/></Cell>
             <Cell>{row.id}</Cell>
             <Cell>{row.node}</Cell>
             <Cell>{row.peer}</Cell>
@@ -76,6 +92,7 @@ const HeartbeatRow = React.memo(({row, isSingleNode}) => {
 });
 
 const Heartbeats = () => {
+    const {t} = useTranslation();
     const location = useLocation();
     const navigate = useNavigate();
     const eventStarted = useRef(false);
@@ -256,6 +273,7 @@ const Heartbeats = () => {
     }, [heartbeatStatus]);
 
     const streamRows = useMemo(() => {
+        const notAvailable = t("common.notAvailable");
         const rows = [];
         const entries = Object.entries(heartbeatStatus);
 
@@ -276,12 +294,12 @@ const Heartbeats = () => {
                     rows.push({
                         id: cleanedId,
                         node: node,
-                        peer: "N/A",
-                        type: stream.type || "N/A",
-                        desc: "N/A",
+                        peer: notAvailable,
+                        type: stream.type || notAvailable,
+                        desc: notAvailable,
                         isBeating: false,
-                        changedAt: "N/A",
-                        lastBeatingAt: "N/A",
+                        changedAt: notAvailable,
+                        lastBeatingAt: notAvailable,
                         state: stream.state,
                     });
                 } else {
@@ -291,12 +309,12 @@ const Heartbeats = () => {
                         rows.push({
                             id: cleanedId,
                             node,
-                            peer: peerKey || "N/A",
-                            type: stream.type || "N/A",
-                            desc: peerData?.desc || "N/A",
+                            peer: peerKey || notAvailable,
+                            type: stream.type || notAvailable,
+                            desc: peerData?.desc || notAvailable,
                             isBeating: peerData?.is_beating || false,
-                            changedAt: peerData?.changed_at || "N/A",
-                            lastBeatingAt: peerData?.last_beating_at || "N/A",
+                            changedAt: peerData?.changed_at || notAvailable,
+                            lastBeatingAt: peerData?.last_beating_at || notAvailable,
                             state: stream.state || "unknown",
                         });
                     }
@@ -305,7 +323,7 @@ const Heartbeats = () => {
         }
 
         return rows;
-    }, [heartbeatStatus, stoppedStreamsCache]);
+    }, [heartbeatStatus, stoppedStreamsCache, t]);
 
     const sortedRows = useMemo(() => {
         const stateOrder = {running: 4, warning: 3, stopped: 2, failed: 1, unknown: 0};
@@ -402,23 +420,11 @@ const Heartbeats = () => {
         setVisibleCount(30);
     }, [filteredRows]);
 
-    const columns = [
-        {label: "RUNNING", key: "state", align: "center"},
-        {label: "BEATING", key: "beating", align: "center"},
-        {label: "ID", key: "id", align: "left"},
-        {label: "NODE", key: "node", align: "left"},
-        {label: "PEER", key: "peer", align: "left"},
-        {label: "TYPE", key: "type", align: "left"},
-        {label: "DESC", key: "desc", align: "left"},
-        {label: "CHANGED_AT", key: "changed_at", align: "left"},
-        {label: "LAST_BEATING_AT", key: "last_beating_at", align: "left"}
-    ];
-
     const filterSelect = (label, value, setter, options) => (
         <label className="flex items-center gap-1 text-ink-muted">
             {label}
             <Select className="h-7" value={value} onChange={handleFilterChange(setter)}>
-                <option value="all">All</option>
+                <option value="all">{t("common.all")}</option>
                 {options.map(([optionValue, optionLabel]) => (
                     <option key={optionValue} value={optionValue}>{optionLabel}</option>
                 ))}
@@ -435,11 +441,11 @@ const Heartbeats = () => {
                         size="sm"
                         icon={<FilterIcon className="h-4 w-4"/>}
                         onClick={toggleShowFilters}
-                        aria-label={showFilters ? "Hide filters" : "Show filters"}
+                        aria-label={showFilters ? t("heartbeats.filters.hide") : t("heartbeats.filters.show")}
                         aria-expanded={showFilters}
                         aria-controls="heartbeats-filters"
                     >
-                        <span className="hidden sm:inline">Filters</span>
+                        <span className="hidden sm:inline">{t("common.filters")}</span>
                         <ChevronDownIcon className={showFilters ? "h-4 w-4 rotate-180" : "h-4 w-4"}/>
                     </Button>
                 )}
@@ -448,23 +454,25 @@ const Heartbeats = () => {
                     hidden={!showFilters}
                     className="flex flex-wrap items-center gap-3"
                 >
-                    {filterSelect("Running", filterState, setFilterState, availableStates
+                    {filterSelect(t("heartbeats.filters.running"), filterState, setFilterState, availableStates
                         .filter(s => s !== "all")
                         .map(state => [state, state.charAt(0).toUpperCase() + state.slice(1)]))}
-                    {filterSelect("Beating", filterBeating, setFilterBeating, [["beating", "Beating"], ["stale", "Stale"]])}
-                    {filterSelect("Node", filterNode, setFilterNode, nodes.map(node => [node, node]))}
-                    {filterSelect("ID", filterId, setFilterId, availableIds.map(id => [id, id]))}
+                    {filterSelect(t("heartbeats.filters.beating"), filterBeating, setFilterBeating, [
+                        ["beating", t("heartbeats.marks.beating")],
+                        ["stale", t("heartbeats.marks.stale")],
+                    ])}
+                    {filterSelect(t("common.node"), filterNode, setFilterNode, nodes.map(node => [node, node]))}
+                    {filterSelect(t("heartbeats.filters.id"), filterId, setFilterId, availableIds.map(id => [id, id]))}
                 </div>
             </div>
 
             <Table sticky ref={tableContainerRef} className="min-h-0 overflow-auto">
                 <thead>
                     <HeaderRow>
-                        {columns.map(({label, key, align}) => (
+                        {COLUMNS.map(({labelKey, key}) => (
                             <SortHeaderCell
                                 key={key}
-                                label={label}
-                                align={align}
+                                label={t(labelKey)}
                                 active={sortColumn === key}
                                 direction={sortDirection}
                                 onSort={() => handleSort(key)}
@@ -481,20 +489,20 @@ const Heartbeats = () => {
                         />
                     ))}
                     {visibleRows.length === 0 && (
-                        <EmptyRow colSpan={columns.length}>
-                            No heartbeats found matching the current filters.
+                        <EmptyRow colSpan={COLUMNS.length}>
+                            {t("heartbeats.empty")}
                         </EmptyRow>
                     )}
                 </tbody>
             </Table>
             {loading && (
                 <div className="flex shrink-0 justify-center">
-                    <Spinner label="Loading more heartbeats"/>
+                    <Spinner label={t("heartbeats.loadingMore")}/>
                 </div>
             )}
 
-            <EventLogger eventTypes={heartbeatEventTypes} title="Heartbeat Events Logger"
-                         buttonLabel="Heartbeat Events"/>
+            <EventLogger eventTypes={heartbeatEventTypes} title={t("heartbeats.eventsLogger")}
+                         buttonLabel={t("heartbeats.events")}/>
         </div>
     );
 };

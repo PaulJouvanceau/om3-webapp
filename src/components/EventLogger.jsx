@@ -9,6 +9,7 @@ import {cn} from "../ui/cn";
 import useEventLogStore from "../hooks/useEventLogStore";
 import logger from "../utils/logger.js";
 import {startLoggerReception, closeLoggerEventSource} from "../eventSourceManager";
+import {useTranslation} from "react-i18next";
 
 const CONNECTION_EVENTS = [
     'CONNECTION_OPENED',
@@ -52,6 +53,7 @@ const SubscriptionDialog = ({
                                 eventStats,
                                 clearLogs
                             }) => {
+    const {t} = useTranslation();
     const [tempSubscribedEventTypes, setTempSubscribedEventTypes] = useState(subscribedEventTypes);
 
     useEffect(() => {
@@ -84,7 +86,9 @@ const SubscriptionDialog = ({
     const renderEventTypeList = (eventTypes, isPageEvents = false) => (
         <section className="space-y-1">
             <h3 className={cn("font-semibold", isPageEvents ? "text-accent" : "text-ink-muted")}>
-                {isPageEvents ? 'Page Events' : 'Additional Events'} ({eventTypes.length})
+                {isPageEvents
+                    ? t("events.subscriptions.pageEvents", {total: eventTypes.length})
+                    : t("events.subscriptions.additionalEvents", {total: eventTypes.length})}
             </h3>
             {eventTypes.sort().map(eventType => (
                 <div key={String(eventType)} className="py-0.5 pl-2">
@@ -102,7 +106,7 @@ const SubscriptionDialog = ({
                             <span className="flex flex-col leading-tight">
                                 <span>{eventType}</span>
                                 <span className="text-data text-ink-muted">
-                                    {eventStats[eventType] || 0} events received
+                                    {t("events.subscriptions.received", {count: eventStats[eventType] || 0})}
                                 </span>
                             </span>
                         }
@@ -118,26 +122,26 @@ const SubscriptionDialog = ({
             <SlideOver
                 open={open}
                 onClose={onClose}
-                title="Event Subscriptions"
-                closeLabel="Close subscriptions"
+                title={t("events.subscriptions.title")}
+                closeLabel={t("events.subscriptions.close")}
             >
                 <div className="flex min-h-full flex-col gap-4">
                     <p className="text-ink-muted">
-                        Select which event types you want to SUBSCRIBE to (future events only):
+                        {t("events.subscriptions.intro")}
                     </p>
                     <div className="flex flex-wrap gap-2">
                         <Button size="sm" onClick={handleSubscribeAll}>
-                            Subscribe to All
+                            {t("events.subscriptions.subscribeAll")}
                         </Button>
                         <Button
                             size="sm"
                             onClick={handleSubscribePageEvents}
                             disabled={filteredEventTypes.length === 0}
                         >
-                            Subscribe to Page Events
+                            {t("events.subscriptions.subscribePage")}
                         </Button>
                         <Button size="sm" className="text-state-down" onClick={handleUnsubscribeAll}>
-                            Unsubscribe from All
+                            {t("events.subscriptions.unsubscribeAll")}
                         </Button>
                     </div>
                     <div className="space-y-4">
@@ -145,7 +149,7 @@ const SubscriptionDialog = ({
                         {otherEventTypes.length > 0 && renderEventTypeList(otherEventTypes, false)}
                         {tempSubscribedEventTypes.length === 0 && (
                             <p className="py-8 text-center text-ink-muted">
-                                No event types selected. You won't receive any events.
+                                {t("events.subscriptions.noneSelected")}
                             </p>
                         )}
                     </div>
@@ -159,7 +163,7 @@ const SubscriptionDialog = ({
                                 onClose();
                             }}
                         >
-                            Apply Subscriptions ({tempSubscribedEventTypes.length})
+                            {t("events.subscriptions.apply", {total: tempSubscribedEventTypes.length})}
                         </Button>
                     </div>
                 </div>
@@ -235,9 +239,9 @@ const FullJSONView = ({data}) => {
     );
 };
 
-const formatTimestamp = (ts) => {
+const formatTimestamp = (ts, language) => {
     try {
-        return new Date(ts).toLocaleTimeString("en-US", {
+        return new Date(ts).toLocaleTimeString(language, {
             hour: "2-digit",
             minute: "2-digit",
             second: "2-digit",
@@ -266,6 +270,7 @@ const TONE_CLASSES = {
 };
 
 const LogRow = React.memo(({log, isOpen, onToggle}) => {
+    const {i18n} = useTranslation();
     const tone = getEventTone(log.eventType);
     const preview = useMemo(() => (isOpen ? "" : toJSON(log.data, 0)), [isOpen, log.data]);
     return (
@@ -276,7 +281,7 @@ const LogRow = React.memo(({log, isOpen, onToggle}) => {
                 aria-expanded={isOpen}
                 className="flex h-[30px] w-full touch-manipulation items-center gap-2 px-3 text-left text-data hover:bg-surface-sunken"
             >
-                <span className="shrink-0 tabular-nums text-ink-muted">{formatTimestamp(log.timestamp)}</span>
+                <span className="shrink-0 tabular-nums text-ink-muted">{formatTimestamp(log.timestamp, i18n.language)}</span>
                 <span data-tone={tone} className={cn("shrink-0 font-semibold", TONE_CLASSES[tone])}>
                     {log.eventType}
                 </span>
@@ -303,6 +308,7 @@ const EventDrawerContent = ({
                                 onClose,
                                 title
                             }) => {
+    const {t} = useTranslation();
     const [selectedEventTypes, setSelectedEventTypes] = useState([]);
     const [expandedLogIds, setExpandedLogIds] = useState([]);
     const [visibleCount, setVisibleCount] = useState(20);
@@ -479,39 +485,39 @@ const EventDrawerContent = ({
             <div className="flex items-center gap-2 border-b border-line px-3 py-1.5">
                 <h2 className="truncate font-semibold">{title}</h2>
                 <span className="shrink-0 rounded-full border border-line px-2 text-data text-ink-muted tabular-nums">
-                    {`${visibleLogs.length}/${filteredLogs.length} events`}
+                    {t("events.count", {visible: visibleLogs.length, total: filteredLogs.length})}
                 </span>
                 {isPaused && (
                     <span
                         className="inline-flex shrink-0 items-center gap-1 rounded-full border border-state-warn bg-state-warn-soft px-2 text-data font-semibold text-state-warn">
                         <PauseIcon className="h-3 w-3"/>
-                        PAUSED
+                        {t("events.paused")}
                     </span>
                 )}
                 <div className="ml-auto flex shrink-0 items-center gap-1">
                     <IconButton
-                        label="Manage subscriptions"
+                        label={t("events.manageSubscriptions")}
                         className={TOOL}
                         onClick={() => setSubscriptionDialogOpen(true)}
                     >
                         <GearIcon/>
                     </IconButton>
                     <IconButton
-                        label={isPaused ? "Resume" : "Pause"}
+                        label={isPaused ? t("events.resume") : t("events.pause")}
                         className={cn(TOOL, isPaused && "border-state-warn text-state-warn")}
                         onClick={() => setPaused(!isPaused)}
                     >
                         {isPaused ? <CaretRightIcon/> : <PauseIcon/>}
                     </IconButton>
                     <IconButton
-                        label="Clear logs"
+                        label={t("events.clear")}
                         className={TOOL}
                         onClick={handleClear}
                         disabled={eventLogs.length === 0}
                     >
                         <TrashIcon/>
                     </IconButton>
-                    <IconButton label="Close" className={TOOL} onClick={onClose}>
+                    <IconButton label={t("common.close")} className={TOOL} onClick={onClose}>
                         <CloseIcon/>
                     </IconButton>
                 </div>
@@ -520,10 +526,10 @@ const EventDrawerContent = ({
             {availableEventTypes.length > 0 && (
                 <div
                     role="group"
-                    aria-label="Filter by type"
+                    aria-label={t("events.filterByType")}
                     className="flex max-h-24 shrink-0 flex-wrap items-center gap-1.5 overflow-y-auto border-b border-line px-3 py-1.5 text-data"
                 >
-                    <span aria-hidden="true" className="mr-1 text-ink-muted">Filter by type:</span>
+                    <span aria-hidden="true" className="mr-1 text-ink-muted">{t("events.filterByTypeColon")}</span>
                     {availableEventTypes.map((eventType) => {
                         const isPageEvent = filteredEventTypes.includes(eventType);
                         const isSelected = selectedEventTypes.includes(eventType);
@@ -533,7 +539,7 @@ const EventDrawerContent = ({
                                 type="button"
                                 aria-pressed={isSelected}
                                 data-page-event={isPageEvent}
-                                title={isPageEvent ? "Event of this page" : "Additional event"}
+                                title={isPageEvent ? t("events.pageEvent") : t("events.additionalEvent")}
                                 onClick={() => toggleEventTypeFilter(eventType)}
                                 className={cn(
                                     "inline-flex h-6 items-center rounded-full border px-2 font-medium whitespace-nowrap max-md:h-8",
@@ -557,19 +563,19 @@ const EventDrawerContent = ({
                 ref={logsContainerRef}
                 onScroll={handleScroll}
                 role="region"
-                aria-label="Event list"
+                aria-label={t("events.list")}
                 tabIndex={0}
                 className="relative min-h-0 flex-1 overflow-auto bg-surface outline-none"
             >
                 {initialLoading ? (
                     <div className="flex h-full items-center justify-center">
-                        <Spinner label="Loading events"/>
+                        <Spinner label={t("events.loading")}/>
                     </div>
                 ) : visibleLogs.length === 0 ? (
                     <p className="p-8 text-center text-ink-muted">
                         {eventLogs.length === 0
-                            ? "No events logged"
-                            : "No events match current filters"}
+                            ? t("events.empty")
+                            : t("events.noMatch")}
                     </p>
                 ) : (
                     <>
@@ -589,7 +595,7 @@ const EventDrawerContent = ({
                         </ul>
                         {loadingMore && (
                             <div className="flex justify-center py-1">
-                                <Spinner label="Loading more events"/>
+                                <Spinner label={t("events.loadingMore")}/>
                             </div>
                         )}
                     </>
@@ -612,9 +618,12 @@ const EventDrawerContent = ({
 const EventLogger = React.memo(({
                                     eventTypes = [],
                                     objectName = null,
-                                    title = "Event Logger",
-                                    buttonLabel = "Events"
+                                    title: titleProp,
+                                    buttonLabel: buttonLabelProp
                                 }) => {
+    const {t} = useTranslation();
+    const title = titleProp ?? t("events.title");
+    const buttonLabel = buttonLabelProp ?? t("events.button");
     const anyPanelOpen = useAnyPanelOpen();
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [drawerHeight, setDrawerHeight] = useState(320);
@@ -718,8 +727,8 @@ const EventLogger = React.memo(({
                     <div
                         role="separator"
                         aria-orientation="horizontal"
-                        aria-label="Resize handle"
-                        title="Drag to resize"
+                        aria-label={t("events.resizeHandle")}
+                        title={t("events.dragToResize")}
                         data-resizing={isResizing}
                         onMouseDown={handleResizeStart}
                         onTouchStart={handleResizeStart}

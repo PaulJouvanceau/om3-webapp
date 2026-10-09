@@ -2,6 +2,7 @@ import React from 'react';
 import {render, screen, within, act} from '@testing-library/react';
 import {vi} from 'vitest';
 import NamespaceMetrics, {REFRESH_INTERVAL_MS} from '../NamespaceMetrics';
+import i18n from '../../i18n';
 
 vi.mock('../../utils/logger.js', () => ({
     default: {error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn()},
@@ -100,6 +101,18 @@ describe('NamespaceMetrics', () => {
         global.fetch.mockReturnValue(respond('', false, 503));
         render(<NamespaceMetrics namespace="prod"/>);
         expect(await screen.findByRole('alert')).toHaveTextContent('Failed to fetch metrics: HTTP 503');
+    });
+
+    test('speaks French to a French browser', async () => {
+        global.fetch.mockReturnValue(respond('', false, 503));
+        await i18n.changeLanguage('fr');
+        try {
+            render(<NamespaceMetrics namespace="prod"/>);
+            expect(await screen.findByRole('alert')).toHaveTextContent('Échec de la récupération des métriques : HTTP 503');
+            expect(screen.getByRole('columnheader', {name: 'Mémoire'})).toBeInTheDocument();
+        } finally {
+            await i18n.changeLanguage('en');
+        }
     });
 
     test('stops reading once unmounted', async () => {

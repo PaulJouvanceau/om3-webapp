@@ -91,7 +91,8 @@ vi.mock('../ConfigSection', () => ({
     },
 }));
 
-vi.mock('../../constants/actions', () => ({
+vi.mock('../../constants/actions', async (importOriginal) => ({
+    actionLabel: (await importOriginal()).actionLabel,
     OBJECT_ACTIONS: [
         {name: 'start', icon: 'StartIcon', endpoint: 'action/start'},
         {name: 'stop', icon: 'StopIcon', endpoint: 'action/stop'},

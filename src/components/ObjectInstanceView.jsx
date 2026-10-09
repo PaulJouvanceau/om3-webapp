@@ -1,9 +1,10 @@
 import React, {useCallback, useEffect, useState, useRef, useMemo} from "react";
 import {useParams} from "react-router-dom";
+import {Trans, useTranslation} from "react-i18next";
 import useEventStore from "../hooks/useEventStore.js";
 import {URL_NODE} from "../config/apiPath.js";
 import {getResponseErrorMessage} from "../services/api.jsx";
-import {INSTANCE_ACTIONS, RESOURCE_ACTIONS} from "../constants/actions";
+import {INSTANCE_ACTIONS, RESOURCE_ACTIONS, actionLabel} from "../constants/actions";
 import {parseObjectPath} from "../utils/objectUtils.jsx";
 import {ObjectIcon, om3ObjectKind} from "../ui/components/ObjectIcon";
 import {StoppedMark, RpoBreachedMark} from "../ui/components/StateMarks";
@@ -39,8 +40,6 @@ const COLUMNS = 6;
 /** Class names of the menu entry icons: the action icons squared to 16px. */
 const ICON = "flex h-4 w-4 items-center justify-center text-ink-muted [&>svg]:h-4! [&>svg]:w-4!";
 
-const capitalize = (name) => name.charAt(0).toUpperCase() + name.slice(1);
-
 /** The state of a resource or an instance status, as the coloured dot told it. */
 const toState = (status) => {
     if (status === "up" || status === true) return "up";
@@ -51,11 +50,14 @@ const toState = (status) => {
 
 const LOG_INK = {warn: "text-state-warn", error: "text-state-down"};
 
-const NotProvisionedMark = ({label}) => (
-    <span role="img" aria-label={label} title="Not Provisioned" className="inline-flex text-state-down">
-        <AlertTriangleIcon className="h-3.5 w-3.5"/>
-    </span>
-);
+const NotProvisionedMark = ({label}) => {
+    const {t} = useTranslation();
+    return (
+        <span role="img" aria-label={label} title={t("instance.notProvisionedTitle")} className="inline-flex text-state-down">
+            <AlertTriangleIcon className="h-3.5 w-3.5"/>
+        </span>
+    );
+};
 
 /** A line of the table under a resource, spanning all columns: a note or the resource logs. */
 const NoteRow = ({isEncap, children}) => (
@@ -80,6 +82,7 @@ const ResourceRow = React.memo(({
                                     menuItems,
                                     actionInProgress = false,
                                 }) => {
+    const {t} = useTranslation();
     const {statusString, tooltipText} = getResourceStatusLetters(
         rid,
         resource,
@@ -89,34 +92,34 @@ const ResourceRow = React.memo(({
         encapData
     );
 
-    const labelText = resource.label || "N/A";
-    const infoText = resource.info?.actions === "disabled" ? "info: actions disabled" : "";
-    const resourceType = resource.type || "N/A";
+    const labelText = resource.label || t("common.notAvailable");
+    const infoText = resource.info?.actions === "disabled" ? t("instance.resources.actionsDisabled") : "";
+    const resourceType = resource.type || t("common.notAvailable");
     const isContainer = resourceType.toLowerCase().includes("container");
     const provisionedState = isContainer && encapData[rid]?.provisioned !== undefined
         ? encapData[rid].provisioned
         : resource?.provisioned?.state;
     const isResourceNotProvisioned = provisionedState === "false" || provisionedState === false || provisionedState === "n/a";
     const logs = resource.log || [];
-    const statusLabel = resource.status || "unknown";
+    const statusLabel = resource.status || t("instance.unknown");
 
     return (
         <>
-            <Row aria-label={`Resource ${rid}`}>
+            <Row aria-label={t("instance.resources.row", {rid})}>
                 <Cell className={`whitespace-nowrap ${isEncap ? "pl-6" : ""}`}>{rid}</Cell>
                 <Cell className="whitespace-nowrap">
                     <span className="inline-flex items-center gap-1.5">
                         <StatusMark state={toState(resource.status)} label={statusLabel}/>
                         <span aria-hidden="true">{statusLabel}</span>
                         {isResourceNotProvisioned && (
-                            <NotProvisionedMark label={`Resource ${rid} is not provisioned`}/>
+                            <NotProvisionedMark label={t("instance.resources.notProvisioned", {rid})}/>
                         )}
                     </span>
                 </Cell>
                 <Cell className="whitespace-nowrap">
                     <span
                         role="img"
-                        aria-label={`Resource ${rid} status: ${statusString}`}
+                        aria-label={t("instance.resources.flagsLabel", {rid, flags: statusString})}
                         title={tooltipText}
                         className="font-mono"
                     >
@@ -130,9 +133,9 @@ const ResourceRow = React.memo(({
                         {infoText && <span className="ml-2 text-ink-muted">{infoText}</span>}
                     </span>
                 </Cell>
-                <Cell align="center">
+                <Cell>
                     <MenuButton
-                        label={`Resource ${rid} actions`}
+                        label={t("instance.resources.actionsMenu", {rid})}
                         icon={<MoreIcon className="h-4 w-4"/>}
                         compact
                         align="end"
@@ -144,7 +147,7 @@ const ResourceRow = React.memo(({
             </Row>
             {logs.length > 0 && (
                 <NoteRow isEncap={isEncap}>
-                    <ul aria-label={`Logs of resource ${rid}`} className="space-y-0.5 text-data">
+                    <ul aria-label={t("instance.resources.logs", {rid})} className="space-y-0.5 text-data">
                         {logs.map((log, index) => (
                             <li key={index} className={`break-words ${LOG_INK[log.level] ?? "text-ink-muted"}`}>
                                 {log.level}: {log.message}
@@ -158,6 +161,7 @@ const ResourceRow = React.memo(({
 });
 
 const ObjectInstanceView = () => {
+    const {t} = useTranslation();
     const {node: nodeName, objectName} = useParams();
     const decodedObjectName = decodeURIComponent(objectName);
     const {namespace, kind, name} = parseObjectPath(decodedObjectName);
@@ -286,7 +290,7 @@ const ObjectInstanceView = () => {
 
         const token = localStorage.getItem("authToken");
         if (!token) {
-            openSnackbar("Auth token not found.", "error");
+            openSnackbar(t("instance.feedback.authTokenNotFound"), "error");
             return;
         }
 
@@ -300,10 +304,10 @@ const ObjectInstanceView = () => {
 
             if (pendingAction.rid) {
                 url = `${URL_NODE}/${nodeName}/instance/path/${namespace}/${kind}/${name}/action/${action}?rid=${encodeURIComponent(pendingAction.rid)}`;
-                message = `Executing ${action} on resource ${pendingAction.rid}...`;
+                message = t("instance.feedback.executingOnResource", {action, rid: pendingAction.rid});
             } else {
                 url = `${URL_NODE}/${nodeName}/instance/path/${namespace}/${kind}/${name}/action/${endpoint}`;
-                message = `Executing ${action} on instance...`;
+                message = t("instance.feedback.executingOnInstance", {action});
             }
 
             openSnackbar(message, "info");
@@ -318,15 +322,17 @@ const ObjectInstanceView = () => {
             if (!response.ok) {
                 const serverError = await getResponseErrorMessage(response);
                 openSnackbar(
-                    `Failed: HTTP ${response.status}${serverError ? ` - ${serverError}` : ""}`,
+                    serverError
+                        ? t("instance.feedback.failedWithDetail", {status: response.status, detail: serverError})
+                        : t("instance.feedback.failed", {status: response.status}),
                     "error"
                 );
                 return;
             }
 
-            openSnackbar(`Action '${action}' succeeded`, "success");
+            openSnackbar(t("instance.feedback.succeeded", {action}), "success");
         } catch (err) {
-            openSnackbar(`Error: ${err.message}`, "error");
+            openSnackbar(t("instance.feedback.error", {message: err.message}), "error");
         } finally {
             if (isMounted.current) {
                 setActionInProgress(false);
@@ -338,7 +344,7 @@ const ObjectInstanceView = () => {
                 setSimpleDialogOpen(false);
             }
         }
-    }, [nodeName, namespace, kind, name, pendingAction, openSnackbar]);
+    }, [nodeName, namespace, kind, name, pendingAction, openSnackbar, t]);
 
     const handleInstanceAction = useCallback((action) => {
         openActionDialog(action, {node: nodeName});
@@ -351,41 +357,41 @@ const ObjectInstanceView = () => {
     const getResourceStatusLetters = useCallback((rid, resourceData, instanceConfig, instanceMonitor, isEncap = false, encapData = {}) => {
         const letters = [".", ".", ".", ".", ".", ".", ".", "."];
         const tooltipDescriptions = [
-            "Not Running",
-            "Not Monitored",
-            "Enabled",
-            "Not Optional",
-            isEncap ? "Encap" : "Not Encap",
-            "Provisioned",
-            "Not Standby",
-            "No Restart",
+            t("instance.flags.notRunning"),
+            t("instance.flags.notMonitored"),
+            t("instance.flags.enabled"),
+            t("instance.flags.notOptional"),
+            isEncap ? t("instance.flags.encap") : t("instance.flags.notEncap"),
+            t("instance.flags.provisioned"),
+            t("instance.flags.notStandby"),
+            t("instance.flags.noRestart"),
         ];
 
         if (resourceData?.running !== undefined) {
             letters[0] = resourceData.running ? "R" : ".";
-            tooltipDescriptions[0] = resourceData.running ? "Running" : "Not Running";
+            tooltipDescriptions[0] = resourceData.running ? t("instance.flags.running") : t("instance.flags.notRunning");
         }
 
         const isMonitored = instanceConfig?.resources?.[rid]?.is_monitored;
         if (isMonitored === true || isMonitored === "true") {
             letters[1] = "M";
-            tooltipDescriptions[1] = "Monitored";
+            tooltipDescriptions[1] = t("instance.flags.monitored");
         }
 
         const isDisabled = instanceConfig?.resources?.[rid]?.is_disabled;
         if (isDisabled === true || isDisabled === "true") {
             letters[2] = "D";
-            tooltipDescriptions[2] = "Disabled";
+            tooltipDescriptions[2] = t("instance.flags.disabled");
         }
 
         if (resourceData?.optional === true || resourceData?.optional === "true") {
             letters[3] = "O";
-            tooltipDescriptions[3] = "Optional";
+            tooltipDescriptions[3] = t("instance.flags.optional");
         }
 
         if (isEncap) {
             letters[4] = "E";
-            tooltipDescriptions[4] = "Encap";
+            tooltipDescriptions[4] = t("instance.flags.encap");
         }
 
         let provisionedState = resourceData?.provisioned?.state;
@@ -396,17 +402,17 @@ const ObjectInstanceView = () => {
 
         if (provisionedState === "false" || provisionedState === false || provisionedState === "n/a") {
             letters[5] = "P";
-            tooltipDescriptions[5] = "Not Provisioned";
+            tooltipDescriptions[5] = t("instance.flags.notProvisioned");
         } else if (provisionedState === "true" || provisionedState === true) {
-            tooltipDescriptions[5] = "Provisioned";
+            tooltipDescriptions[5] = t("instance.flags.provisioned");
         } else {
-            tooltipDescriptions[5] = "Provisioned";
+            tooltipDescriptions[5] = t("instance.flags.provisioned");
         }
 
         const isStandby = instanceConfig?.resources?.[rid]?.is_standby;
         if (isStandby === true || isStandby === "true") {
             letters[6] = "S";
-            tooltipDescriptions[6] = "Standby";
+            tooltipDescriptions[6] = t("instance.flags.standby");
         }
 
         const configRestarts = instanceConfig?.resources?.[rid]?.restart;
@@ -422,16 +428,16 @@ const ObjectInstanceView = () => {
             letters[7] = remainingRestarts === 0 ? "." : remainingRestarts > 10 ? "+" : remainingRestarts.toString();
             tooltipDescriptions[7] =
                 remainingRestarts === 0
-                    ? "No Restart"
+                    ? t("instance.flags.noRestart")
                     : remainingRestarts > 10
-                        ? "More than 10 Restarts"
-                        : `${remainingRestarts} Restart${remainingRestarts === 1 ? "" : "s"} Remaining`;
+                        ? t("instance.flags.moreThan10Restarts")
+                        : t("instance.flags.restartsRemaining", {count: remainingRestarts});
         }
 
         const statusString = letters.join("");
         const tooltipText = tooltipDescriptions.join(", ");
         return {statusString, tooltipText};
-    }, []);
+    }, [t]);
 
     const getFilteredResourceActions = useCallback((resourceType) => {
         if (!resourceType) {
@@ -468,7 +474,7 @@ const ObjectInstanceView = () => {
     const resourceMenuItems = useCallback((rid) =>
         getFilteredResourceActions(getResourceType(rid)).map(({name, icon}) => ({
             key: name,
-            label: capitalize(name),
+            label: actionLabel(name),
             icon: <span aria-hidden="true" className={ICON}>{icon}</span>,
             onSelect: () => handleResourceAction(name, rid),
         })), [getFilteredResourceActions, getResourceType, handleResourceAction]);
@@ -490,7 +496,7 @@ const ObjectInstanceView = () => {
     if (initialLoading) {
         return (
             <div className="flex justify-center p-4 py-8">
-                <Spinner label="Loading instance data..."/>
+                <Spinner label={t("instance.view.loading")}/>
             </div>
         );
     }
@@ -512,27 +518,27 @@ const ObjectInstanceView = () => {
                         <ObjectIcon kind={om3ObjectKind(parseObjectPath(decodedObjectName).kind)} className="h-5 w-5"/>
                         {decodedObjectName}
                     </h1>
-                    <p className="text-ink-muted">Node: {nodeName}</p>
+                    <p className="text-ink-muted">{t("instance.view.node", {node: nodeName})}</p>
                 </div>
                 <div className="ml-auto flex flex-wrap items-center gap-2">
                     <StatusBadge state={toState(instanceStatus)} label={instanceStatus}/>
                     {monitorData.state && monitorData.state !== 'idle' && (
                         <span className="text-ink-muted">{monitorData.state}</span>
                     )}
-                    {isStopped && <StoppedMark stoppedAt={instanceData.stopped_at} label="Instance is stopped"/>}
+                    {isStopped && <StoppedMark stoppedAt={instanceData.stopped_at} label={t("instance.view.stopped")}/>}
                     {isLagging && <RpoBreachedMark/>}
-                    {isInstanceNotProvisioned && <NotProvisionedMark label="Instance is not provisioned"/>}
+                    {isInstanceNotProvisioned && <NotProvisionedMark label={t("instance.view.notProvisioned")}/>}
                     <FrozenMark frozen={!!isFrozen}/>
-                    <IconButton label={`View logs for instance ${decodedObjectName}`} onClick={() => setLogsDrawerOpen(true)}>
+                    <IconButton label={t("instance.view.viewLogs", {name: decodedObjectName})} onClick={() => setLogsDrawerOpen(true)}>
                         <FileIcon className="h-4 w-4"/>
                     </IconButton>
                     <MenuButton
-                        label="Instance actions"
+                        label={t("instance.view.actionsMenu")}
                         align="end"
                         disabled={actionInProgress}
                         items={filteredInstanceActions.map(({name, icon}) => ({
                             key: name,
-                            label: capitalize(name),
+                            label: actionLabel(name),
                             icon: <span aria-hidden="true" className={ICON}>{icon}</span>,
                             onSelect: () => handleInstanceAction(name),
                         }))}
@@ -540,13 +546,13 @@ const ObjectInstanceView = () => {
                 </div>
             </div>
 
-            {actionInProgress && <Spinner label="Action in progress"/>}
+            {actionInProgress && <Spinner label={t("instance.view.actionInProgress")}/>}
 
             {snackbar.open && (
                 <Alert
                     tone={TONES[snackbar.severity] ?? "info"}
                     action={
-                        <IconButton label="Dismiss" bare onClick={closeSnackbar}>
+                        <IconButton label={t("instance.view.dismiss")} bare onClick={closeSnackbar}>
                             <CloseIcon className="h-4 w-4"/>
                         </IconButton>
                     }
@@ -555,23 +561,23 @@ const ObjectInstanceView = () => {
                 </Alert>
             )}
 
-            <h2 className="font-semibold">Resources ({resourceIds.length})</h2>
+            <h2 className="font-semibold">{t("instance.view.resourcesHeading", {count: resourceIds.length})}</h2>
 
             {/* Wider than a phone: the table scrolls sideways there rather than wrap its 30px rows. */}
-            <Table aria-label="Resources" tableClassName="min-w-[40rem]">
+            <Table aria-label={t("instance.resources.tableLabel")} tableClassName="min-w-[40rem]">
                 <thead>
                 <HeaderRow>
-                    <HeaderCell>Resource</HeaderCell>
-                    <HeaderCell>Status</HeaderCell>
-                    <HeaderCell>Flags</HeaderCell>
-                    <HeaderCell>Type</HeaderCell>
-                    <HeaderCell>Label</HeaderCell>
-                    <HeaderCell align="center"><span className="sr-only">Actions</span></HeaderCell>
+                    <HeaderCell>{t("instance.resources.columns.resource")}</HeaderCell>
+                    <HeaderCell>{t("common.status")}</HeaderCell>
+                    <HeaderCell>{t("instance.resources.columns.flags")}</HeaderCell>
+                    <HeaderCell>{t("common.type")}</HeaderCell>
+                    <HeaderCell>{t("instance.resources.columns.label")}</HeaderCell>
+                    <HeaderCell><span className="sr-only">{t("common.actions")}</span></HeaderCell>
                 </HeaderRow>
                 </thead>
                 <tbody>
                 {resourceIds.length === 0 ? (
-                    <EmptyRow colSpan={COLUMNS}>No resources found on this instance.</EmptyRow>
+                    <EmptyRow colSpan={COLUMNS}>{t("instance.resources.empty")}</EmptyRow>
                 ) : resourceIds.map((rid) => {
                     const res = resources[rid] || {};
                     const isContainer = res.type?.toLowerCase().includes("container") || false;
@@ -588,11 +594,11 @@ const ObjectInstanceView = () => {
                                 {...rowProps}
                             />
                             {isContainer && !encapResources[rid] && (
-                                <NoteRow isEncap>No encapsulated data available for {rid}.</NoteRow>
+                                <NoteRow isEncap>{t("instance.resources.noEncapData", {rid})}</NoteRow>
                             )}
                             {isContainer && encapResources[rid] && !encapResources[rid].resources && (
                                 <NoteRow isEncap>
-                                    Encapsulated data found for {rid}, but no resources defined.
+                                    {t("instance.resources.encapNoResources", {rid})}
                                 </NoteRow>
                             )}
                             {isContainer && encapResIds.length > 0 && res.status !== "down" &&
@@ -608,7 +614,7 @@ const ObjectInstanceView = () => {
                                     />
                                 ))}
                             {isContainer && encapResIds.length === 0 && encapResources[rid]?.resources !== undefined && (
-                                <NoteRow isEncap>No encapsulated resources available for {rid}.</NoteRow>
+                                <NoteRow isEncap>{t("instance.resources.noEncapResources", {rid})}</NoteRow>
                             )}
                         </React.Fragment>
                     );
@@ -618,14 +624,14 @@ const ObjectInstanceView = () => {
 
             <Dialog
                 open={confirmDialogOpen}
-                title="Confirm Freeze"
+                title={t("instance.dialogs.confirmFreeze")}
                 onClose={() => setConfirmDialogOpen(false)}
                 size="md"
                 footer={
                     <>
-                        <Button onClick={() => setConfirmDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={() => setConfirmDialogOpen(false)}>{t("common.cancel")}</Button>
                         <Button variant="primary" onClick={handleDialogConfirm} disabled={!checkboxes.failover}>
-                            Confirm
+                            {t("common.confirm")}
                         </Button>
                     </>
                 }
@@ -633,20 +639,20 @@ const ObjectInstanceView = () => {
                 <Checkbox
                     checked={checkboxes.failover}
                     onChange={(e) => setCheckboxes({...checkboxes, failover: e.target.checked})}
-                    label="I understand that the selected service orchestration will be paused."
+                    label={t("instance.dialogs.freezeAck")}
                 />
             </Dialog>
 
             <Dialog
                 open={stopDialogOpen}
-                title="Confirm Stop"
+                title={t("instance.dialogs.confirmStop")}
                 onClose={() => setStopDialogOpen(false)}
                 size="md"
                 footer={
                     <>
-                        <Button onClick={() => setStopDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={() => setStopDialogOpen(false)}>{t("common.cancel")}</Button>
                         <Button variant="primary" onClick={handleDialogConfirm} disabled={!stopCheckbox}>
-                            Stop
+                            {t("instance.dialogs.stop")}
                         </Button>
                     </>
                 }
@@ -654,24 +660,24 @@ const ObjectInstanceView = () => {
                 <Checkbox
                     checked={stopCheckbox}
                     onChange={(e) => setStopCheckbox(e.target.checked)}
-                    label="I understand that this may interrupt services."
+                    label={t("instance.dialogs.stopAck")}
                 />
             </Dialog>
 
             <Dialog
                 open={unprovisionDialogOpen}
-                title="Confirm Unprovision"
+                title={t("instance.dialogs.confirmUnprovision")}
                 onClose={() => setUnprovisionDialogOpen(false)}
                 size="md"
                 footer={
                     <>
-                        <Button onClick={() => setUnprovisionDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={() => setUnprovisionDialogOpen(false)}>{t("common.cancel")}</Button>
                         <Button
                             variant="primary"
                             onClick={handleDialogConfirm}
                             disabled={!unprovisionCheckboxes.dataLoss || !unprovisionCheckboxes.serviceInterruption}
                         >
-                            Confirm
+                            {t("common.confirm")}
                         </Button>
                     </>
                 }
@@ -683,7 +689,7 @@ const ObjectInstanceView = () => {
                             ...unprovisionCheckboxes,
                             dataLoss: e.target.checked
                         })}
-                        label="I understand data will be lost."
+                        label={t("instance.dialogs.dataLossAck")}
                     />
                     <Checkbox
                         checked={unprovisionCheckboxes.serviceInterruption}
@@ -691,25 +697,25 @@ const ObjectInstanceView = () => {
                             ...unprovisionCheckboxes,
                             serviceInterruption: e.target.checked
                         })}
-                        label="I understand the selected services may be temporarily interrupted during failover, or durably interrupted if no failover is configured."
+                        label={t("instance.dialogs.serviceInterruptionAck")}
                     />
                 </div>
             </Dialog>
 
             <Dialog
                 open={purgeDialogOpen}
-                title="Confirm Purge"
+                title={t("instance.dialogs.confirmPurge")}
                 onClose={() => setPurgeDialogOpen(false)}
                 size="md"
                 footer={
                     <>
-                        <Button onClick={() => setPurgeDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={() => setPurgeDialogOpen(false)}>{t("common.cancel")}</Button>
                         <Button
                             variant="primary"
                             onClick={handleDialogConfirm}
                             disabled={!purgeCheckboxes.dataLoss || !purgeCheckboxes.configLoss || !purgeCheckboxes.serviceInterruption}
                         >
-                            Confirm
+                            {t("common.confirm")}
                         </Button>
                     </>
                 }
@@ -718,12 +724,12 @@ const ObjectInstanceView = () => {
                     <Checkbox
                         checked={purgeCheckboxes.dataLoss}
                         onChange={(e) => setPurgeCheckboxes({...purgeCheckboxes, dataLoss: e.target.checked})}
-                        label="I understand data will be lost."
+                        label={t("instance.dialogs.dataLossAck")}
                     />
                     <Checkbox
                         checked={purgeCheckboxes.configLoss}
                         onChange={(e) => setPurgeCheckboxes({...purgeCheckboxes, configLoss: e.target.checked})}
-                        label="I understand the configuration will be lost."
+                        label={t("instance.dialogs.configLossAck")}
                     />
                     <Checkbox
                         checked={purgeCheckboxes.serviceInterruption}
@@ -731,7 +737,7 @@ const ObjectInstanceView = () => {
                             ...purgeCheckboxes,
                             serviceInterruption: e.target.checked
                         })}
-                        label="I understand the selected services may be temporarily interrupted during failover, or durably interrupted if no failover is configured."
+                        label={t("instance.dialogs.serviceInterruptionAck")}
                     />
                 </div>
             </Dialog>
@@ -744,19 +750,26 @@ const ObjectInstanceView = () => {
 
             <Dialog
                 open={simpleDialogOpen}
-                title={`Confirm ${pendingAction?.action ? capitalize(pendingAction.action) : 'Action'}`}
+                title={t("instance.dialogs.confirmAction", {
+                    action: pendingAction?.action ? actionLabel(pendingAction.action) : t("instance.dialogs.action"),
+                })}
                 onClose={() => setSimpleDialogOpen(false)}
                 footer={
                     <>
-                        <Button onClick={() => setSimpleDialogOpen(false)}>Cancel</Button>
-                        <Button variant="primary" onClick={handleDialogConfirm}>Confirm</Button>
+                        <Button onClick={() => setSimpleDialogOpen(false)}>{t("common.cancel")}</Button>
+                        <Button variant="primary" onClick={handleDialogConfirm}>{t("common.confirm")}</Button>
                     </>
                 }
             >
                 <p>
-                    Are you sure you want to{' '}
-                    <strong>{pendingAction?.action || 'perform this action'}</strong>{' '}
-                    {pendingAction?.rid ? `on resource ${pendingAction.rid}` : 'on this instance'}?
+                    <Trans
+                        i18nKey={pendingAction?.rid ? "instance.dialogs.questionResource" : "instance.dialogs.questionInstance"}
+                        values={{
+                            action: pendingAction?.action || t("instance.dialogs.performThisAction"),
+                            rid: pendingAction?.rid,
+                        }}
+                        components={{strong: <strong/>}}
+                    />
                 </p>
             </Dialog>
 
@@ -764,17 +777,17 @@ const ObjectInstanceView = () => {
                 eventTypes={instanceEventTypes}
                 objectName={decodedObjectName}
                 nodeName={nodeName}
-                title={`Instance Events - ${nodeName}/${decodedObjectName}`}
-                buttonLabel="Instance Events"
+                title={t("instance.events.title", {node: nodeName, name: decodedObjectName})}
+                buttonLabel={t("instance.events.button")}
             />
 
             <SlideOver
                 open={logsDrawerOpen}
-                title={`Instance Logs - ${nodeName}/${decodedObjectName}`}
+                title={t("instance.logs.title", {node: nodeName, name: decodedObjectName})}
                 onClose={() => setLogsDrawerOpen(false)}
-                closeLabel="Close instance logs"
+                closeLabel={t("instance.logs.close")}
                 size="wide"
-                resizeLabel="Resize drawer"
+                resizeLabel={t("instance.logs.resize")}
                 closeOnOutsideClick={false}
             >
                 {logsDrawerOpen && (

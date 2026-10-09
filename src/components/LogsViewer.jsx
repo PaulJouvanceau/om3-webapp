@@ -8,6 +8,7 @@ import {CaretRightIcon, ChevronDownIcon, CloseIcon, DownloadIcon, PauseIcon, Sea
 import {cn} from "../ui/cn";
 import {URL_NODE} from "../config/apiPath.js";
 import logger from '../utils/logger.js';
+import {useTranslation} from "react-i18next";
 
 const LogsViewer = ({
                         nodename,
@@ -19,6 +20,7 @@ const LogsViewer = ({
                         height = "500px",
                         bottomSpacing = 30,
                     }) => {
+    const {t, i18n} = useTranslation();
     const [logs, setLogs] = useState([]);
     const [isPaused, setIsPaused] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
@@ -65,10 +67,10 @@ const LogsViewer = ({
 
     const buildSubtitle = useCallback(() => {
         if (type === "instance" && instanceName && instanceName.trim() !== "") {
-            return `${instanceName} on ${nodename}`;
+            return t("logs.subtitle", {instance: instanceName, node: nodename});
         }
         return nodename;
-    }, [type, nodename, instanceName]);
+    }, [type, nodename, instanceName, t]);
 
     const buildDownloadFilename = useCallback(() => {
         const timestamp = new Date().toISOString();
@@ -132,12 +134,12 @@ const LogsViewer = ({
         async (signal) => {
             if (isPausedRef.current || !nodename) return;
             if (type === "instance" && (!instanceName || instanceName.trim() === "")) {
-                setErrorMessage("Instance name is required for instance logs");
+                setErrorMessage(t("logs.errors.instanceRequired"));
                 return;
             }
             const token = localStorage.getItem("authToken");
             if (!token) {
-                setErrorMessage("Authentication token not found");
+                setErrorMessage(t("logs.errors.tokenNotFound"));
                 setIsConnected(false);
                 return;
             }
@@ -152,12 +154,12 @@ const LogsViewer = ({
                     signal,
                 });
                 if (!response.ok) {
-                    setErrorMessage(`HTTP error! status: ${response.status}`);
+                    setErrorMessage(t("logs.errors.http", {status: response.status}));
                     setIsConnected(false);
                     return;
                 }
                 if (!response.body) {
-                    setErrorMessage("Response has no readable stream");
+                    setErrorMessage(t("logs.errors.noStream"));
                     setIsConnected(false);
                     return;
                 }
@@ -204,21 +206,21 @@ const LogsViewer = ({
                 logger.error("Failed to fetch logs:", error);
                 setIsConnected(false);
                 if (error.message.includes("401")) {
-                    setErrorMessage("Authentication failed. Please refresh your token.");
+                    setErrorMessage(t("logs.errors.authFailed"));
                 } else if (error.message.includes("404")) {
                     if (type === "instance") {
-                        setErrorMessage(`Instance logs endpoint not found for ${instanceName} on node ${nodename}`);
+                        setErrorMessage(t("logs.errors.instanceNotFound", {instance: instanceName, node: nodename}));
                     } else {
-                        setErrorMessage(`Node logs endpoint not found for node ${nodename}`);
+                        setErrorMessage(t("logs.errors.nodeNotFound", {node: nodename}));
                     }
                 } else {
-                    setErrorMessage(`Failed to fetch logs: ${error.message}`);
+                    setErrorMessage(t("logs.errors.fetchFailed", {message: error.message}));
                 }
             } finally {
                 setIsLoading(false);
             }
         },
-        [nodename, type, instanceName, buildLogUrl, parseLogMessage, updateLogs]
+        [nodename, type, instanceName, buildLogUrl, parseLogMessage, updateLogs, t]
     );
 
     const startStreaming = useCallback(() => {
@@ -296,14 +298,14 @@ const LogsViewer = ({
     useEffect(() => {
         if (!nodename) return;
         if (type === "instance" && (!instanceName || instanceName.trim() === "")) {
-            setErrorMessage("Instance name is required for instance logs");
+            setErrorMessage(t("logs.errors.instanceRequired"));
             return;
         }
         if (!isPaused) startStreaming();
         return () => {
             if (abortControllerRef.current) abortControllerRef.current.abort();
         };
-    }, [nodename, type, instanceName, startStreaming, isPaused]);
+    }, [nodename, type, instanceName, startStreaming, isPaused, t]);
 
     useEffect(() => {
         if (isPaused) {
@@ -321,7 +323,7 @@ const LogsViewer = ({
     }, []);
 
     const formatTime = (timestamp) =>
-        timestamp.toLocaleTimeString("en-US", {
+        timestamp.toLocaleTimeString(i18n.language, {
             hour: "2-digit",
             minute: "2-digit",
             second: "2-digit",
@@ -382,7 +384,7 @@ const LogsViewer = ({
         seenLogsRef.current.clear();
     };
 
-    const levelSummary = levelFilter.length === 0 ? "All levels" : levelFilter.join(", ");
+    const levelSummary = levelFilter.length === 0 ? t("logs.allLevels") : levelFilter.join(", ");
 
     return (
         <div className="flex h-full flex-col gap-2 text-ink">
@@ -396,9 +398,9 @@ const LogsViewer = ({
                     <span className={isConnected ? "text-state-up" : "text-state-down"}>
                         <StateGlyph state={isConnected ? "up" : "down"}/>
                     </span>
-                    <span>{isConnected ? "Connected" : "Disconnected"}</span>
+                    <span>{isConnected ? t("logs.connected") : t("logs.disconnected")}</span>
                 </span>
-                {isLoading && <Spinner label="Loading logs"/>}
+                {isLoading && <Spinner label={t("logs.loading")}/>}
                 <div className="ml-auto flex items-center gap-2">
                     <Button
                         size="sm"
@@ -406,12 +408,12 @@ const LogsViewer = ({
                         aria-pressed={isPaused}
                         icon={isPaused ? <CaretRightIcon/> : <PauseIcon/>}
                     >
-                        {isPaused ? "Resume" : "Pause"}
+                        {isPaused ? t("logs.resume") : t("logs.pause")}
                     </Button>
-                    <IconButton label="Clear logs" onClick={handleClearLogs} disabled={logs.length === 0}>
+                    <IconButton label={t("logs.clear")} onClick={handleClearLogs} disabled={logs.length === 0}>
                         <TrashIcon/>
                     </IconButton>
-                    <IconButton label="Download logs" onClick={handleDownload} disabled={filteredLogs.length === 0}>
+                    <IconButton label={t("logs.download")} onClick={handleDownload} disabled={filteredLogs.length === 0}>
                         <DownloadIcon/>
                     </IconButton>
                 </div>
@@ -421,28 +423,28 @@ const LogsViewer = ({
                     tone="error"
                     action={
                         <Button size="sm" onClick={handleManualReconnect}>
-                            Retry
+                            {t("common.retry")}
                         </Button>
                     }
                 >
                     {errorMessage}
                 </Alert>
             )}
-            {isLoading && !errorMessage && <Alert tone="info">Loading logs...</Alert>}
+            {isLoading && !errorMessage && <Alert tone="info">{t("logs.loadingEllipsis")}</Alert>}
             {/* Filters, as the oc3 list toolbar */}
             <div className="flex flex-wrap items-center gap-3">
                 <label className="flex min-w-[200px] flex-1 items-center gap-1 text-ink-muted">
                     <SearchIcon className="shrink-0"/>
-                    <span className="sr-only">Search</span>
+                    <span className="sr-only">{t("common.search")}</span>
                     <Input
                         className="h-7"
-                        placeholder="Search logs..."
+                        placeholder={t("logs.searchPlaceholder")}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </label>
                 <div className="flex items-center gap-1 text-ink-muted">
-                    <span id={levelsLabelId}>Levels</span>
+                    <span id={levelsLabelId}>{t("logs.levels")}</span>
                     <details className="relative">
                         <summary
                             aria-describedby={levelsLabelId}
@@ -453,7 +455,7 @@ const LogsViewer = ({
                         </summary>
                         <div
                             role="group"
-                            aria-label="Log levels"
+                            aria-label={t("logs.levelsGroup")}
                             className="absolute left-0 z-10 mt-1 flex min-w-[8rem] flex-col gap-1 rounded-(--radius-control) border border-line bg-surface-raised p-2 text-ink shadow-lg"
                         >
                             {["debug", "error", "info", "warn"].map((level) => (
@@ -475,10 +477,10 @@ const LogsViewer = ({
                 </div>
                 {isFiltered ? (
                     <span className="inline-flex items-center gap-1 rounded-(--radius-control) border border-line bg-surface-sunken pl-2 text-data">
-                        Filters active - Click any log to clear
+                        {t("logs.filtersActive")}
                         <IconButton
                             size="sm"
-                            label="Reset filters"
+                            label={t("logs.resetFilters")}
                             onClick={() => {
                                 setSearchTerm("");
                                 setLevelFilter([]);
@@ -489,7 +491,7 @@ const LogsViewer = ({
                     </span>
                 ) : null}
                 <span className="ml-auto text-data text-ink-muted">
-                    {filteredLogs.length} / {logs.length} logs
+                    {t("logs.count", {shown: filteredLogs.length, total: logs.length})}
                 </span>
             </div>
             {/* Log lines */}
@@ -498,7 +500,7 @@ const LogsViewer = ({
                 onScroll={handleScroll}
                 role="log"
                 aria-live="off"
-                aria-label="Log lines"
+                aria-label={t("logs.lines")}
                 tabIndex={0}
                 className="relative min-h-0 flex-1 overflow-auto rounded-(--radius-control) border border-line bg-surface-sunken py-1 font-mono text-data"
                 style={{height}}
@@ -506,8 +508,8 @@ const LogsViewer = ({
                 {filteredLogs.length === 0 ? (
                     <p className="pt-4 text-center font-sans text-ink-muted">
                         {logs.length === 0 && !isLoading
-                            ? "No logs available"
-                            : "No logs match current filters"}
+                            ? t("logs.empty")
+                            : t("logs.noMatch")}
                     </p>
                 ) : (
                     filteredLogs.map((log) => (
@@ -543,7 +545,7 @@ const LogsViewer = ({
                         logsEndRef.current?.scrollIntoView({behavior: "smooth"});
                     }}
                 >
-                    Go to bottom
+                    {t("logs.goToBottom")}
                 </Button>
             )}
         </div>

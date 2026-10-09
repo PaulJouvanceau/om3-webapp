@@ -1,4 +1,5 @@
 import React, {useEffect, useMemo, useRef, useState} from "react";
+import {useTranslation} from "react-i18next";
 import {URL_METRICS_PG} from "../config/apiPath.js";
 import {cpuPercent, formatBytes, namespaceCgroupMetrics, namespaceTotals} from "../utils/cgroupMetrics";
 import {Table, HeaderRow, HeaderCell, Row, Cell, EmptyRow} from "../ui/components/Table";
@@ -13,7 +14,7 @@ const formatCpu = (percent) => (percent === null ? "-" : `${percent.toFixed(1)} 
 /** A figure of the namespace as a whole, over the per object table. */
 const TotalTile = ({label, value}) => (
     <div className="rounded-(--radius-panel) border border-line bg-surface-sunken px-3 py-2">
-        <dt className="text-ink-muted">Namespace {label.toLowerCase()}</dt>
+        <dt className="text-ink-muted">{label}</dt>
         <dd className="text-lg font-semibold tabular-nums">{value}</dd>
     </div>
 );
@@ -27,6 +28,7 @@ const TotalTile = ({label, value}) => (
  * this is the usage on the node the webapp is served from.
  */
 const NamespaceMetrics = ({namespace}) => {
+    const {t} = useTranslation();
     const [rows, setRows] = useState(null);
     const [error, setError] = useState(null);
     const previous = useRef(null);
@@ -74,28 +76,28 @@ const NamespaceMetrics = ({namespace}) => {
 
     return (
         <div className="flex flex-col gap-3">
-            {error && <Alert>Failed to fetch metrics: {error}</Alert>}
+            {error && <Alert>{t("metrics.fetchError", {error})}</Alert>}
             {rows === null && !error ? (
                 <div className="flex justify-center">
-                    <Spinner label="Loading metrics"/>
+                    <Spinner label={t("metrics.loading")}/>
                 </div>
             ) : (
                 <>
                 {sortedRows.length > 0 && (
-                    <section aria-label="Namespace total">
+                    <section aria-label={t("metrics.totals.label")}>
                         <dl className="grid grid-cols-2 gap-3">
-                            <TotalTile label="CPU" value={formatCpu(totals.cpu)}/>
-                            <TotalTile label="Memory" value={formatBytes(totals.memoryCurrent)}/>
+                            <TotalTile label={t("metrics.totals.cpu")} value={formatCpu(totals.cpu)}/>
+                            <TotalTile label={t("metrics.totals.memory")} value={formatBytes(totals.memoryCurrent)}/>
                         </dl>
                     </section>
                 )}
                 <Table>
                     <thead>
                         <HeaderRow>
-                            <HeaderCell>Object</HeaderCell>
-                            <HeaderCell align="right">CPU</HeaderCell>
-                            <HeaderCell align="right">Memory</HeaderCell>
-                            <HeaderCell align="right">Limit</HeaderCell>
+                            <HeaderCell>{t("metrics.columns.object")}</HeaderCell>
+                            <HeaderCell>{t("metrics.columns.cpu")}</HeaderCell>
+                            <HeaderCell>{t("metrics.columns.memory")}</HeaderCell>
+                            <HeaderCell>{t("metrics.columns.limit")}</HeaderCell>
                         </HeaderRow>
                     </thead>
                     <tbody>
@@ -107,15 +109,14 @@ const NamespaceMetrics = ({namespace}) => {
                                 <Cell numeric>{formatBytes(row.memoryMax)}</Cell>
                             </Row>
                         )) : (
-                            <EmptyRow colSpan={4}>No cgroup metrics for the objects of {namespace}</EmptyRow>
+                            <EmptyRow colSpan={4}>{t("metrics.empty", {namespace})}</EmptyRow>
                         )}
                     </tbody>
                 </Table>
                 </>
             )}
             <p className="text-ink-muted">
-                Usage on the node serving this page, refreshed every {REFRESH_INTERVAL_MS / 1000} seconds.
-                CPU is in percent of one CPU.
+                {t("metrics.footer", {seconds: REFRESH_INTERVAL_MS / 1000})}
             </p>
         </div>
     );

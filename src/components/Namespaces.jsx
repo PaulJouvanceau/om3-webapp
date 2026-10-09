@@ -1,5 +1,6 @@
 import React, {useEffect, useState, useMemo, useCallback, useRef, useDeferredValue} from "react";
 import {useNavigate, useLocation} from "react-router-dom";
+import {useTranslation} from "react-i18next";
 import {closeEventSource, startEventReception} from "../eventSourceManager.jsx";
 import EventLogger from "../components/EventLogger";
 import {useNamespaceData} from "../hooks/useNamespaceData";
@@ -15,10 +16,10 @@ import NamespaceMetrics from "./NamespaceMetrics";
 const STATUSES = ["up", "down", "warn", "n/a"];
 
 const STATUS_COLUMNS = [
-    {column: "up", label: "Up"},
-    {column: "down", label: "Down"},
-    {column: "warn", label: "Warn"},
-    {column: "n/a", label: "N/A"},
+    {column: "up", labelKey: "namespaces.columns.up"},
+    {column: "down", labelKey: "namespaces.columns.down"},
+    {column: "warn", labelKey: "namespaces.columns.warn"},
+    {column: "n/a", labelKey: "namespaces.columns.na"},
 ];
 
 const MARK_STATE = {up: "up", down: "down", warn: "warn", "n/a": "unknown"};
@@ -27,14 +28,17 @@ export const areStatusDotPropsEqual = (prev, next) =>
     prev.status === next.status && prev.count === next.count && prev.namespace === next.namespace;
 
 /** A status mark and its count; the count opens the objects of the namespace in that state. */
-const NamespaceStatusCount = React.memo(({status, count, namespace, onClick}) => (
-    <StatusCount
-        state={MARK_STATE[status]}
-        count={count}
-        label={`Show the ${count} ${status} object${count === 1 ? "" : "s"} of ${namespace}`}
-        onClick={() => onClick(status)}
-    />
-), (prev, next) => areStatusDotPropsEqual(prev, next) && prev.onClick === next.onClick);
+const NamespaceStatusCount = React.memo(({status, count, namespace, onClick}) => {
+    const {t} = useTranslation();
+    return (
+        <StatusCount
+            state={MARK_STATE[status]}
+            count={count}
+            label={t("namespaces.showObjects", {count, status, namespace})}
+            onClick={() => onClick(status)}
+        />
+    );
+}, (prev, next) => areStatusDotPropsEqual(prev, next) && prev.onClick === next.onClick);
 
 const NamespaceTableRow = React.memo(({
                                           namespace,
@@ -43,6 +47,7 @@ const NamespaceTableRow = React.memo(({
                                           onStatusClick,
                                           onOpenMetrics
                                       }) => {
+    const {t} = useTranslation();
     const total = useMemo(() =>
             counts.up + counts.down + counts.warn + counts["n/a"],
         [counts]
@@ -70,11 +75,11 @@ const NamespaceTableRow = React.memo(({
                 </Cell>
             ))}
             <Cell numeric className="font-semibold tabular-nums">{total}</Cell>
-            <Cell align="center">
+            <Cell>
                 <IconButton
                     size="sm"
                     className="align-middle"
-                    label={`View metrics for namespace ${namespace}`}
+                    label={t("namespaces.viewMetrics", {namespace})}
                     onClick={(event) => {
                         event.stopPropagation();
                         onOpenMetrics(namespace);
@@ -95,6 +100,7 @@ const NamespaceTableRow = React.memo(({
 });
 
 const Namespaces = () => {
+    const {t} = useTranslation();
     const navigate = useNavigate();
     const location = useLocation();
     const isMounted = useRef(true);
@@ -262,10 +268,12 @@ const Namespaces = () => {
         <div className="flex h-full flex-col gap-3 p-4">
             <div className="flex flex-wrap items-center gap-3">
                 <label className="flex items-center gap-1 text-ink-muted">
-                    Filter by namespace
+                    {t("namespaces.filterBy")}
                     <Select className="h-7" value={selectedNamespace} onChange={handleNamespaceChange}>
                         {namespaceOptions.map((namespace) => (
-                            <option key={namespace} value={namespace}>{namespace}</option>
+                            <option key={namespace} value={namespace}>
+                                {namespace === "all" ? t("namespaces.allOption") : namespace}
+                            </option>
                         ))}
                     </Select>
                 </label>
@@ -280,29 +288,27 @@ const Namespaces = () => {
                 <thead>
                     <HeaderRow>
                         <SortHeaderCell
-                            label="Namespace"
+                            label={t("namespaces.columns.namespace")}
                             active={sortColumn === "namespace"}
                             direction={sortDirection}
                             onSort={() => handleSort("namespace")}
                         />
-                        {STATUS_COLUMNS.map(({column, label}) => (
+                        {STATUS_COLUMNS.map(({column, labelKey}) => (
                             <SortHeaderCell
                                 key={column}
-                                label={label}
+                                label={t(labelKey)}
                                 active={sortColumn === column}
                                 direction={sortDirection}
                                 onSort={() => handleSort(column)}
-                                align="right"
                             />
                         ))}
                         <SortHeaderCell
-                            label="Total"
+                            label={t("namespaces.columns.total")}
                             active={sortColumn === "total"}
                             direction={sortDirection}
                             onSort={() => handleSort("total")}
-                            align="right"
                         />
-                        <HeaderCell align="center">Metrics</HeaderCell>
+                        <HeaderCell>{t("namespaces.columns.metrics")}</HeaderCell>
                     </HeaderRow>
                 </thead>
                 <tbody>
@@ -321,8 +327,8 @@ const Namespaces = () => {
                         <EmptyRow colSpan={7}>
                             <span data-testid="no-namespaces-message">
                                 {selectedNamespace !== "all"
-                                    ? "No namespaces match the selected filter"
-                                    : "No namespaces available"}
+                                    ? t("namespaces.emptyFiltered")
+                                    : t("namespaces.empty")}
                             </span>
                         </EmptyRow>
                     )}
@@ -330,25 +336,25 @@ const Namespaces = () => {
             </Table>
             {loading && (
                 <div className="flex justify-center">
-                    <Spinner label="Loading more namespaces"/>
+                    <Spinner label={t("namespaces.loadingMore")}/>
                 </div>
             )}
 
             <SlideOver
                 open={metricsNamespace !== null}
-                title={metricsNamespace !== null ? `Metrics of ${metricsNamespace}` : "Metrics"}
+                title={metricsNamespace !== null ? t("namespaces.metricsOf", {namespace: metricsNamespace}) : t("namespaces.metricsTitle")}
                 onClose={handleCloseMetrics}
-                closeLabel="Close"
+                closeLabel={t("common.close")}
                 size="wide"
-                resizeLabel="Resize drawer"
+                resizeLabel={t("namespaces.resizeDrawer")}
             >
                 {metricsNamespace !== null && <NamespaceMetrics namespace={metricsNamespace}/>}
             </SlideOver>
 
             <EventLogger
                 eventTypes={namespaceEventTypes}
-                title="Namespaces Events Logger"
-                buttonLabel="Namespace Events"
+                title={t("namespaces.eventsLogger")}
+                buttonLabel={t("namespaces.events")}
             />
         </div>
     );

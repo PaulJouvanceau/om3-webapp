@@ -7,11 +7,12 @@ import {StatusMark} from "../ui/components/StatusMark";
 import {FrozenMark} from "../ui/components/FrozenMark";
 import {UsageBar} from "../ui/components/UsageBar";
 import {FileIcon, RssIcon, MoreIcon} from "../ui/icons";
-import {NODE_ACTIONS} from "../constants/actions";
+import {NODE_ACTIONS, actionLabel} from "../constants/actions";
+import {useTranslation} from "react-i18next";
 
 const ZERO_DATE = "0001-01-01T00:00:00Z";
 
-const formatDate = (dateString) => {
+const formatDate = (dateString, t, language) => {
     if (!dateString || dateString === ZERO_DATE) {
         return "-";
     }
@@ -23,19 +24,13 @@ const formatDate = (dateString) => {
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
+    if (diffMins < 1) return t("nodes.time.justNow");
+    if (diffMins < 60) return t("nodes.time.minutesAgo", {count: diffMins});
+    if (diffHours < 24) return t("nodes.time.hoursAgo", {count: diffHours});
+    if (diffDays < 7) return t("nodes.time.daysAgo", {count: diffDays});
 
-    return date.toLocaleDateString();
+    return date.toLocaleDateString(language);
 };
-
-const capitalize = (name) =>
-    name
-        .split(" ")
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" ");
 
 /**
  * The node monitor state as a mark: idle is the normal state, a failure is down,
@@ -64,6 +59,8 @@ const NodeRow = ({
                      onAction,
                      onOpenLogs,
                  }) => {
+    const {t, i18n} = useTranslation();
+    const notAvailable = t("common.notAvailable");
     const isFrozen = !!status?.frozen_at && status.frozen_at !== ZERO_DATE;
     const isDaemonNode = daemonNodename === nodename;
     const filteredMenuItems = NODE_ACTIONS.filter(({name}) => {
@@ -78,25 +75,25 @@ const NodeRow = ({
     const updatedValid = monitor?.updated_at && monitor.updated_at !== ZERO_DATE;
 
     return (
-        <Row aria-label={`Node ${nodename} row`} className={isSelected ? "bg-accent-soft" : undefined}>
-            <Cell align="center" className="w-8">
+        <Row aria-label={t("nodes.row.label", {node: nodename})} className={isSelected ? "bg-accent-soft" : undefined}>
+            <Cell className="w-8">
                 <Checkbox
                     checked={isSelected}
                     onChange={(e) => onSelect(e, nodename)}
-                    aria-label={`Select node ${nodename}`}
+                    aria-label={t("nodes.row.select", {node: nodename})}
                     onClick={(e) => e.stopPropagation()}
                 />
             </Cell>
             <Cell className="font-medium whitespace-nowrap">{nodename || "-"}</Cell>
             <Cell className="whitespace-nowrap">
-                <span className="flex items-center gap-1.5">
+                <span className="flex items-center justify-center gap-1.5">
                     <StatusMark state={mark.state} label={mark.label}/>
                     {monitor && monitor.state !== "idle" && <span>{monitor.state}</span>}
                     {isDaemonNode && (
                         <span
                             role="img"
-                            title="Connected to this node"
-                            aria-label="Connected to this node"
+                            title={t("nodes.row.connected")}
+                            aria-label={t("nodes.row.connected")}
                             className="text-state-up"
                         >
                             <RssIcon className="h-3.5 w-3.5"/>
@@ -105,58 +102,58 @@ const NodeRow = ({
                     <FrozenMark frozen={isFrozen}/>
                 </span>
             </Cell>
-            <Cell numeric>{stats?.score || "N/A"}</Cell>
+            <Cell numeric>{stats?.score || notAvailable}</Cell>
             <Cell numeric className="whitespace-nowrap">
                 {stats?.load_15m ? (
                     <span className="inline-flex items-center gap-2">
                         <span>{stats.load_15m}</span>
-                        <UsageBar showValue={false} value={Math.min(stats.load_15m * 20, 100)} state={loadState} label="Load (15m)"/>
+                        <UsageBar showValue={false} value={Math.min(stats.load_15m * 20, 100)} state={loadState} label={t("nodes.columns.load15m")}/>
                     </span>
                 ) : (
-                    "N/A"
+                    notAvailable
                 )}
             </Cell>
             <Cell numeric className="whitespace-nowrap">
                 {stats?.mem_avail ? (
                     <span className="inline-flex items-center gap-2">
                         <span>{stats.mem_avail}%</span>
-                        <UsageBar showValue={false} value={stats.mem_avail} state={memState} label="Mem Avail"/>
+                        <UsageBar showValue={false} value={stats.mem_avail} state={memState} label={t("nodes.columns.memAvail")}/>
                     </span>
                 ) : (
-                    "N/A"
+                    notAvailable
                 )}
             </Cell>
-            <Cell numeric>{stats?.swap_avail || "N/A"}%</Cell>
-            <Cell className="whitespace-nowrap">{status?.agent || "N/A"}</Cell>
+            <Cell numeric>{stats?.swap_avail || notAvailable}%</Cell>
+            <Cell className="whitespace-nowrap">{status?.agent || notAvailable}</Cell>
             <Cell className="whitespace-nowrap">
                 {bootedValid ? (
-                    <span title={new Date(status.booted_at).toLocaleString()}>{formatDate(status.booted_at)}</span>
+                    <span title={new Date(status.booted_at).toLocaleString(i18n.language)}>{formatDate(status.booted_at, t, i18n.language)}</span>
                 ) : (
                     "-"
                 )}
             </Cell>
             <Cell className="whitespace-nowrap">
-                <span title={updatedValid ? new Date(monitor.updated_at).toLocaleString() : "-"}>
-                    {formatDate(monitor?.updated_at)}
+                <span title={updatedValid ? new Date(monitor.updated_at).toLocaleString(i18n.language) : "-"}>
+                    {formatDate(monitor?.updated_at, t, i18n.language)}
                 </span>
             </Cell>
-            <Cell align="center">
+            <Cell>
                 <MenuButton
-                    label={`More actions for node ${nodename}`}
+                    label={t("nodes.row.moreActions", {node: nodename})}
                     icon={<MoreIcon className="h-4 w-4"/>}
                     compact
                     align="end"
                     className="inline-flex align-middle"
                     items={filteredMenuItems.map(({name, icon, color}) => ({
                         key: name,
-                        label: capitalize(name),
+                        label: actionLabel(name),
                         icon: <span aria-hidden="true" className={color === "red" ? DANGER_ICON : ICON}>{icon}</span>,
                         onSelect: () => onAction(nodename, name),
                     }))}
                 />
             </Cell>
-            <Cell align="center">
-                <IconButton size="sm" className="align-middle" label={`View logs for node ${nodename}`} onClick={() => onOpenLogs(nodename)}>
+            <Cell>
+                <IconButton size="sm" className="align-middle" label={t("nodes.row.viewLogs", {node: nodename})} onClick={() => onOpenLogs(nodename)}>
                     <FileIcon className="h-4 w-4"/>
                 </IconButton>
             </Cell>

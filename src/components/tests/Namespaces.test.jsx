@@ -3,6 +3,7 @@ import {render, screen, fireEvent, waitFor, act, within} from '@testing-library/
 import {MemoryRouter} from 'react-router-dom';
 import {vi} from 'vitest';
 import Namespaces, {areStatusDotPropsEqual} from '../Namespaces';
+import i18n from '../../i18n';
 
 // ── Hoisted mock variables ──────────────────────────────────────────────
 const {
@@ -145,6 +146,18 @@ describe('Namespaces', () => {
         ['Namespace', 'Up', 'Down', 'Warn', 'N/A', 'Total'].forEach(text =>
             expect(screen.getByRole('columnheader', {name: text})).toBeInTheDocument()
         );
+    });
+
+    test('speaks French to a French browser', async () => {
+        await i18n.changeLanguage('fr');
+        try {
+            renderComponent();
+            expect(screen.getByRole('columnheader', {name: 'Namespace'})).toBeInTheDocument();
+            expect(screen.getByRole('columnheader', {name: 'Métriques'})).toBeInTheDocument();
+            expect(screen.getByLabelText('Filtrer par namespace')).toBeInTheDocument();
+        } finally {
+            await i18n.changeLanguage('en');
+        }
     });
 
     test('displays namespace counts correctly', () => {

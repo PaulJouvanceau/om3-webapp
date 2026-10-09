@@ -1,5 +1,6 @@
 import React, {useEffect, useCallback, lazy, Suspense, useRef} from "react";
 import {Routes, Route, Navigate, useNavigate, useLocation} from "react-router-dom";
+import {useTranslation} from "react-i18next";
 import OidcCallback from "./OidcCallback";
 import SilentRenew from "./SilentRenew.jsx";
 import AuthChoice from "./AuthChoice.jsx";
@@ -37,11 +38,14 @@ const NetworkDetails = lazy(() => import("./NetworkDetails"));
 const WhoAmI = lazy(() => import("./WhoAmI"));
 
 // Loading component for Suspense fallback
-const Loading = () => (
-    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%'}}>
-        <div style={{fontSize: '1.125rem'}}>Loading...</div>
-    </div>
-);
+const Loading = () => {
+    const {t} = useTranslation();
+    return (
+        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%'}}>
+            <div style={{fontSize: '1.125rem'}}>{t("nav.loading")}</div>
+        </div>
+    );
+};
 
 const isTokenValid = (token) => {
     if (!token) {

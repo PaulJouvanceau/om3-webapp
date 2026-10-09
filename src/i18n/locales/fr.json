@@ -1,0 +1,926 @@
+{
+  "actionDialogs": {
+    "chooseFile": "Choisir un fichier",
+    "noFileSelected": "Aucun fichier sélectionné",
+    "noFileChosen": "Aucun fichier choisi",
+    "acknowledge": {
+      "mayInterruptAria": "Confirmer l'interruption de service",
+      "mayInterrupt": "Je comprends que cela peut interrompre des services.",
+      "dataLossAria": "Confirmer la perte de données",
+      "dataLoss": "Je comprends que des données seront perdues.",
+      "configLossAria": "Confirmer la perte de configuration",
+      "configLoss": "Je comprends que la configuration sera perdue.",
+      "clusterwideAria": "Confirmer l'orchestration sur tout le cluster",
+      "clusterwide": "Je comprends que cette action sera orchestrée sur tout le cluster.",
+      "serviceInterruptionAria": "Confirmer l'interruption de service",
+      "serviceInterruption": "Je comprends que les services sélectionnés peuvent être interrompus temporairement pendant la bascule, ou durablement si aucune bascule n'est configurée.",
+      "unavailableDuringMoveAria": "Confirmer l'indisponibilité des services",
+      "unavailableDuringMove": "Je comprends que les services sélectionnés seront indisponibles pendant le déplacement."
+    },
+    "freeze": {
+      "title": "Confirmer le gel",
+      "checkboxAria": "Confirmer la suspension de la bascule",
+      "checkbox": "Je comprends que l'orchestration des services sélectionnés sera suspendue.",
+      "confirmAria": "Confirmer l'action geler"
+    },
+    "stop": {
+      "title": "Confirmer l'arrêt",
+      "confirmAria": "Confirmer l'action arrêter",
+      "confirm": "Arrêter"
+    },
+    "shutdown": {
+      "title": "Confirmer l'extinction",
+      "confirmAria": "Confirmer l'action éteindre",
+      "confirm": "Éteindre",
+      "instancesDownAria": "Confirmer l'extinction des instances",
+      "instancesDown": "Je comprends que toutes les instances svc et vol de ce nœud seront éteintes et que le démon sera arrêté.",
+      "peerTakeoverAria": "Confirmer la reprise par les pairs",
+      "peerTakeover": "Je comprends que les nœuds pairs ne sont pas prévenus d'une période de maintenance et tenteront de reprendre les services dès que les instances seront arrêtées."
+    },
+    "restart": {
+      "title": "Confirmer le redémarrage",
+      "confirmAria": "Confirmer l'action redémarrer",
+      "confirm": "Redémarrer"
+    },
+    "clear": {
+      "title": "Confirmer l'effacement",
+      "checkboxAria": "Confirmer l'action effacer",
+      "checkbox": "Je comprends que cela effacera l'état et les journaux du nœud.",
+      "confirmAria": "Confirmer l'action effacer"
+    },
+    "drain": {
+      "title": "Confirmer le drainage",
+      "checkboxAria": "Confirmer la migration des services",
+      "checkbox": "Je comprends que cela migrera les services hors des nœuds sélectionnés.",
+      "confirmAria": "Confirmer l'action drainer"
+    },
+    "unprovision": {
+      "title": "Confirmer le déprovisionnement",
+      "confirmAria": "Confirmer l'action déprovisionner"
+    },
+    "purge": {
+      "title": "Confirmer la purge",
+      "confirmAria": "Confirmer l'action purger"
+    },
+    "delete": {
+      "title": "Confirmer la suppression",
+      "confirmAria": "Confirmer l'action supprimer"
+    },
+    "switch": {
+      "title": "Confirmer la bascule",
+      "confirmAria": "Confirmer l'action basculer"
+    },
+    "giveback": {
+      "title": "Confirmer la restitution",
+      "confirmAria": "Confirmer l'action restituer"
+    },
+    "deleteKey": {
+      "title": "Confirmer la suppression de la clé",
+      "confirmAria": "Confirmer la suppression de la clé",
+      "message": "Voulez-vous vraiment supprimer la clé <strong>{{key}}</strong> ?"
+    },
+    "createKey": {
+      "title": "Créer une clé",
+      "confirmAria": "Confirmer la création de la clé",
+      "confirm": "Créer",
+      "keyName": "Nom de la clé",
+      "keyNameAria": "Saisie du nom de la clé"
+    },
+    "updateConfig": {
+      "title": "Mettre à jour la configuration",
+      "confirmAria": "Confirmer la mise à jour de la configuration",
+      "confirm": "Mettre à jour"
+    },
+    "manageParams": {
+      "title": "Gérer les paramètres de configuration",
+      "confirmAria": "Appliquer les modifications de configuration",
+      "confirm": "Appliquer",
+      "set": "Paramètres à définir",
+      "setHint": "Ajouter des paramètres (un par ligne, p. ex. section.param=valeur)",
+      "setAria": "Saisie des paramètres à définir",
+      "unset": "Clés de paramètres à retirer",
+      "unsetHint": "Retirer des paramètres (une clé par ligne, p. ex. section.param)",
+      "unsetAria": "Saisie des paramètres à retirer",
+      "deleteSections": "Clés de sections à supprimer",
+      "deleteSectionsHint": "Supprimer des sections (une clé par ligne, p. ex. section)",
+      "deleteSectionsAria": "Saisie des sections à supprimer"
+    },
+    "simpleConfirm": {
+      "title": "Confirmer « {{label}} »",
+      "confirmAria": "Confirmer l'action « {{label}} »",
+      "message": "Voulez-vous vraiment exécuter l'action <strong>{{label}}</strong> sur {{target}} ?",
+      "titleAction": "Confirmer « {{label}} »",
+      "titleGeneric": "Confirmer l'action",
+      "messageAction": "Voulez-vous vraiment exécuter l'action « {{label}} » sur {{target}} ?",
+      "messageGeneric": "Voulez-vous vraiment exécuter cette action sur {{target}} ?"
+    }
+  },
+  "actions": {
+    "labels": {
+      "start": "Démarrer",
+      "stop": "Arrêter",
+      "restart": "Redémarrer",
+      "freeze": "Geler",
+      "unfreeze": "Dégeler",
+      "provision": "Provisionner",
+      "unprovision": "Déprovisionner",
+      "switch": "Basculer",
+      "giveback": "Restituer",
+      "abort": "Abandonner",
+      "enable": "Activer",
+      "disable": "Désactiver",
+      "delete": "Supprimer",
+      "purge": "Purger",
+      "run": "Exécuter",
+      "boot": "Amorcer",
+      "shutdown": "Éteindre",
+      "startStandby": "Démarrer en standby",
+      "prstart": "Prstart",
+      "prstop": "Prstop",
+      "syncIngest": "Ingérer la synchronisation",
+      "pgReset": "Réinitialiser le groupe de placement",
+      "pgUpdate": "Mettre à jour le groupe de placement",
+      "info": "Infos",
+      "status": "Statut",
+      "console": "Console",
+      "clear": "Effacer",
+      "dequeue": "Retirer de la file",
+      "drain": "Drainer",
+      "scsiScan": "Scan SCSI",
+      "asset": "Inventaire",
+      "disk": "Disques",
+      "pkg": "Paquets",
+      "capabilities": "Capacités",
+      "sysreport": "Rapport système",
+      "restartDaemon": "Redémarrer le démon"
+    }
+  },
+  "alerts": {
+    "pills": {
+      "up_one": "up",
+      "up_other": "up",
+      "warn_one": "warn",
+      "warn_other": "warn",
+      "down_one": "down",
+      "down_other": "down",
+      "unknown_one": "n/d",
+      "unknown_other": "n/d",
+      "frozen_one": "gelé",
+      "frozen_other": "gelés",
+      "beating_one": "actif",
+      "beating_other": "actifs",
+      "staleOrStopped_one": "en retard ou arrêté",
+      "staleOrStopped_other": "en retard ou arrêtés",
+      "full_one": "plein",
+      "full_other": "pleins"
+    },
+    "countTitle": "{{count}} {{label}}",
+    "showObjects": "Afficher les objets {{label}}",
+    "showThem": "{{label}}, les afficher",
+    "details": {
+      "node_one": "{{count}} nœud",
+      "node_other": "{{count}} nœuds",
+      "pool_one": "{{count}} pool",
+      "pool_other": "{{count}} pools",
+      "network_one": "{{count}} réseau",
+      "network_other": "{{count}} réseaux",
+      "frozen": "gelés : {{count}}",
+      "full": "pleins : {{count}}",
+      "highestUsage": "usage le plus élevé : {{name}} {{percent}} %"
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Connexion",
+      "username": "Nom d'utilisateur",
+      "password": "Mot de passe",
+      "changeMethod": "Changer de méthode",
+      "submit": "Se connecter",
+      "loading": "Chargement...",
+      "incorrect": "Nom d'utilisateur ou mot de passe incorrect",
+      "error": "Une erreur est survenue lors de l'authentification",
+      "missingFields": "Veuillez saisir le nom d'utilisateur et le mot de passe"
+    },
+    "choice": {
+      "title": "Méthodes d'authentification",
+      "prompt": "Veuillez choisir l'une des méthodes d'authentification proposées par le cluster.",
+      "loading": "Chargement des méthodes d'authentification",
+      "openid": "OpenID",
+      "login": "Se connecter"
+    },
+    "authenticating": {
+      "title": "Authentification",
+      "loading": "Chargement...",
+      "redirecting": "Vous êtes redirigé vers le fournisseur OpenID.",
+      "reload": "Recharger"
+    },
+    "callback": {
+      "logging": "Connexion ..."
+    },
+    "silentRenew": {
+      "processing": "Renouvellement silencieux en cours..."
+    }
+  },
+  "common": {
+    "close": "Fermer",
+    "cancel": "Annuler",
+    "confirm": "Confirmer",
+    "save": "Enregistrer",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "add": "Ajouter",
+    "remove": "Retirer",
+    "refresh": "Rafraîchir",
+    "retry": "Réessayer",
+    "loading": "Chargement",
+    "search": "Rechercher",
+    "filter": "Filtre",
+    "filters": "Filtres",
+    "all": "Tous",
+    "none": "Aucun",
+    "yes": "Oui",
+    "no": "Non",
+    "name": "Nom",
+    "node": "Nœud",
+    "nodes": "Nœuds",
+    "status": "Statut",
+    "state": "État",
+    "type": "Type",
+    "actions": "Actions",
+    "notAvailable": "N/D",
+    "error": "Erreur",
+    "unknown": "Inconnu",
+    "selected": "{{count}} sélectionné(s)"
+  },
+  "config": {
+    "errors": {
+      "fetchConfig": "Échec de la récupération de la configuration : {{message}}",
+      "fetchKeywords": "Échec de la récupération des mots-clés : {{message}}",
+      "fetchParams": "Échec de la récupération des paramètres existants : {{message}}",
+      "invalidFormat": "Format de réponse invalide : éléments manquants",
+      "timeout": "La requête a expiré après 60 secondes"
+    },
+    "filePicker": {
+      "choose": "Choisir un fichier",
+      "noFile": "Aucun fichier choisi"
+    },
+    "update": {
+      "title": "Mettre à jour la configuration",
+      "submit": "Mettre à jour",
+      "updating": "Mise à jour"
+    },
+    "keywords": {
+      "title": "Mots-clés de configuration",
+      "empty": "Aucun mot-clé disponible.",
+      "tableLabel": "table des mots-clés de configuration",
+      "keyword": "Mot-clé",
+      "description": "Description",
+      "default": "Défaut",
+      "section": "Section",
+      "scopable": "Scopable"
+    },
+    "params": {
+      "title": "Gérer les paramètres de configuration",
+      "apply": "Appliquer",
+      "applying": "Application",
+      "addHeading": "Ajouter des paramètres",
+      "selectLabel": "Paramètre à ajouter",
+      "selectHint": "Choisissez un paramètre, puis cliquez sur Ajouter",
+      "selectPlaceholder": "Choisir un paramètre",
+      "addButton": "Ajouter le paramètre",
+      "tableLabel": "Paramètres à ajouter",
+      "section": "Section",
+      "parameter": "Paramètre",
+      "value": "Valeur",
+      "description": "Description",
+      "index": "Index",
+      "indexPlaceholder": "ex. : prod, 1, data",
+      "sectionOptional": "Section (facultative)",
+      "sectionPlaceholder": "ex. : database, fs#data",
+      "removeParam": "Retirer le paramètre",
+      "unsetLegend": "Désaffecter des paramètres",
+      "unsetHint": "Choisissez des paramètres existants pour retirer leur valeur",
+      "unsetEmpty": "Aucun paramètre défini.",
+      "deleteLegend": "Supprimer des sections",
+      "deleteHint": "Choisissez des sections existantes à supprimer",
+      "deleteEmpty": "Aucune section."
+    },
+    "view": {
+      "button": "Voir la configuration",
+      "title": "Configuration",
+      "saving": "Enregistrement",
+      "editNotice": "Édition du fichier tel qu'il est stocké : les valeurs secrètes sont affichées en clair. L'enregistrement envoie le fichier entier.",
+      "startOver": "Repartir du fichier actuel",
+      "fileLabel": "Fichier de configuration",
+      "secretsMaskedIn": "Secrets masqués à nouveau dans {{time}}.",
+      "secretsHidden": "Les valeurs secrètes sont affichées comme ********.",
+      "hideSecrets": "Masquer les secrets",
+      "showSecrets": "Afficher les secrets",
+      "editFile": "Éditer le fichier de configuration",
+      "uploadFile": "Envoyer un nouveau fichier de configuration",
+      "manageParams": "Gérer les paramètres de configuration",
+      "viewKeywords": "Voir les mots-clés de configuration",
+      "noInstance": "Aucune instance sélectionnée pour afficher la configuration.",
+      "loadingForEdit": "Chargement de la configuration pour l'édition",
+      "loading": "Chargement de la configuration",
+      "empty": "Aucune configuration disponible."
+    },
+    "feedback": {
+      "tokenNotFound": "Jeton d'authentification introuvable.",
+      "conflict": "La configuration a été modifiée par quelqu'un d'autre depuis le début de votre édition. Vos modifications ne sont pas enregistrées.",
+      "updateFailed": "Échec de la mise à jour de la configuration : {{message}}",
+      "updateFailedStatus": "Erreur : échec de la mise à jour de la configuration : {{status}}",
+      "updated": "Configuration mise à jour",
+      "updating": "Mise à jour de la configuration…",
+      "fileRequired": "Le fichier de configuration est requis.",
+      "error": "Erreur : {{message}}",
+      "paramRequired": "Un paramètre est requis.",
+      "invalidParam": "Paramètre invalide : {{name}}",
+      "invalidList": "Valeur invalide pour {{keyword}} : une liste de chaînes en minuscules séparées par des virgules est attendue",
+      "addError": "Erreur lors de l'ajout du paramètre {{keyword}} : {{message}}",
+      "added_one": "{{count}} paramètre ajouté",
+      "added_other": "{{count}} paramètres ajoutés",
+      "unknownParam": "inconnu",
+      "unsetErrorUnknown": "Erreur lors de la désaffectation du paramètre {{keyword}}",
+      "unsetError": "Erreur lors de la désaffectation du paramètre {{keyword}} : {{message}}",
+      "unsetFailedStatus": "Erreur lors de la désaffectation du paramètre {{keyword}} : {{status}}",
+      "unset_one": "{{count}} paramètre désaffecté",
+      "unset_other": "{{count}} paramètres désaffectés",
+      "deleteError": "Erreur lors de la suppression de la section {{section}} : {{message}}",
+      "deleteFailedStatus": "Erreur lors de la suppression de la section {{section}} : {{status}}",
+      "deleted_one": "{{count}} section supprimée",
+      "deleted_other": "{{count}} sections supprimées",
+      "noSelection": "Aucune sélection"
+    }
+  },
+  "console": {
+    "title": "Console",
+    "titleRid": "Console {{rid}}",
+    "titleNode": "Console sur {{node}}",
+    "titleRidNode": "Console {{rid}} sur {{node}}",
+    "opening": "Ouverture de la console...",
+    "ended": "Session terminée (code de sortie {{code}}).",
+    "certificateHint": "Si le certificat du port de la console n'est pas reconnu par ce navigateur, ouvrez <certLink>{{url}}</certLink> pour l'accepter, puis rouvrez la console.",
+    "errors": {
+      "tokenNotFound": "Jeton d'authentification introuvable.",
+      "sessionFailed": "La session de console a échoué.",
+      "unreachable": "La console est injoignable.",
+      "lost": "La connexion à la console a été perdue.",
+      "openFailed": "Échec de l'ouverture de la console : {{message}}"
+    }
+  },
+  "events": {
+    "title": "Journal des événements",
+    "button": "Événements",
+    "count": "{{visible}}/{{total}} événements",
+    "paused": "EN PAUSE",
+    "manageSubscriptions": "Gérer les abonnements",
+    "pause": "Pause",
+    "resume": "Reprendre",
+    "clear": "Vider le journal",
+    "filterByType": "Filtrer par type",
+    "filterByTypeColon": "Filtrer par type :",
+    "pageEvent": "Événement de cette page",
+    "additionalEvent": "Événement supplémentaire",
+    "list": "Liste des événements",
+    "loading": "Chargement des événements",
+    "loadingMore": "Chargement d'autres événements",
+    "empty": "Aucun événement reçu",
+    "noMatch": "Aucun événement ne correspond aux filtres",
+    "resizeHandle": "Poignée de redimensionnement",
+    "dragToResize": "Faire glisser pour redimensionner",
+    "subscriptions": {
+      "title": "Abonnements aux événements",
+      "close": "Fermer les abonnements",
+      "intro": "Choisissez les types d'événements auxquels vous ABONNER (événements futurs uniquement) :",
+      "subscribeAll": "S'abonner à tout",
+      "subscribePage": "S'abonner aux événements de la page",
+      "unsubscribeAll": "Se désabonner de tout",
+      "pageEvents": "Événements de la page ({{total}})",
+      "additionalEvents": "Événements supplémentaires ({{total}})",
+      "received_one": "{{count}} événement reçu",
+      "received_other": "{{count}} événements reçus",
+      "noneSelected": "Aucun type d'événement sélectionné. Vous ne recevrez aucun événement.",
+      "apply": "Appliquer les abonnements ({{total}})"
+    }
+  },
+  "heartbeats": {
+    "columns": {
+      "running": "EN MARCHE",
+      "beating": "BATTEMENT",
+      "id": "ID",
+      "node": "NŒUD",
+      "peer": "PAIR",
+      "type": "TYPE",
+      "desc": "DESC",
+      "changedAt": "MODIFIÉ LE",
+      "lastBeatingAt": "DERNIER BATTEMENT"
+    },
+    "filters": {
+      "running": "En marche",
+      "beating": "Battement",
+      "id": "ID",
+      "show": "Afficher les filtres",
+      "hide": "Masquer les filtres"
+    },
+    "marks": {
+      "state": "État {{state}}",
+      "healthySingleNode": "Sain (nœud unique)",
+      "beating": "Actif",
+      "stale": "Périmé"
+    },
+    "empty": "Aucun heartbeat ne correspond aux filtres actuels.",
+    "loadingMore": "Chargement d'autres heartbeats",
+    "eventsLogger": "Journal des événements heartbeat",
+    "events": "Événements heartbeat"
+  },
+  "instance": {
+    "unknown": "inconnu",
+    "notProvisionedTitle": "Non provisionné",
+    "card": {
+      "group": "Instance sur le nœud {{node}}",
+      "selectNode": "Sélectionner le nœud {{node}}",
+      "viewResources": "Voir les ressources",
+      "viewResourcesHint": "(voir les ressources)",
+      "stopped": "L'instance sur le nœud {{node}} est arrêtée",
+      "lagging": "L'instance sur le nœud {{node}} est en retard",
+      "notProvisioned": "L'instance sur le nœud {{node}} n'est pas provisionnée",
+      "actionsMenu": "Actions du nœud {{node}}",
+      "viewLogs": "Voir les journaux de l'instance {{instance}} sur le nœud {{node}}"
+    },
+    "view": {
+      "loading": "Chargement des données de l'instance…",
+      "node": "Nœud : {{node}}",
+      "stopped": "L'instance est arrêtée",
+      "notProvisioned": "L'instance n'est pas provisionnée",
+      "viewLogs": "Voir les journaux de l'instance {{name}}",
+      "actionsMenu": "Actions sur l'instance",
+      "actionInProgress": "Action en cours",
+      "dismiss": "Fermer",
+      "resourcesHeading": "Ressources ({{count}})"
+    },
+    "resources": {
+      "tableLabel": "Ressources",
+      "columns": {
+        "resource": "Ressource",
+        "flags": "Indicateurs",
+        "label": "Libellé"
+      },
+      "empty": "Aucune ressource trouvée sur cette instance.",
+      "noEncapData": "Aucune donnée encapsulée disponible pour {{rid}}.",
+      "encapNoResources": "Données encapsulées trouvées pour {{rid}}, mais aucune ressource définie.",
+      "noEncapResources": "Aucune ressource encapsulée disponible pour {{rid}}.",
+      "row": "Ressource {{rid}}",
+      "notProvisioned": "La ressource {{rid}} n'est pas provisionnée",
+      "flagsLabel": "Statut de la ressource {{rid}} : {{flags}}",
+      "actionsMenu": "Actions de la ressource {{rid}}",
+      "logs": "Journaux de la ressource {{rid}}",
+      "actionsDisabled": "info : actions désactivées"
+    },
+    "flags": {
+      "running": "En cours d'exécution",
+      "notRunning": "Arrêtée",
+      "monitored": "Surveillée",
+      "notMonitored": "Non surveillée",
+      "enabled": "Activée",
+      "disabled": "Désactivée",
+      "optional": "Optionnelle",
+      "notOptional": "Non optionnelle",
+      "encap": "Encapsulée",
+      "notEncap": "Non encapsulée",
+      "provisioned": "Provisionnée",
+      "notProvisioned": "Non provisionnée",
+      "standby": "Standby",
+      "notStandby": "Pas en standby",
+      "noRestart": "Aucun redémarrage",
+      "moreThan10Restarts": "Plus de 10 redémarrages",
+      "restartsRemaining_one": "{{count}} redémarrage restant",
+      "restartsRemaining_other": "{{count}} redémarrages restants"
+    },
+    "feedback": {
+      "authTokenNotFound": "Jeton d'authentification introuvable.",
+      "executingOnResource": "Exécution de {{action}} sur la ressource {{rid}}…",
+      "executingOnInstance": "Exécution de {{action}} sur l'instance…",
+      "failed": "Échec : HTTP {{status}}",
+      "failedWithDetail": "Échec : HTTP {{status}} - {{detail}}",
+      "succeeded": "L'action « {{action}} » a réussi",
+      "error": "Erreur : {{message}}"
+    },
+    "dialogs": {
+      "confirmFreeze": "Confirmer le gel",
+      "freezeAck": "Je comprends que l'orchestration du service sélectionné sera suspendue.",
+      "confirmStop": "Confirmer l'arrêt",
+      "stop": "Arrêter",
+      "stopAck": "Je comprends que cela peut interrompre des services.",
+      "confirmUnprovision": "Confirmer le déprovisionnement",
+      "dataLossAck": "Je comprends que des données seront perdues.",
+      "serviceInterruptionAck": "Je comprends que les services sélectionnés peuvent être interrompus temporairement pendant la bascule, ou durablement si aucune bascule n'est configurée.",
+      "confirmPurge": "Confirmer la purge",
+      "configLossAck": "Je comprends que la configuration sera perdue.",
+      "confirmAction": "Confirmer : {{action}}",
+      "action": "Action",
+      "performThisAction": "cette action",
+      "questionResource": "Voulez-vous vraiment exécuter <strong>{{action}}</strong> sur la ressource {{rid}} ?",
+      "questionInstance": "Voulez-vous vraiment exécuter <strong>{{action}}</strong> sur cette instance ?"
+    },
+    "events": {
+      "title": "Événements de l'instance - {{node}}/{{name}}",
+      "button": "Événements de l'instance"
+    },
+    "logs": {
+      "title": "Journaux de l'instance - {{node}}/{{name}}",
+      "close": "Fermer les journaux de l'instance",
+      "resize": "Redimensionner le panneau"
+    }
+  },
+  "keys": {
+    "title": "Clés de l'objet ({{total}})",
+    "add": "Ajouter une clé",
+    "loading": "Chargement des clés",
+    "loadingContent": "Chargement du contenu de la clé",
+    "empty": "Aucune clé disponible.",
+    "tableAria": "table des clés",
+    "size": "Taille",
+    "bytes": "{{size}} octets",
+    "editAction": "Modifier la clé {{key}}",
+    "deleteAction": "Supprimer la clé {{key}}",
+    "view": {
+      "action": "Voir la clé {{key}}",
+      "title": "Voir la clé : {{key}}",
+      "typeText": "Type : texte",
+      "typeBinary": "Type : binaire (vue hexadécimale)",
+      "maskedAgain_one": "Masqué à nouveau dans {{count}} seconde.",
+      "maskedAgain_other": "Masqué à nouveau dans {{count}} secondes.",
+      "hide": "Masquer le secret",
+      "reveal": "Afficher le secret",
+      "hidden": "Le contenu de ce secret est masqué par défaut.",
+      "revealHint": "Utilisez le bouton Afficher le secret pour le voir.",
+      "contentAria": "Contenu de la clé"
+    },
+    "deleteDialog": {
+      "title": "Confirmer la suppression de la clé",
+      "message": "Voulez-vous vraiment supprimer la clé <strong>{{key}}</strong> ?"
+    },
+    "form": {
+      "createTitle": "Créer une clé",
+      "updateTitle": "Mettre à jour la clé",
+      "create": "Créer",
+      "update": "Mettre à jour",
+      "name": "Nom de la clé",
+      "inputMode": "Mode de saisie",
+      "modeEmpty": "Clé vide (sans contenu)",
+      "modeFile": "Téléverser un fichier",
+      "modeText": "Saisir le texte directement",
+      "fullScreen": "Plein écran",
+      "exitFullScreen": "Quitter le plein écran",
+      "chooseFile": "Choisir un fichier",
+      "noFileSelected": "Aucun fichier sélectionné",
+      "content": "Contenu de la clé",
+      "contentPlaceholder": "Saisissez le contenu texte de cette clé..."
+    },
+    "feedback": {
+      "deleting": "Suppression de la clé {{key}}…",
+      "deleted": "Clé « {{key}} » supprimée",
+      "creating": "Création de la clé {{key}}…",
+      "created": "Clé « {{key}} » créée",
+      "updating": "Mise à jour de la clé {{key}}…",
+      "updated": "Clé « {{key}} » mise à jour",
+      "secretHidden": "Le contenu du secret est masqué. Fournissez un nouveau contenu pour le mettre à jour.",
+      "binary": "La clé est binaire : utilisez le téléversement de fichier pour la mettre à jour."
+    },
+    "errors": {
+      "noToken": "Jeton d'authentification introuvable.",
+      "fetchKeys": "Échec de la récupération des clés : {{status}}",
+      "fetchContent": "Échec de la récupération du contenu de la clé : {{status}}",
+      "delete": "Échec de la suppression de la clé : {{status}}",
+      "create": "Échec de la création de la clé : {{status}}",
+      "update": "Échec de la mise à jour de la clé : {{status}}",
+      "generic": "Erreur : {{message}}"
+    }
+  },
+  "kinds": {
+    "filterBy": "Filtrer par kind",
+    "allOption": "tous",
+    "columns": {
+      "kind": "Kind",
+      "up": "Up",
+      "down": "Down",
+      "warn": "Warn",
+      "unprovisioned": "Non provisionné",
+      "total": "Total"
+    },
+    "showObjects_one": "Afficher {{count}} objet {{status}} de kind {{kind}}",
+    "showObjects_other": "Afficher les {{count}} objets {{status}} de kind {{kind}}",
+    "emptyFiltered": "Aucun kind ne correspond au filtre sélectionné",
+    "empty": "Aucun kind disponible",
+    "loadingMore": "Chargement d'autres kinds",
+    "eventsLogger": "Journal des événements des kinds",
+    "events": "Événements des kinds"
+  },
+  "logs": {
+    "subtitle": "{{instance}} sur {{node}}",
+    "connected": "Connecté",
+    "disconnected": "Déconnecté",
+    "loading": "Chargement des journaux",
+    "loadingEllipsis": "Chargement des journaux...",
+    "pause": "Pause",
+    "resume": "Reprendre",
+    "clear": "Vider les journaux",
+    "download": "Télécharger les journaux",
+    "searchPlaceholder": "Rechercher dans les journaux...",
+    "levels": "Niveaux",
+    "allLevels": "Tous les niveaux",
+    "levelsGroup": "Niveaux de journal",
+    "filtersActive": "Filtres actifs - Cliquez sur une ligne pour les effacer",
+    "resetFilters": "Réinitialiser les filtres",
+    "count": "{{shown}} / {{total}} lignes",
+    "lines": "Lignes de journal",
+    "empty": "Aucun journal disponible",
+    "noMatch": "Aucune ligne ne correspond aux filtres",
+    "goToBottom": "Aller en bas",
+    "errors": {
+      "instanceRequired": "Le nom de l'instance est requis pour les journaux d'instance",
+      "tokenNotFound": "Jeton d'authentification introuvable",
+      "http": "Erreur HTTP ! statut : {{status}}",
+      "noStream": "La réponse n'a pas de flux lisible",
+      "authFailed": "Échec de l'authentification. Veuillez rafraîchir votre jeton.",
+      "instanceNotFound": "Point d'accès des journaux d'instance introuvable pour {{instance}} sur le nœud {{node}}",
+      "nodeNotFound": "Point d'accès des journaux introuvable pour le nœud {{node}}",
+      "fetchFailed": "Échec de la récupération des journaux : {{message}}"
+    }
+  },
+  "metrics": {
+    "columns": {
+      "object": "Objet",
+      "cpu": "CPU",
+      "memory": "Mémoire",
+      "limit": "Limite"
+    },
+    "totals": {
+      "label": "Total du namespace",
+      "cpu": "CPU du namespace",
+      "memory": "Mémoire du namespace"
+    },
+    "fetchError": "Échec de la récupération des métriques : {{error}}",
+    "loading": "Chargement des métriques",
+    "empty": "Aucune métrique cgroup pour les objets de {{namespace}}",
+    "footer": "Utilisation sur le nœud qui sert cette page, rafraîchie toutes les {{seconds}} secondes. Le CPU est en pourcentage d'un CPU."
+  },
+  "namespaces": {
+    "filterBy": "Filtrer par namespace",
+    "allOption": "tous",
+    "columns": {
+      "namespace": "Namespace",
+      "up": "Up",
+      "down": "Down",
+      "warn": "Warn",
+      "na": "N/A",
+      "total": "Total",
+      "metrics": "Métriques"
+    },
+    "showObjects_one": "Afficher {{count}} objet {{status}} de {{namespace}}",
+    "showObjects_other": "Afficher les {{count}} objets {{status}} de {{namespace}}",
+    "viewMetrics": "Voir les métriques du namespace {{namespace}}",
+    "emptyFiltered": "Aucun namespace ne correspond au filtre sélectionné",
+    "empty": "Aucun namespace disponible",
+    "loadingMore": "Chargement d'autres namespaces",
+    "metricsTitle": "Métriques",
+    "metricsOf": "Métriques de {{namespace}}",
+    "resizeDrawer": "Redimensionner le panneau",
+    "eventsLogger": "Journal des événements des namespaces",
+    "events": "Événements des namespaces"
+  },
+  "nav": {
+    "routes": {
+      "heartbeats": "Heartbeats",
+      "networks": "Réseaux",
+      "nodes": "Nœuds",
+      "objects": "Objets",
+      "kinds": "Kinds",
+      "namespaces": "Namespaces",
+      "pools": "Pools"
+    },
+    "main": "Principal",
+    "loading": "Chargement...",
+    "hideMenu": "Masquer le menu",
+    "showMenu": "Afficher le menu",
+    "viewUser": "Voir les informations de l'utilisateur",
+    "offline": "Hors ligne",
+    "offlineTitle": "Vous êtes hors ligne — certaines fonctionnalités peuvent être limitées",
+    "documentTitle": "{{cluster}} · OpenSVC {{product}}",
+    "documentTitleNoCluster": "OpenSVC {{product}}",
+    "breadcrumb": {
+      "label": "Fil d'Ariane",
+      "navigateTo": "Aller à {{name}}",
+      "cluster": "Cluster",
+      "loading": "Chargement...",
+      "segments": {
+        "heartbeats": "heartbeats",
+        "kinds": "kinds",
+        "namespaces": "namespaces",
+        "network": "réseaux",
+        "nodes": "nœuds",
+        "objects": "objets",
+        "pools": "pools",
+        "whoami": "utilisateur"
+      }
+    }
+  },
+  "networks": {
+    "columns": {
+      "network": "Réseau",
+      "usage": "Utilisation"
+    },
+    "caption": "Réseaux",
+    "usageOf": "Utilisation de {{name}}",
+    "empty": "Aucun réseau disponible.",
+    "details": {
+      "title": "Détails du réseau : {{name}} ({{type}})",
+      "loadError": "Échec du chargement des détails du réseau. Veuillez réessayer.",
+      "showFilters": "Afficher les filtres",
+      "hideFilters": "Masquer les filtres",
+      "path": "Chemin",
+      "rid": "RID",
+      "ip": "IP",
+      "loading": "Chargement des détails du réseau",
+      "caption": "Détails du réseau",
+      "empty": "Aucune adresse IP pour ce réseau."
+    }
+  },
+  "nodes": {
+    "columns": {
+      "score": "Score",
+      "load15m": "Charge (15m)",
+      "memAvail": "Mém. dispo",
+      "swapAvail": "Swap dispo",
+      "version": "Version",
+      "bootedAt": "Démarré",
+      "updatedAt": "Mis à jour",
+      "logs": "Journaux"
+    },
+    "bulkActions": "Actions sur les nœuds sélectionnés",
+    "selectAll": "Sélectionner tous les nœuds",
+    "loading": "Chargement des nœuds",
+    "logsTitle": "Journaux du nœud",
+    "resizeDrawer": "Redimensionner le panneau",
+    "eventsLogger": "Journal des événements des nœuds",
+    "events": "Événements des nœuds",
+    "target": {
+      "node": "le nœud {{node}}",
+      "selected_one": "{{count}} nœud",
+      "selected_other": "{{count}} nœuds"
+    },
+    "feedback": {
+      "noToken": "Jeton d'authentification introuvable",
+      "executing": "Exécution de « {{action}} »…",
+      "succeeded_one": "✅ « {{action}} » réussi sur {{count}} nœud.",
+      "succeeded_other": "✅ « {{action}} » réussi sur {{count}} nœuds.",
+      "partial": "⚠️ « {{action}} » partiellement réussi : {{ok}} ok, {{errors}} en erreur.",
+      "failed_one": "❌ « {{action}} » a échoué sur {{count}} nœud.",
+      "failed_other": "❌ « {{action}} » a échoué sur les {{count}} nœuds."
+    },
+    "row": {
+      "label": "Ligne du nœud {{node}}",
+      "select": "Sélectionner le nœud {{node}}",
+      "connected": "Connecté à ce nœud",
+      "moreActions": "Plus d'actions pour le nœud {{node}}",
+      "viewLogs": "Voir les journaux du nœud {{node}}"
+    },
+    "time": {
+      "justNow": "À l'instant",
+      "minutesAgo": "il y a {{count}} min",
+      "hoursAgo": "il y a {{count}} h",
+      "daysAgo": "il y a {{count}} j"
+    }
+  },
+  "objectDetails": {
+    "loading": "Chargement des données de l'objet",
+    "loadingText": "Chargement des données de l'objet…",
+    "noInformation": "Aucune information disponible pour cet objet.",
+    "authTokenNotFound": "Jeton d'authentification introuvable",
+    "instancesHeading": "Instances ({{count}})",
+    "batchActionsMenu": "Actions sur les nœuds sélectionnés ({{count}})",
+    "dialogTarget": "l'objet {{name}}",
+    "feedback": {
+      "authTokenNotFound": "Jeton d'authentification introuvable.",
+      "executingOnObject": "Exécution de {{action}} sur l'objet…",
+      "executingOnNode": "Exécution de {{action}} sur le nœud {{node}}…",
+      "failed": "Échec de {{action}} : erreur HTTP, statut {{status}}",
+      "failedWithDetail": "Échec de {{action}} : erreur HTTP, statut {{status}} - {{detail}}",
+      "succeededOnObject": "« {{action}} » a réussi sur l'objet",
+      "succeededOnNode": "« {{action}} » a réussi sur le nœud « {{node}} »",
+      "error": "Erreur : {{message}}",
+      "configUpdated": "Configuration de l'instance mise à jour"
+    },
+    "logs": {
+      "instanceTitle": "Journaux de l'instance - {{name}}",
+      "nodeTitle": "Journaux du nœud - {{node}}",
+      "title": "Journaux",
+      "close": "Fermer les journaux",
+      "resize": "Redimensionner le panneau"
+    },
+    "events": {
+      "title": "Événements - {{name}}",
+      "button": "Événements de l'objet"
+    }
+  },
+  "objects": {
+    "notProvisioned": "Non provisionné",
+    "tableLabel": "Objets",
+    "selectAll": "Sélectionner tous les objets",
+    "selectObject": "Sélectionner l'objet {{name}}",
+    "empty": "Aucun objet ne correspond aux filtres actuels.",
+    "loadingMore": "Chargement d'autres objets",
+    "actionsMenu": "Actions sur les objets sélectionnés",
+    "columns": {
+      "object": "Objet",
+      "orchestrate": "Orchestration",
+      "topology": "Topologie"
+    },
+    "filters": {
+      "show": "Afficher les filtres",
+      "hide": "Masquer les filtres",
+      "globalState": "État global",
+      "namespace": "Namespace",
+      "kind": "Kind",
+      "unprovisioned": "Non provisionné"
+    },
+    "feedback": {
+      "authTokenNotFound": "Jeton d'authentification introuvable",
+      "executing": "Exécution de « {{action}} »…",
+      "succeeded_one": "« {{action}} » a réussi sur {{count}} objet.",
+      "succeeded_other": "« {{action}} » a réussi sur {{count}} objets.",
+      "partial": "« {{action}} » a partiellement réussi : {{ok}} réussite(s), {{errors}} erreur(s).",
+      "failed_one": "« {{action}} » a échoué sur l'objet.",
+      "failed_other": "« {{action}} » a échoué sur les {{count}} objets."
+    },
+    "dialogTarget": {
+      "object": "l'objet {{name}}",
+      "objects_one": "{{count}} objet",
+      "objects_other": "{{count}} objets"
+    },
+    "events": {
+      "title": "Journal des événements des objets",
+      "button": "Événements des objets"
+    },
+    "header": {
+      "statusTitle": "Statut de l'objet : {{status}}",
+      "unknown": "inconnu",
+      "notProvisionedTitle": "Non provisionné",
+      "notProvisionedLabel": "L'objet n'est pas provisionné",
+      "actionsMenu": "Actions sur l'objet"
+    }
+  },
+  "pools": {
+    "columns": {
+      "volumeCount": "Nombre de volumes",
+      "usage": "Utilisation",
+      "head": "Tête"
+    },
+    "caption": "Pools",
+    "usageOf": "Utilisation de {{name}}",
+    "loading": "Chargement des pools",
+    "loadError": "Échec du chargement des pools. Veuillez réessayer.",
+    "empty": "Aucun pool disponible."
+  },
+  "ui": {
+    "productTag": {
+      "name": "Cluster",
+      "title": "Application web du cluster OpenSVC om3"
+    },
+    "states": {
+      "up": "up",
+      "warn": "warn",
+      "down": "down",
+      "unknown": "n/d"
+    },
+    "stateMarks": {
+      "stopped": "Arrêté",
+      "stoppedTitle": "arrêté",
+      "stoppedAt": "arrêté le {{date}}",
+      "rpoBreached": "RPO dépassé"
+    },
+    "frozen": "gelé",
+    "seconds_one": "{{count}} seconde",
+    "seconds_other": "{{count}} secondes"
+  },
+  "user": {
+    "loading": "Chargement des informations de l'utilisateur",
+    "loadError": "Échec du chargement des informations de l'utilisateur",
+    "myInfo": "Mes informations",
+    "username": "Nom d'utilisateur",
+    "authMethod": "Authentifié via",
+    "permissions": "Détail des permissions",
+    "rawPermissions": "Permissions brutes",
+    "server": "Informations du serveur",
+    "connectedNode": "Nœud connecté",
+    "nodeLoading": "Chargement...",
+    "webappVersion": "Version de la WebApp",
+    "versionLoading": "Chargement...",
+    "versionUnknown": "Inconnue",
+    "productName": "WebApp OM3",
+    "lightMode": "Thème clair",
+    "darkMode": "Thème sombre",
+    "logout": "Se déconnecter"
+  }
+}

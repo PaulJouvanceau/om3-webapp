@@ -4,6 +4,7 @@ import {MemoryRouter} from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import {vi} from 'vitest';
 import InstanceCard from '../InstanceCard.jsx';
+import i18n from '../../i18n';
 
 // ── Hoisted logger mock ─────────────────────────────────────────────────
 const {mockLogger} = vi.hoisted(() => ({
@@ -320,5 +321,16 @@ describe('InstanceCard Component', () => {
             expect(stoppedMark()).toBeInTheDocument();
             expect(laggingMark()).toBeInTheDocument();
         });
+    });
+
+    test('speaks French when the browser does', async () => {
+        await i18n.changeLanguage('fr');
+        try {
+            renderCard({onViewInstance: vi.fn()});
+            expect(screen.getByRole('group', {name: 'Instance sur le nœud node1'})).toBeInTheDocument();
+            expect(screen.getByTitle('Voir les ressources')).toBeInTheDocument();
+        } finally {
+            await i18n.changeLanguage('en');
+        }
     });
 });

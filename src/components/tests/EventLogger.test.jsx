@@ -6,6 +6,7 @@ import EventLogger, {hashCode} from '../EventLogger';
 import useEventLogStore from '../../hooks/useEventLogStore';
 import {panelOpened} from '../../ui/components/slide-over-open';
 import logger from '../../utils/logger.js';
+import i18n from '../../i18n';
 
 // ─── Global setup ───────────────────────────────────────────────────────────
 beforeAll(() => {
@@ -316,6 +317,18 @@ describe('EventLogger Component', () => {
     });
 
     // ─── Drawer open / close ──────────────────────────────────────────────
+    describe('French', () => {
+        test('speaks French in a French browser', async () => {
+            await i18n.changeLanguage('fr');
+            try {
+                renderWithTheme(<EventLogger/>);
+                expect(screen.getByRole('button', {name: /Événements/})).toHaveAttribute('title', 'Journal des événements');
+            } finally {
+                await act(() => i18n.changeLanguage('en'));
+            }
+        });
+    });
+
     describe('Drawer open / close', () => {
         test('opens, shows title, and shows "No events logged" when empty', async () => {
             renderWithTheme(<EventLogger/>);

@@ -1,4 +1,5 @@
 import React from 'react';
+import i18n from '../../i18n';
 import {render, screen, fireEvent, within} from '@testing-library/react';
 import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 import ActionDialogManager, {SimpleConfirmDialog} from '../ActionDialogManager';
@@ -602,5 +603,19 @@ describe('SimpleConfirmDialog', () => {
         );
         expect(screen.getByText('Confirm Delete')).toBeInTheDocument();
         expect(screen.getByText(/Are you sure you want to delete on test-target\?/)).toBeInTheDocument();
+    });
+});
+
+describe('SimpleConfirmDialog in French', () => {
+    afterEach(async () => {
+        await i18n.changeLanguage('en');
+    });
+
+    test('shows the translated action label', async () => {
+        await i18n.changeLanguage('fr');
+        render(<SimpleConfirmDialog open onClose={vi.fn()} onConfirm={vi.fn()} action="freeze" target="test-target"/>);
+        expect(screen.getByText('Confirmer « Geler »')).toBeInTheDocument();
+        expect(screen.getByText("Voulez-vous vraiment exécuter l'action « Geler » sur test-target ?")).toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'Confirmer'})).toBeInTheDocument();
     });
 });

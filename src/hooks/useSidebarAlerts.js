@@ -1,6 +1,8 @@
 import {useEffect, useMemo, useState} from "react";
 import axios from "axios";
 import {EventSourcePolyfill} from "event-source-polyfill";
+import {useTranslation} from "react-i18next";
+import i18n from "../i18n";
 import {URL_NETWORK, URL_NODE_EVENT, URL_POOL} from "../config/apiPath.js";
 import logger from "../utils/logger.js";
 import {parseObjectPath} from "../utils/objectUtils.jsx";
@@ -209,8 +211,6 @@ function useUsageLists() {
     return {pools, networks};
 }
 
-const plural = (count, word) => `${count} ${word}${count === 1 ? "" : "s"}`;
-
 /** Order of the count pills, from left to right. */
 const COUNT_ORDER = ["up", "warn", "down", "unknown"];
 
@@ -268,18 +268,31 @@ export function heartbeatCounts(heartbeatStatus) {
     return countPills(tally);
 }
 
+/** Lines of the mouseover of the Nodes entry: count and frozen ones, in the current language. */
 export function nodesDetails(nodeStatus) {
-    return [plural(Object.keys(nodeStatus || {}).length, "node"), `frozen: ${frozenCount(nodeStatus)}`];
+    return [
+        i18n.t("alerts.details.node", {count: Object.keys(nodeStatus || {}).length}),
+        i18n.t("alerts.details.frozen", {count: frozenCount(nodeStatus)}),
+    ];
 }
 
-/** Lines of the mouseover of the Pools and Networks entries: count, full ones, top usage. */
+/**
+ * Lines of the mouseover of the Pools and Networks entries: count, full ones, top
+ * usage, in the current language. `word` is the item kind: "pool" or "network".
+ */
 export function usageDetails(items, word) {
     const list = items || [];
     const sized = list.filter((item) => typeof item?.size === "number" && item.size > 0);
-    const lines = [plural(list.length, word), `full: ${fullCount(list)}`];
+    const lines = [
+        i18n.t(`alerts.details.${word}`, {count: list.length}),
+        i18n.t("alerts.details.full", {count: fullCount(list)}),
+    ];
     if (sized.length > 0) {
         const top = sized.reduce((max, item) => (item.used / item.size > max.used / max.size ? item : max));
-        lines.push(`highest usage: ${top.name ?? "?"} ${Math.round((top.used / top.size) * 100)}%`);
+        lines.push(i18n.t("alerts.details.highestUsage", {
+            name: top.name ?? "?",
+            percent: Math.round((top.used / top.size) * 100),
+        }));
     }
     return lines;
 }
@@ -292,6 +305,8 @@ export function usageDetails(items, word) {
 export default function useSidebarAlerts() {
     const {objects, nodeStatus, heartbeatStatus} = useSidebarEventState();
     const {pools, networks} = useUsageLists();
+    // The details are text: computed again when the language changes.
+    const {i18n: {language}} = useTranslation();
 
     return useMemo(() => ({
         "/objects": {counts: objectCounts(objects)},
@@ -301,5 +316,6 @@ export default function useSidebarAlerts() {
         "/pools": {counts: alertPills("down", fullCount(pools)), details: usageDetails(pools, "pool")},
         "/network": {counts: alertPills("down", fullCount(networks)), details: usageDetails(networks, "network")},
         "/nodes": {counts: alertPills("frozen", frozenCount(nodeStatus)), details: nodesDetails(nodeStatus)},
-    }), [objects, nodeStatus, heartbeatStatus, pools, networks]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }), [objects, nodeStatus, heartbeatStatus, pools, networks, language]);
 }

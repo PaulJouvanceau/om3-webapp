@@ -3,6 +3,7 @@ import {render, screen, fireEvent, waitFor, act, within} from '@testing-library/
 import {MemoryRouter} from 'react-router-dom';
 import {vi} from 'vitest';
 import Kinds from '../Kinds';
+import i18n from '../../i18n';
 
 // ── Hoisted mock variables ──────────────────────────────────────────────
 const {
@@ -128,6 +129,17 @@ describe('Kinds', () => {
         ['Kind', 'Up', 'Down', 'Warn', 'Unprovisioned', 'Total'].forEach(text =>
             expect(screen.getByRole('columnheader', {name: text})).toBeInTheDocument()
         );
+    });
+
+    test('speaks French to a French browser', async () => {
+        await i18n.changeLanguage('fr');
+        try {
+            renderComponent();
+            expect(screen.getByRole('columnheader', {name: 'Non provisionné'})).toBeInTheDocument();
+            expect(screen.getByLabelText("Filtrer par kind")).toBeInTheDocument();
+        } finally {
+            await i18n.changeLanguage('en');
+        }
     });
 
     test('displays kind counts correctly', () => {

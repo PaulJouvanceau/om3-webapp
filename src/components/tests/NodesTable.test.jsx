@@ -3,6 +3,7 @@ import {render, screen, waitFor, fireEvent, act, within} from '@testing-library/
 import {BrowserRouter} from 'react-router-dom';
 import {vi} from 'vitest';
 import NodesTable from '../NodesTable.jsx';
+import i18n from '../../i18n';
 
 // ── Hoisted mock variables ────────────────────────────────────────────────
 const {
@@ -181,6 +182,17 @@ describe('NodesTable', () => {
         renderWithRouter(<NodesTable/>);
         expect(screen.getByRole('status')).toHaveTextContent('Loading nodes');
         expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    });
+
+    test('speaks French to a French browser', async () => {
+        await i18n.changeLanguage('fr');
+        try {
+            renderWithRouter(<NodesTable/>);
+            expect(await screen.findByRole('button', {name: 'Actions sur les nœuds sélectionnés'})).toBeInTheDocument();
+            expect(screen.getByRole('columnheader', {name: 'Charge (15m)'})).toBeInTheDocument();
+        } finally {
+            await i18n.changeLanguage('en');
+        }
     });
 
     test('renders all node names', async () => {
@@ -450,7 +462,7 @@ describe('NodesTable', () => {
             const menu = await screen.findByRole('menu', {name: 'Actions on selected nodes'});
             const names = within(menu).getAllByRole('menuitem').map((item) => item.textContent);
             expect(names).toContain('Freeze');
-            expect(names).toContain('Restart Daemon');
+            expect(names).toContain('Restart daemon');
             expect(names).not.toContain('Unfreeze');
         });
 

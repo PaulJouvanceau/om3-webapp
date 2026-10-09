@@ -12,11 +12,21 @@ import {
     GivebackDialog,
 } from './ActionDialogs';
 import logger from '../utils/logger.js';
+import {useTranslation} from 'react-i18next';
+
+// The translated label of an action, as actionLabel() of constants/actions, kept local
+// so that the tests mocking constants/actions still render these dialogs.
+const labelOf = (t, action) => t(`actions.labels.${action.replace(/\s+(\w)/g, (_, c) => c.toUpperCase())}`,
+    {defaultValue: action.charAt(0).toUpperCase() + action.slice(1)});
 
 export const SimpleConfirmDialog = ({open, onClose, onConfirm, action, target, disabled, cancelDisabled}) => {
-    const dialogTitle = typeof action === 'string' && action
-        ? `Confirm ${action.charAt(0).toUpperCase() + action.slice(1)}`
-        : 'Confirm Action';
+    const {t} = useTranslation();
+    const known = typeof action === 'string' && action;
+    // The action name stays as is in the English sentence, French shows its translated label.
+    const values = known ? {action, label: labelOf(t, action), target} : {target};
+    const dialogTitle = known
+        ? t('actionDialogs.simpleConfirm.titleAction', values)
+        : t('actionDialogs.simpleConfirm.titleGeneric');
     return (
         <Dialog
             open={open}
@@ -25,17 +35,18 @@ export const SimpleConfirmDialog = ({open, onClose, onConfirm, action, target, d
             footer={
                 <>
                     <Button variant="secondary" onClick={onClose} disabled={cancelDisabled}>
-                        Cancel
+                        {t('common.cancel')}
                     </Button>
                     <Button variant="primary" onClick={onConfirm} disabled={disabled}>
-                        Confirm
+                        {t('common.confirm')}
                     </Button>
                 </>
             }
         >
             <p className="text-ink">
-                Are you sure you want
-                to {typeof action === 'string' && action ? action : 'perform this action'} on {target}?
+                {known
+                    ? t('actionDialogs.simpleConfirm.messageAction', values)
+                    : t('actionDialogs.simpleConfirm.messageGeneric', values)}
             </p>
         </Dialog>
     );

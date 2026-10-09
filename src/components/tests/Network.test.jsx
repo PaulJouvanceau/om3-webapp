@@ -5,6 +5,7 @@ import {MemoryRouter} from 'react-router-dom';
 import axios from 'axios';
 import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 import Network from '../Network';
+import i18n from '../../i18n';
 import {URL_NETWORK} from '../../config/apiPath.js';
 
 // Mock axios
@@ -60,6 +61,18 @@ describe('Network Component', () => {
         expect(screen.getByRole('columnheader', {name: 'Name'})).toHaveAttribute('aria-sort', 'ascending');
         expect(screen.getByRole('columnheader', {name: 'Usage'})).toHaveAttribute('aria-sort', 'none');
         expect(screen.getByRole('table', {name: 'Networks'})).toBeInTheDocument();
+    });
+
+    test('speaks French to a French browser', async () => {
+        axios.get.mockResolvedValueOnce({data: {items: []}});
+        await i18n.changeLanguage('fr');
+        try {
+            render(<Network/>, {wrapper: MemoryRouter});
+            expect(screen.getByRole('columnheader', {name: 'Réseau'})).toBeInTheDocument();
+            expect(screen.getByText('Aucun réseau disponible.')).toBeInTheDocument();
+        } finally {
+            await i18n.changeLanguage('en');
+        }
     });
 
     test('displays network data correctly when API call succeeds', async () => {

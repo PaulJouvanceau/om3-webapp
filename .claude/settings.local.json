@@ -15,7 +15,8 @@
       "Bash(git stash *)",
       "Bash(cd /root/dev/om3 && grep -n \"^    ObjectData:\" -A80 daemon/api/api.yaml | head -110; cat /root/dev/om3-webapp/src/hooks/useObjectData.js)",
       "Bash(git checkout *)",
-      "Bash(curl -sk -m8 https://dev3-vip.opensvc.com:1215/metrics/pg)"
+      "Bash(curl -sk -m8 https://dev3-vip.opensvc.com:1215/metrics/pg)",
+      "Bash(grep -nE \"\\\\{key: \\\\\"[a-z_]+\\\\\", label\" src/components/NodesTable.jsx src/components/Heartbeats.jsx src/components/Network.jsx src/components/Pools.jsx src/components/ObjectInstanceView.jsx src/components/KeysSection.jsx src/components/ConfigSection.jsx)"
     ]
   }
 }

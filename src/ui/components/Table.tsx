@@ -65,19 +65,18 @@ export function HeaderRow({ className, ...props }: HTMLAttributes<HTMLTableRowEl
   return <tr className={cn("border-b border-line text-left text-ink-muted", className)} {...props} />;
 }
 
-type Align = "left" | "center" | "right";
-const ALIGN: Record<Align, string> = { left: "text-left", center: "text-center", right: "text-right" };
+/**
+ * Every column is centered, its title as its values, whatever they hold: the
+ * value sits under the name of its column in all the tables.
+ */
+const CENTER = "text-center";
 
 /** Header cell, `scope="col"`. */
-export function HeaderCell({
-  align = "left",
-  className,
-  ...props
-}: ThHTMLAttributes<HTMLTableCellElement> & { align?: Align }) {
+export function HeaderCell({ className, ...props }: ThHTMLAttributes<HTMLTableCellElement>) {
   return (
     <th
       scope="col"
-      className={cn("h-[1.875rem] px-2 py-1 font-medium whitespace-nowrap", ALIGN[align], className)}
+      className={cn("h-[1.875rem] px-2 py-1 font-medium whitespace-nowrap", CENTER, className)}
       {...props}
     />
   );
@@ -87,40 +86,45 @@ export type SortDirection = "asc" | "desc";
 
 /**
  * Sortable header cell: the whole label is a button, the order shown by an arrow
- * and announced by `aria-sort`, as in oc3.
+ * and announced by `aria-sort`, as in oc3. The arrow hangs past the end of the
+ * label, so that sorting on a column does not move its centered title.
  */
 export function SortHeaderCell({
   label,
   active,
   direction,
   onSort,
-  align = "left",
   className,
 }: {
   label: ReactNode;
   active: boolean;
   direction: SortDirection;
   onSort: () => void;
-  align?: Align;
   className?: string;
 }) {
   return (
     <th
       scope="col"
       aria-sort={active ? (direction === "asc" ? "ascending" : "descending") : "none"}
-      className={cn("h-[1.875rem] p-0", ALIGN[align], className)}
+      className={cn("h-[1.875rem] p-0", CENTER, className)}
     >
       <button
         type="button"
         onClick={onSort}
         className={cn(
-          "w-full px-2 py-1 font-medium whitespace-nowrap hover:text-ink",
-          ALIGN[align],
+          "w-full px-4 py-1 font-medium whitespace-nowrap hover:text-ink",
+          CENTER,
           active && "text-ink",
         )}
       >
-        {label}
-        {active && <span aria-hidden="true">{direction === "asc" ? " ▲" : " ▼"}</span>}
+        <span className="relative">
+          {label}
+          {active && (
+            <span aria-hidden="true" className="absolute top-0 left-full pl-1">
+              {direction === "asc" ? "▲" : "▼"}
+            </span>
+          )}
+        </span>
       </button>
     </th>
   );
@@ -166,22 +170,23 @@ export function Row({
 }
 
 /**
- * Body cell. `numeric` aligns right with tabular digits. What the cell holds sits in
+ * Body cell, centered under its column title. `numeric` marks a number, set in
+ * tabular digits so that the figures of a column line up. What the cell holds sits in
  * the middle of the line rather than on its baseline: an inline control (a checkbox,
  * a small button, a mark) would otherwise add the room of a descender under it and
  * make the row taller than the others.
  */
 export function Cell({
-  align,
   numeric = false,
   className,
   ...props
-}: TdHTMLAttributes<HTMLTableCellElement> & { align?: Align; numeric?: boolean }) {
+}: TdHTMLAttributes<HTMLTableCellElement> & { numeric?: boolean }) {
   return (
     <td
       className={cn(
         "px-2 py-1 [&>*]:align-middle",
-        ALIGN[align ?? (numeric ? "right" : "left")],
+        CENTER,
+        numeric && "tabular-nums",
         className,
       )}
       data-numeric={numeric ? "" : undefined}

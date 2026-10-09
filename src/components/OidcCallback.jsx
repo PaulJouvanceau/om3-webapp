@@ -1,5 +1,6 @@
 import React, {useEffect, useCallback, useRef} from 'react';
 import {useNavigate} from 'react-router-dom';
+import {useTranslation} from 'react-i18next';
 import {useAuthDispatch, SetAccessToken, SetAuthChoice, Login} from "../context/AuthProvider.jsx";
 import oidcConfiguration from "../config/oidcConfiguration.js";
 import useAuthInfo from "../hooks/AuthInfo.jsx";
@@ -13,6 +14,7 @@ const OidcCallback = () => {
     const authInfo = useAuthInfo();
     const navigate = useNavigate();
     const eventHandlersSet = useRef(false);
+    const {t} = useTranslation();
 
     const handleLogout = useCallback(() => {
         if (authDispatch) {
@@ -147,7 +149,7 @@ const OidcCallback = () => {
         return () => channel.close();
     }, [authDispatch, handleLogout]);
 
-    return <>Logging ...</>;
+    return <>{t('auth.callback.logging')}</>;
 };
 
 export default OidcCallback;

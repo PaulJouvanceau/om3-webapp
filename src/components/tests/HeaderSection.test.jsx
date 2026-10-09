@@ -10,7 +10,8 @@ const {mockHandleObjectActionClick} = vi.hoisted(() => ({
 }));
 
 // ── Mocks ───────────────────────────────────────────────────────────────
-vi.mock('../../constants/actions', () => ({
+vi.mock('../../constants/actions', async (importOriginal) => ({
+    actionLabel: (await importOriginal()).actionLabel,
     OBJECT_ACTIONS: [
         {name: 'delete', icon: 'delete-icon', color: 'red'},
         {name: 'edit', icon: 'edit-icon'},

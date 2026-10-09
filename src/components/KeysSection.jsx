@@ -6,11 +6,12 @@ import {Table, HeaderRow, HeaderCell, Row, Cell} from "../ui/components/Table";
 import {Alert} from "../ui/components/Alert";
 import {Spinner} from "../ui/components/Spinner";
 import {EyeIcon, EyeOffIcon, FileIcon, KeyIcon, LockIcon, PencilIcon, PlusIcon, TrashIcon} from "../ui/icons";
-import {formatSeconds, useAutoHide} from "../ui/lib/reveal";
+import {useAutoHide} from "../ui/lib/reveal";
 import {URL_OBJECT} from "../config/apiPath.js";
 import {getResponseErrorMessage} from "../services/api.jsx";
 import logger from '../utils/logger.js';
 import {parseObjectPath} from '../utils/objectUtils';
+import {Trans, useTranslation} from "react-i18next";
 
 const getAuthToken = () => {
     const token = localStorage.getItem("authToken");
@@ -83,6 +84,7 @@ const KeyFormDialog = ({
                            loading = false,
                            initialLoading = false,
                        }) => {
+    const {t} = useTranslation();
     const [name, setName] = useState(initialName);
     const [inputMode, setInputMode] = useState(initialInputMode);
     const [file, setFile] = useState(null);
@@ -149,7 +151,7 @@ const KeyFormDialog = ({
             value={text}
             onChange={(e) => setText(e.target.value)}
             disabled={loading}
-            placeholder="Enter the text content for this key..."
+            placeholder={t("keys.form.contentPlaceholder")}
             rows={fullscreen ? 24 : 8}
             className={fullscreen ? "h-[60vh] resize-none font-mono text-data" : "resize-y font-mono text-data"}
         />
@@ -163,26 +165,26 @@ const KeyFormDialog = ({
             size={fullscreen ? "lg" : "md"}
             footer={
                 <>
-                    <Button onClick={close} disabled={loading}>Cancel</Button>
+                    <Button onClick={close} disabled={loading}>{t("common.cancel")}</Button>
                     <Button
                         variant="primary"
                         onClick={handleSubmit}
                         disabled={loading || isSubmitDisabled() || initialLoading}
                     >
-                        {mode === 'create' ? 'Create' : 'Update'}
+                        {mode === 'create' ? t("keys.form.create") : t("keys.form.update")}
                     </Button>
                 </>
             }
         >
             {initialLoading ? (
                 <div className="flex justify-center p-6">
-                    <Spinner label="Loading key content"/>
+                    <Spinner label={t("keys.loadingContent")}/>
                 </div>
             ) : (
                 <>
                     {!fullscreen && (
                         <>
-                            <Field label="Key Name">
+                            <Field label={t("keys.form.name")}>
                                 {(control) => (
                                     <Input
                                         {...control}
@@ -193,14 +195,14 @@ const KeyFormDialog = ({
                                 )}
                             </Field>
                             <fieldset className="space-y-1">
-                                <legend className="mb-1 font-medium">Input Mode</legend>
-                                {allowEmpty && radio("empty", "Empty key (no content)")}
-                                {radio("file", "Upload from file")}
+                                <legend className="mb-1 font-medium">{t("keys.form.inputMode")}</legend>
+                                {allowEmpty && radio("empty", t("keys.form.modeEmpty"))}
+                                {radio("file", t("keys.form.modeFile"))}
                                 <div className="flex items-center gap-2">
-                                    {radio("text", "Enter text directly")}
+                                    {radio("text", t("keys.form.modeText"))}
                                     {inputMode === "text" && (
                                         <Button variant="ghost" size="sm" onClick={() => setFullscreen(true)}>
-                                            Full screen
+                                            {t("keys.form.fullScreen")}
                                         </Button>
                                     )}
                                 </div>
@@ -225,10 +227,10 @@ const KeyFormDialog = ({
                                         : "inline-flex h-8 cursor-pointer items-center rounded-(--radius-control) border border-line bg-surface-raised px-3 font-medium hover:bg-surface-sunken peer-focus-visible:outline-2 peer-focus-visible:outline-(--focus-ring)"
                                 }
                             >
-                                Choose File
+                                {t("keys.form.chooseFile")}
                             </label>
                             <span className={file ? "text-ink" : "text-ink-muted"}>
-                                {file ? file.name : "No file selected"}
+                                {file ? file.name : t("keys.form.noFileSelected")}
                             </span>
                         </div>
                     )}
@@ -238,13 +240,13 @@ const KeyFormDialog = ({
                             <>
                                 <div className="flex justify-end">
                                     <Button variant="ghost" size="sm" onClick={() => setFullscreen(false)}>
-                                        Exit full screen
+                                        {t("keys.form.exitFullScreen")}
                                     </Button>
                                 </div>
-                                {textArea({"aria-label": "Key Content"})}
+                                {textArea({"aria-label": t("keys.form.content")})}
                             </>
                         ) : (
-                            <Field label="Key Content">{textArea}</Field>
+                            <Field label={t("keys.form.content")}>{textArea}</Field>
                         )
                     )}
                 </>
@@ -254,6 +256,7 @@ const KeyFormDialog = ({
 };
 
 const KeysSection = ({decodedObjectName, openSnackbar}) => {
+    const {t} = useTranslation();
     const {kind} = parseObjectPath(decodedObjectName);
     const isSecret = kind === "sec";
     const showKeys = ["cfg", "sec"].includes(kind);
@@ -290,7 +293,7 @@ const KeysSection = ({decodedObjectName, openSnackbar}) => {
 
         const token = getAuthToken();
         if (!token) {
-            setKeysError("Auth token not found.");
+            setKeysError(t("keys.errors.noToken"));
             return;
         }
 
@@ -304,7 +307,7 @@ const KeysSection = ({decodedObjectName, openSnackbar}) => {
                 cache: "no-cache",
             });
             if (!response.ok) {
-                const errorMessage = await formatResponseError(response, `Failed to fetch keys: ${response.status}`);
+                const errorMessage = await formatResponseError(response, t("keys.errors.fetchKeys", {status: response.status}));
                 setKeysError(errorMessage);
                 openSnackbar(errorMessage, "error");
                 return;
@@ -317,12 +320,12 @@ const KeysSection = ({decodedObjectName, openSnackbar}) => {
         } finally {
             setKeysLoading(false);
         }
-    }, [decodedObjectName, openSnackbar]);
+    }, [decodedObjectName, openSnackbar, t]);
 
     const fetchKeyContent = useCallback(async (keyName) => {
         const token = getAuthToken();
         if (!token) {
-            openSnackbar("Auth token not found.", "error");
+            openSnackbar(t("keys.errors.noToken"), "error");
             return {type: 'error', content: null};
         }
 
@@ -333,7 +336,7 @@ const KeysSection = ({decodedObjectName, openSnackbar}) => {
                 headers: {Authorization: `Bearer ${token}`},
             });
             if (!response.ok) {
-                const errorMessage = await formatResponseError(response, `Failed to fetch key content: ${response.status}`);
+                const errorMessage = await formatResponseError(response, t("keys.errors.fetchContent", {status: response.status}));
                 openSnackbar(errorMessage, "error");
                 return {type: 'error', content: null};
             }
@@ -347,22 +350,22 @@ const KeysSection = ({decodedObjectName, openSnackbar}) => {
             }
             return await parseBlobContent(blob);
         } catch (err) {
-            openSnackbar(`Error: ${err.message}`, "error");
+            openSnackbar(t("keys.errors.generic", {message: err.message}), "error");
             return {type: 'error', content: null};
         }
-    }, [decodedObjectName, openSnackbar]);
+    }, [decodedObjectName, openSnackbar, t]);
 
     const handleDeleteKey = async () => {
         if (!keyToDelete) return;
         const token = getAuthToken();
         if (!token) {
-            openSnackbar("Auth token not found.", "error");
+            openSnackbar(t("keys.errors.noToken"), "error");
             setDeleteDialogOpen(false);
             return;
         }
 
         setActionLoading(true);
-        openSnackbar(`Deleting key ${keyToDelete}…`, "info");
+        openSnackbar(t("keys.feedback.deleting", {key: keyToDelete}), "info");
         try {
             const baseUrl = buildObjectUrl(decodedObjectName);
             const url = `${baseUrl}/data/key?name=${encodeURIComponent(keyToDelete)}`;
@@ -371,14 +374,14 @@ const KeysSection = ({decodedObjectName, openSnackbar}) => {
                 headers: {Authorization: `Bearer ${token}`},
             });
             if (!response.ok) {
-                const errorMessage = await formatResponseError(response, `Failed to delete key: ${response.status}`);
+                const errorMessage = await formatResponseError(response, t("keys.errors.delete", {status: response.status}));
                 openSnackbar(errorMessage, "error");
                 return;
             }
-            openSnackbar(`Key '${keyToDelete}' deleted successfully`);
+            openSnackbar(t("keys.feedback.deleted", {key: keyToDelete}));
             await fetchKeys();
         } catch (err) {
-            openSnackbar(`Error: ${err.message}`, "error");
+            openSnackbar(t("keys.errors.generic", {message: err.message}), "error");
         } finally {
             setActionLoading(false);
             setDeleteDialogOpen(false);
@@ -389,13 +392,13 @@ const KeysSection = ({decodedObjectName, openSnackbar}) => {
     const handleCreateKey = async ({name, contentBlob}) => {
         const token = getAuthToken();
         if (!token) {
-            openSnackbar("Auth token not found.", "error");
+            openSnackbar(t("keys.errors.noToken"), "error");
             setCreateDialogOpen(false);
             return;
         }
 
         setActionLoading(true);
-        openSnackbar(`Creating key ${name}…`, "info");
+        openSnackbar(t("keys.feedback.creating", {key: name}), "info");
         try {
             const baseUrl = buildObjectUrl(decodedObjectName);
             const url = `${baseUrl}/data/key?name=${encodeURIComponent(name)}`;
@@ -408,14 +411,14 @@ const KeysSection = ({decodedObjectName, openSnackbar}) => {
                 body: contentBlob,
             });
             if (!response.ok) {
-                const errorMessage = await formatResponseError(response, `Failed to create key: ${response.status}`);
+                const errorMessage = await formatResponseError(response, t("keys.errors.create", {status: response.status}));
                 openSnackbar(errorMessage, "error");
                 return;
             }
-            openSnackbar(`Key '${name}' created successfully`);
+            openSnackbar(t("keys.feedback.created", {key: name}));
             await fetchKeys();
         } catch (err) {
-            openSnackbar(`Error: ${err.message}`, "error");
+            openSnackbar(t("keys.errors.generic", {message: err.message}), "error");
         } finally {
             setActionLoading(false);
             setCreateDialogOpen(false);
@@ -425,13 +428,13 @@ const KeysSection = ({decodedObjectName, openSnackbar}) => {
     const handleUpdateKey = async ({name, contentBlob}) => {
         const token = getAuthToken();
         if (!token) {
-            openSnackbar("Auth token not found.", "error");
+            openSnackbar(t("keys.errors.noToken"), "error");
             setUpdateDialogOpen(false);
             return;
         }
 
         setActionLoading(true);
-        openSnackbar(`Updating key ${name}…`, "info");
+        openSnackbar(t("keys.feedback.updating", {key: name}), "info");
         try {
             const baseUrl = buildObjectUrl(decodedObjectName);
             const url = `${baseUrl}/data/key?name=${encodeURIComponent(name)}`;
@@ -444,14 +447,14 @@ const KeysSection = ({decodedObjectName, openSnackbar}) => {
                 body: contentBlob,
             });
             if (!response.ok) {
-                const errorMessage = await formatResponseError(response, `Failed to update key: ${response.status}`);
+                const errorMessage = await formatResponseError(response, t("keys.errors.update", {status: response.status}));
                 openSnackbar(errorMessage, "error");
                 return;
             }
-            openSnackbar(`Key '${name}' updated successfully`);
+            openSnackbar(t("keys.feedback.updated", {key: name}));
             await fetchKeys();
         } catch (err) {
-            openSnackbar(`Error: ${err.message}`, "error");
+            openSnackbar(t("keys.errors.generic", {message: err.message}), "error");
         } finally {
             setActionLoading(false);
             setUpdateDialogOpen(false);
@@ -484,7 +487,7 @@ const KeysSection = ({decodedObjectName, openSnackbar}) => {
             // Never fetch secret content to the client
             setUpdateContentLoading(false);
             openSnackbar(
-                "Secret content is hidden. Provide new content to update it.",
+                t("keys.feedback.secretHidden"),
                 "info"
             );
             return;
@@ -496,7 +499,7 @@ const KeysSection = ({decodedObjectName, openSnackbar}) => {
             setUpdateInitialContent(result.content);
             setUpdateInitialInputMode("text");
         } else if (result.type === "binary") {
-            openSnackbar("Key is binary – please use file upload to update.", "info");
+            openSnackbar(t("keys.feedback.binary"), "info");
         }
         setUpdateContentLoading(false);
     };
@@ -522,10 +525,10 @@ const KeysSection = ({decodedObjectName, openSnackbar}) => {
             <div className="flex items-center gap-2 border-b border-line px-3 py-2">
                 <KeyIcon className="text-ink-muted"/>
                 <h2 id={titleId} className="font-semibold">
-                    {`Object Keys (${safeKeys.length})`}
+                    {t("keys.title", {total: safeKeys.length})}
                 </h2>
                 <IconButton
-                    label="Add new key"
+                    label={t("keys.add")}
                     className="ml-auto"
                     onClick={() => setCreateDialogOpen(true)}
                     disabled={actionLoading}
@@ -536,35 +539,35 @@ const KeysSection = ({decodedObjectName, openSnackbar}) => {
 
             {(keysLoading || hasKeysError || safeKeys.length === 0) && (
                 <div className="space-y-2 p-3">
-                    {keysLoading && <Spinner label="Loading keys"/>}
+                    {keysLoading && <Spinner label={t("keys.loading")}/>}
                     {hasKeysError && <Alert>{String(keysError)}</Alert>}
                     {!keysLoading && !hasKeysError && safeKeys.length === 0 && (
-                        <p className="text-ink-muted">No keys available.</p>
+                        <p className="text-ink-muted">{t("keys.empty")}</p>
                     )}
                 </div>
             )}
             {!keysLoading && !hasKeysError && safeKeys.length > 0 && (
-                <Table aria-label="keys table" className="rounded-none border-0">
+                <Table aria-label={t("keys.tableAria")} className="rounded-none border-0">
                     <thead>
                     <HeaderRow>
-                        <HeaderCell>Name</HeaderCell>
-                        <HeaderCell>Node</HeaderCell>
-                        <HeaderCell align="right">Size</HeaderCell>
-                        <HeaderCell align="right">Actions</HeaderCell>
+                        <HeaderCell>{t("common.name")}</HeaderCell>
+                        <HeaderCell>{t("common.node")}</HeaderCell>
+                        <HeaderCell>{t("keys.size")}</HeaderCell>
+                        <HeaderCell>{t("common.actions")}</HeaderCell>
                     </HeaderRow>
                     </thead>
                     <tbody>
                     {safeKeys.map((key) => (
                         <Row key={key.name}>
-                            <th scope="row" className="px-2 py-1 text-left font-normal">
+                            <th scope="row" className="px-2 py-1 text-center font-normal">
                                 {key.name}
                             </th>
                             <Cell>{key.node}</Cell>
-                            <Cell numeric className="whitespace-nowrap">{`${key.size} bytes`}</Cell>
-                            <Cell align="right" className="whitespace-nowrap">
+                            <Cell numeric className="whitespace-nowrap">{t("keys.bytes", {size: key.size})}</Cell>
+                            <Cell className="whitespace-nowrap">
                                 <IconButton
                                     size="sm"
-                                    label={`View key ${key.name}`}
+                                    label={t("keys.view.action", {key: key.name})}
                                     onClick={() => handleViewKey(key.name)}
                                     disabled={actionLoading}
                                 >
@@ -572,7 +575,7 @@ const KeysSection = ({decodedObjectName, openSnackbar}) => {
                                 </IconButton>
                                 <IconButton
                                     size="sm"
-                                    label={`Edit key ${key.name}`}
+                                    label={t("keys.editAction", {key: key.name})}
                                     onClick={() => openUpdateDialog(key.name)}
                                     disabled={actionLoading}
                                 >
@@ -580,7 +583,7 @@ const KeysSection = ({decodedObjectName, openSnackbar}) => {
                                 </IconButton>
                                 <IconButton
                                     size="sm"
-                                    label={`Delete key ${key.name}`}
+                                    label={t("keys.deleteAction", {key: key.name})}
                                     className="hover:text-state-down"
                                     onClick={() => {
                                         setKeyToDelete(key.name);
@@ -600,26 +603,26 @@ const KeysSection = ({decodedObjectName, openSnackbar}) => {
             <Dialog
                 open={viewDialogOpen}
                 onClose={() => setViewDialogOpen(false)}
-                title={`View Key: ${keyToView ?? ""}`}
+                title={t("keys.view.title", {key: keyToView ?? ""})}
                 size="lg"
-                footer={<Button onClick={() => setViewDialogOpen(false)}>Close</Button>}
+                footer={<Button onClick={() => setViewDialogOpen(false)}>{t("common.close")}</Button>}
             >
                 {keyViewLoading && (
                     <div className="flex justify-center p-6">
-                        <Spinner label="Loading key content"/>
+                        <Spinner label={t("keys.loadingContent")}/>
                     </div>
                 )}
                 {!keyViewLoading && keyViewContent && (
                     <div className="space-y-1">
                         <div className="flex items-center justify-between gap-2">
                             <p className="text-data text-ink-muted">
-                                {`Type: ${keyViewContent.type === "text" ? "Text" : "Binary (Hex View)"}`}
-                                {isSecret && revealSecret && ` · Masked again in ${formatSeconds(secondsLeft)}.`}
+                                {keyViewContent.type === "text" ? t("keys.view.typeText") : t("keys.view.typeBinary")}
+                                {isSecret && revealSecret && ` · ${t("keys.view.maskedAgain", {count: secondsLeft})}`}
                             </p>
                             {isSecret && (
                                 <IconButton
                                     size="sm"
-                                    label={revealSecret ? "Hide secret" : "Reveal secret"}
+                                    label={revealSecret ? t("keys.view.hide") : t("keys.view.reveal")}
                                     onClick={() => setRevealSecret(v => !v)}
                                 >
                                     {revealSecret ? <EyeOffIcon/> : <EyeIcon/>}
@@ -629,12 +632,12 @@ const KeysSection = ({decodedObjectName, openSnackbar}) => {
                         {isSecret && !revealSecret ? (
                             <div className="flex flex-col items-center gap-1 rounded-(--radius-control) border border-dashed border-line bg-surface-sunken p-6 text-center text-ink-muted">
                                 <LockIcon/>
-                                <p>The content of this secret is hidden by default.</p>
-                                <p>Use the Reveal secret button to show it.</p>
+                                <p>{t("keys.view.hidden")}</p>
+                                <p>{t("keys.view.revealHint")}</p>
                             </div>
                         ) : (
                             <Textarea
-                                aria-label="Key content"
+                                aria-label={t("keys.view.contentAria")}
                                 readOnly
                                 value={keyViewContent.content}
                                 rows={16}
@@ -648,23 +651,27 @@ const KeysSection = ({decodedObjectName, openSnackbar}) => {
             <Dialog
                 open={deleteDialogOpen}
                 onClose={() => setDeleteDialogOpen(false)}
-                title="Confirm Key Deletion"
+                title={t("keys.deleteDialog.title")}
                 footer={
                     <>
-                        <Button onClick={() => setDeleteDialogOpen(false)} disabled={actionLoading}>Cancel</Button>
+                        <Button onClick={() => setDeleteDialogOpen(false)} disabled={actionLoading}>{t("common.cancel")}</Button>
                         <Button
                             variant="danger"
                             icon={<TrashIcon/>}
                             onClick={handleDeleteKey}
                             disabled={actionLoading}
                         >
-                            Delete
+                            {t("common.delete")}
                         </Button>
                     </>
                 }
             >
                 <p>
-                    Are you sure you want to delete the key <strong className="font-mono">{keyToDelete}</strong>?
+                    <Trans
+                        i18nKey="keys.deleteDialog.message"
+                        values={{key: keyToDelete}}
+                        components={{strong: <strong className="font-mono"/>}}
+                    />
                 </p>
             </Dialog>
 
@@ -673,7 +680,7 @@ const KeysSection = ({decodedObjectName, openSnackbar}) => {
                 onClose={() => setCreateDialogOpen(false)}
                 onSubmit={handleCreateKey}
                 mode="create"
-                title="Create New Key"
+                title={t("keys.form.createTitle")}
                 allowEmpty
                 loading={actionLoading}
             />
@@ -686,7 +693,7 @@ const KeysSection = ({decodedObjectName, openSnackbar}) => {
                 initialName={updateInitialName}
                 initialContent={updateInitialContent}
                 initialInputMode={updateInitialInputMode}
-                title="Update Key"
+                title={t("keys.form.updateTitle")}
                 loading={actionLoading}
                 initialLoading={updateContentLoading}
             />

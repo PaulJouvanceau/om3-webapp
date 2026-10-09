@@ -32,10 +32,21 @@ import {
     ToggleOnIcon,
     TrashIcon,
 } from "../ui/icons";
+import i18n from "../i18n";
 
 // Action icons of the oc3 icon set (src/ui/icons), sized by the menus that show
 // them. `color: "red"` marks the destructive actions, tinted by those menus.
 // `endpoint` is the API path of the action; `kinds` limits it to some object kinds.
+// The `name` of an action is its identifier (API, menus): show actionLabel(name) instead.
+const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+const labelKey = (name) => name.replace(/\s+(\w)/g, (_, c) => c.toUpperCase());
+
+/** The translated label of an action name ("restart daemon" → "Restart daemon"), the capitalized name if unknown. */
+export const actionLabel = (name) => {
+    if (typeof name !== "string" || !name) return "";
+    return i18n.t(`actions.labels.${labelKey(name)}`, {defaultValue: capitalize(name)});
+};
+
 const icon = (Icon) => <Icon className="h-4 w-4"/>;
 
 export const OBJECT_ACTIONS = [

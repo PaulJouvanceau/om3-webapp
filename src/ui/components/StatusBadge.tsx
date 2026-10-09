@@ -1,14 +1,15 @@
+import { useTranslation } from "react-i18next";
 import { cn } from "../cn";
 import { StateGlyph } from "./StateGlyph";
 
 export type ObjectState = "up" | "warn" | "down" | "unknown";
 
-/** Labels of the states; oc3 translates them, om3 is in English. */
-const LABELS: Record<ObjectState, string> = {
-  up: "up",
-  warn: "warn",
-  down: "down",
-  unknown: "n/a",
+/** Catalog keys of the labels of the states, translated at render. */
+export const STATE_LABEL_KEYS: Record<ObjectState, string> = {
+  up: "ui.states.up",
+  warn: "ui.states.warn",
+  down: "ui.states.down",
+  unknown: "ui.states.unknown",
 };
 
 const styles: Record<ObjectState, { ink: string }> = {
@@ -37,6 +38,7 @@ export function StatusBadge({
   label?: string;
   className?: string;
 }) {
+  const { t } = useTranslation();
   const s = styles[state];
   return (
     <span
@@ -48,7 +50,7 @@ export function StatusBadge({
       )}
     >
       <StateGlyph state={state} className="h-2 w-2" />
-      {label ?? LABELS[state]}
+      {label ?? t(STATE_LABEL_KEYS[state])}
     </span>
   );
 }

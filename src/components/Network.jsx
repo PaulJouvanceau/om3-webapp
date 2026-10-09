@@ -1,31 +1,34 @@
 import React, {useEffect, useState, useRef, useMemo} from "react";
 import {useNavigate} from "react-router-dom";
 import axios from "axios";
+import {useTranslation} from "react-i18next";
 import {URL_NETWORK} from "../config/apiPath.js";
 import logger from '../utils/logger.js';
 import {Table, HeaderRow, SortHeaderCell, Row, Cell, EmptyRow} from "../ui/components/Table";
 import {UsageBar} from "../ui/components/UsageBar";
 
 const COLUMNS = [
-    {key: "name", label: "Name"},
-    {key: "type", label: "Type"},
-    {key: "network", label: "Network"},
-    {key: "usage", label: "Usage", align: "right"},
+    {key: "name", labelKey: "common.name"},
+    {key: "type", labelKey: "common.type"},
+    {key: "network", labelKey: "networks.columns.network"},
+    {key: "usage", labelKey: "networks.columns.usage"},
 ];
 
 /** The usage percentage, a small bar beside it: the row keeps one line. */
 const Usage = ({network}) => {
-    if (!network.size) return "N/A";
+    const {t} = useTranslation();
+    if (!network.size) return t("common.notAvailable");
     return (
         <UsageBar
             value={(network.used / network.size) * 100}
             title={`${network.used}/${network.size}`}
-            label={`Usage of ${network.name}`}
+            label={t("networks.usageOf", {name: network.name})}
         />
     );
 };
 
 const Network = () => {
+    const {t} = useTranslation();
     const [networks, setNetworks] = useState([]);
     const [sortColumn, setSortColumn] = useState("name");
     const [sortDirection, setSortDirection] = useState("asc");
@@ -88,14 +91,13 @@ const Network = () => {
     return (
         <div ref={containerRef} className="p-4 space-y-3">
             <Table sticky>
-                <caption className="sr-only">Networks</caption>
+                <caption className="sr-only">{t("networks.caption")}</caption>
                 <thead>
                     <HeaderRow>
-                        {COLUMNS.map(({key, label, align}) => (
+                        {COLUMNS.map(({key, labelKey}) => (
                             <SortHeaderCell
                                 key={key}
-                                label={label}
-                                align={align}
+                                label={t(labelKey)}
                                 active={sortColumn === key}
                                 direction={sortDirection}
                                 onSort={() => handleSort(key)}
@@ -116,7 +118,7 @@ const Network = () => {
                         </Row>
                     ))}
                     {sortedNetworks.length === 0 && (
-                        <EmptyRow colSpan={COLUMNS.length}>No networks available.</EmptyRow>
+                        <EmptyRow colSpan={COLUMNS.length}>{t("networks.empty")}</EmptyRow>
                     )}
                 </tbody>
             </Table>
