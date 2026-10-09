@@ -8,7 +8,9 @@
       "Bash(git diff *)",
       "Bash(git reset *)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Read(//root/.cache/**)",
+      "Bash(find / -maxdepth 4 -name \"chrome\" -type f)"
     ]
   }
 }

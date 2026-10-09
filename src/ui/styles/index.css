@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./tokens.css";
+@import "./om3.css";
 @import "./fonts.css";
 
 @custom-variant dark (&:where(.dark, .dark *));

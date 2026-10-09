@@ -131,9 +131,7 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
     }, [location.pathname, storedClusterName, loading]);
 
     return (
-        // The oc3 top bar (AppShell): 44px, raised, a line under it. No stacking order
-        // of its own: side panels and dialogs slide over the whole height, as in oc3.
-        <header className="flex h-11 shrink-0 items-center gap-4 border-b border-line bg-surface-raised px-3 text-ink">
+        <header className="brand-bar flex h-11 shrink-0 items-center gap-4 border-b border-line px-3 text-ink">
             {showSidebarToggle && (
                 <button
                     type="button"
