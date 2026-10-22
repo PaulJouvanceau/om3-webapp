@@ -1696,7 +1696,8 @@
       "config": "Configuration",
       "info": "Infos",
       "containerLogs": "Journaux du conteneur",
-      "locks": "Verrous"
+      "locks": "Verrous",
+      "snapshots": "Instantanés"
     },
     "crossLink": "Afficher la fiche ici ({{kind}})",
     "kinds": {
@@ -2508,6 +2509,60 @@
       "monitored": "surveillée",
       "optional": "facultative",
       "encap": "encapsulée"
+    }
+  },
+  "snapshots": {
+    "intro": "Les instantanés que les ressources de synchronisation de l'objet ont gardés dans leur magasin, comme om sync snapshot list les montre, le plus récent d'abord. Chacun se restaure à part, dans un répertoire, ou en place, dans ses têtes.",
+    "noStore": "Aucune ressource de synchronisation de l'objet ne garde d'instantanés : seule une sync.store le fait.",
+    "askedNode": "Lu depuis",
+    "refresh": "Rafraîchir",
+    "loading": "Lecture des instantanés",
+    "loadError": "Les instantanés n'ont pas pu être lus : {{message}}",
+    "unsupported": "Le démon de {{node}} ne liste aucun instantané : il est plus ancien que les instantanés des ressources de synchronisation. Mettez om3 à jour pour restaurer d'ici.",
+    "table": "Instantanés",
+    "id": "Instantané",
+    "resource": "Ressource",
+    "taken": "Pris",
+    "takenBy": "Par",
+    "holds": "Contient",
+    "store": "Magasin",
+    "actions": "Actions",
+    "none": "Aucun instantané gardé.",
+    "restore": "Restaurer",
+    "restoreOne": "Restaurer {{id}} de {{rid}}",
+    "dialog": {
+      "title": "Restaurer {{id}} de {{rid}}",
+      "taken": "Instantané {{id}}, pris par {{node}}, gardé dans {{location}}.",
+      "node": "Sur l'instance de",
+      "nodeHint": "Ses têtes sont celles écrites en place ; à part, le répertoire est sur ce nœud.",
+      "nodeUp": "{{node}} (up)",
+      "where": "Où",
+      "aside": "À part, dans un répertoire par tête : l'instance intacte, pour comparer ou recopier à la main.",
+      "inPlace": "En place, dans les têtes : chacune vidée, sauf ses chemins exclus, puis remplie de ce que l'instantané a sauvé.",
+      "heads": "Têtes",
+      "headsRequired": "Choisissez au moins une tête.",
+      "into": "Répertoire",
+      "intoHint": "Un chemin absolu sur le nœud : un répertoire par tête y est écrit.",
+      "intoRequired": "Un chemin absolu, comme /var/tmp/restore.",
+      "config": "Restaurer aussi la configuration de l'objet",
+      "refsInPlaceOnly": "Les clés des sec et cfg que l'objet référence ne se restaurent qu'en place : à part, elles seraient écrites en clair.",
+      "configAsideOnly": "La configuration de l'objet ne se restaure qu'à part.",
+      "refs": "Clés référencées",
+      "refsMode": {
+        "missing": "Les absentes",
+        "skip": "Aucune",
+        "overwrite": "Toutes, écrasées"
+      },
+      "refsHint": {
+        "missing": "Les clés absentes des sec et cfg que l'objet référence sont créées ; les autres laissées telles quelles.",
+        "skip": "Aucune clé des sec et cfg que l'objet référence n'est écrite.",
+        "overwrite": "Chaque clé des sec et cfg que l'objet référence est réécrite, les valeurs actuelles perdues."
+      },
+      "inPlaceWarning": "Ce que les têtes contiennent est perdu : elles sont vidées, puis remplies de ce que l'instantané a sauvé. Les apps, conteneurs et partages qui utilisent les données doivent être arrêtés (om instance stop --rid), sinon le démon refuse la restauration.",
+      "understood": "Je comprends que le contenu des têtes est remplacé par l'instantané.",
+      "submitAside": "Restaurer à part",
+      "submitInPlace": "Restaurer en place",
+      "restoring": "Demande de la restauration"
     }
   }
 }

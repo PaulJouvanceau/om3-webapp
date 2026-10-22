@@ -15,6 +15,7 @@ import {NamespaceClaims} from "./NamespaceClaims";
 import {ObjectUsage} from "./InstanceRecord";
 import {CAPACITY_KINDS, ObjectCapacity} from "./ObjectCapacity";
 import {ClusterLocks} from "./ClusterLocks";
+import {ObjectSnapshots, useSnapshotNodes} from "./ObjectSnapshots";
 import {InstanceLink, ResourceLink} from "./RecordLinks";
 import {CrossLink} from "../app/CrossLink";
 import {usePeek} from "../app/panel-search";
@@ -57,6 +58,8 @@ export function ObjectDetailPanel({path, tab, onTabChange, onClose}) {
     const keysOnly = KEY_KINDS.includes(kind);
     const instances = useEventStore((s) => (path === undefined ? undefined : s.objectInstanceStatus[path]));
     const nodes = useMemo(() => Object.keys(instances ?? {}).sort(), [instances]);
+    // A sync resource keeping snapshots on one of its instances: the object restores them.
+    const snapshots = useSnapshotNodes(path ?? "").length > 0;
     // In the status board, the names of the nodes and the resources are badges: the
     // instance on a node, the node itself for the cluster object, whose instances
     // are the nodes; a resource, its panel.
@@ -105,6 +108,7 @@ export function ObjectDetailPanel({path, tab, onTabChange, onClose}) {
             // Its size and its caps: a service's and a volume's.
             ...(CAPACITY_KINDS.includes(kind) ? [{key: "capacity", label: t("panel.tabs.capacity")}] : []),
             {key: "schedules", label: t("panel.tabs.schedules")},
+            ...(snapshots ? [{key: "snapshots", label: t("panel.tabs.snapshots")}] : []),
             // The cluster object, the cluster: its locks, as om cluster lock list shows them.
             ...(kind === "ccfg" ? [{key: "locks", label: t("panel.tabs.locks")}] : []),
             {key: "config", label: t("panel.tabs.config")},
@@ -137,6 +141,7 @@ export function ObjectDetailPanel({path, tab, onTabChange, onClose}) {
                     {active === "capacity" && <ObjectCapacity key={path} path={path} nodes={nodes}/>}
                     {active === "schedules" && <ObjectSchedules key={path} path={path}/>}
                     {active === "locks" && <ClusterLocks/>}
+                    {active === "snapshots" && <ObjectSnapshots key={path} path={path}/>}
                     {active === "events" && (
                         <div className="h-[calc(100dvh-10rem)]">
                             <EventLog key={path} eventTypes={OBJECT_EVENT_TYPES} objectName={path} label={t("panel.tabs.events")}/>

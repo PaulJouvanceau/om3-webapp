@@ -1696,7 +1696,8 @@
       "config": "Configuration",
       "info": "Info",
       "containerLogs": "Container logs",
-      "locks": "Locks"
+      "locks": "Locks",
+      "snapshots": "Snapshots"
     },
     "crossLink": "Show the {{kind}} here",
     "kinds": {
@@ -2508,6 +2509,60 @@
       "monitored": "monitored",
       "optional": "optional",
       "encap": "encapsulated"
+    }
+  },
+  "snapshots": {
+    "intro": "The snapshots the sync resources of the object kept in their store, as om sync snapshot list shows them, the latest first. Each restores aside, into a directory, or in place, into its heads.",
+    "noStore": "No sync resource of the object keeps snapshots: only a sync.store one does.",
+    "askedNode": "Read from",
+    "refresh": "Refresh",
+    "loading": "Reading the snapshots",
+    "loadError": "The snapshots could not be read: {{message}}",
+    "unsupported": "The daemon of {{node}} lists no snapshots: it is older than the snapshots of the sync resources. Upgrade om3 to restore from here.",
+    "table": "Snapshots",
+    "id": "Snapshot",
+    "resource": "Resource",
+    "taken": "Taken",
+    "takenBy": "By",
+    "holds": "Holds",
+    "store": "Store",
+    "actions": "Actions",
+    "none": "No snapshot kept.",
+    "restore": "Restore",
+    "restoreOne": "Restore {{id}} of {{rid}}",
+    "dialog": {
+      "title": "Restore {{id}} of {{rid}}",
+      "taken": "Snapshot {{id}}, taken by {{node}}, kept in {{location}}.",
+      "node": "On the instance of",
+      "nodeHint": "Its heads are the ones written in place; aside, the directory is on that node.",
+      "nodeUp": "{{node}} (up)",
+      "where": "Where",
+      "aside": "Aside, into a directory per head: the instance untouched, to compare or copy back by hand.",
+      "inPlace": "In place, into the heads: each emptied, but its excluded paths, and filled with what the snapshot saved.",
+      "heads": "Heads",
+      "headsRequired": "Pick a head at least.",
+      "into": "Directory",
+      "intoHint": "An absolute path on the node: a directory per head is written there.",
+      "intoRequired": "An absolute path, as /var/tmp/restore.",
+      "config": "Also restore the configuration of the object",
+      "refsInPlaceOnly": "The keys of the sec and cfg the object references are restored in place only: aside, they would be written in clear.",
+      "configAsideOnly": "The configuration of the object restores aside only.",
+      "refs": "Referenced keys",
+      "refsMode": {
+        "missing": "Missing ones",
+        "skip": "None",
+        "overwrite": "All, overwritten"
+      },
+      "refsHint": {
+        "missing": "The keys absent from the sec and cfg the object references are created; the others left as they are.",
+        "skip": "No key of the sec and cfg the object references is written.",
+        "overwrite": "Every key of the sec and cfg the object references is written back, the current values lost."
+      },
+      "inPlaceWarning": "What the heads hold now is lost: they are emptied, then filled with what the snapshot saved. The apps, containers and shares using the data must be stopped (om instance stop --rid), or the daemon refuses the restore.",
+      "understood": "I understand what the heads hold is replaced by the snapshot.",
+      "submitAside": "Restore aside",
+      "submitInPlace": "Restore in place",
+      "restoring": "Asking the restore"
     }
   }
 }

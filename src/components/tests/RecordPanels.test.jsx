@@ -1,5 +1,5 @@
 import React from 'react';
-import {act, fireEvent, render, screen, within} from '@testing-library/react';
+import {act, cleanup, fireEvent, render, screen, within} from '@testing-library/react';
 import {MemoryRouter, useLocation} from 'react-router-dom';
 import {vi} from 'vitest';
 import {PeekPanel} from '../PeekPanel';
@@ -20,6 +20,10 @@ vi.mock('../ObjectStatus', () => ({default: ({path, openCell}) => (
 vi.mock('../ObjectConfig', () => ({default: ({path}) => <div data-testid="object-config">{path}</div>}));
 // The locks of the cluster are tested on their own: here, where they show.
 vi.mock('../ClusterLocks', () => ({ClusterLocks: () => <div data-testid="cluster-locks">locks</div>}));
+vi.mock('../ObjectSnapshots', async (importOriginal) => ({
+    ...(await importOriginal()),
+    ObjectSnapshots: ({path}) => <div data-testid="object-snapshots">{path}</div>,
+}));
 // The capacity tab is tested on its own: here, the object and the nodes it is shown for.
 vi.mock('../ObjectCapacity', () => ({
     CAPACITY_KINDS: ['svc', 'vol'],
@@ -158,6 +162,25 @@ describe('record panels', () => {
             .toEqual(['Status', 'Usage', 'Schedules', 'Locks', 'Configuration', 'Logs', 'Events']);
         expect(within(panel).getByRole('tab', {name: 'Locks'})).toHaveAttribute('aria-selected', 'true');
         expect(within(panel).getByTestId('cluster-locks')).toBeInTheDocument();
+    });
+
+    test('a service with a sync resource keeping snapshots has them on a tab; one without, none', () => {
+        store.set({objectInstanceStatus: {'ns1/svc/web': {
+            node1: {resources: {'fs#1': {type: 'fs.flag'}, 'sync#1': {type: 'sync.store'}}},
+            node2: {resources: {'sync#1': {type: 'sync.rsync'}}},
+        }}});
+        try {
+            renderPeek('/objects?peek=object:ns1/svc/web&peektab=snapshots');
+            const panel = screen.getByRole('dialog', {name: 'ns1/svc/web'});
+            expect(within(panel).getAllByRole('tab').map((tab) => tab.textContent))
+                .toEqual(['Status', 'Usage', 'Capacity', 'Schedules', 'Snapshots', 'Configuration', 'Logs', 'Events']);
+            expect(within(panel).getByTestId('object-snapshots')).toHaveTextContent('ns1/svc/web');
+        } finally {
+            store.reset();
+        }
+        cleanup();
+        renderPeek('/objects?peek=object:ns1/svc/web');
+        expect(within(screen.getByRole('dialog', {name: 'ns1/svc/web'})).queryByRole('tab', {name: 'Snapshots'})).not.toBeInTheDocument();
     });
 
     test('a datastore has no capacity tab', () => {
