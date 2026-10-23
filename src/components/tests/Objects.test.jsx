@@ -48,7 +48,10 @@ const mockGrants = vi.hoisted(() => ({value: {}}));
 // The nodes of the cluster configuration; null, not read: the nodes reporting an instance.
 const mockClusterOrder = vi.hoisted(() => ({value: null}));
 vi.mock('../../hooks/useClusterNodeOrder', () => ({useClusterNodeOrder: () => mockClusterOrder.value}));
-vi.mock('../../hooks/useGrants', () => ({useGrants: () => mockGrants.value}));
+vi.mock('../../hooks/useGrants', () => ({
+    useGrants: () => mockGrants.value,
+    useIsRoot: () => Object.prototype.hasOwnProperty.call(mockGrants.value, 'root'),
+}));
 vi.mock('../../hooks/useFetchDaemonStatus', () => ({
     default: vi.fn(() => ({daemon: {cluster: {object: {}}}})),
 }));
@@ -798,7 +801,8 @@ describe('Objects Component', () => {
             fireEvent.click(within(dialog).getByRole('button', {name: 'Create'}));
             // A datastore, created empty: on its keys.
             await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/objects?name=t&list=secrets&sel=test-ns%2Fsec%2Ftls&tab=keys'));
-            expect(global.fetch).toHaveBeenCalledWith('/api/object/path/test-ns/sec/tls/config/file', expect.objectContaining({method: 'POST'}));
+            // Created waiting for the nodes, as by default (--wait).
+            expect(global.fetch).toHaveBeenCalledWith('/api/object/path/test-ns/sec/tls/config/file?wait=30s', expect.objectContaining({method: 'POST'}));
             expect(screen.queryByRole('dialog', {name: 'New object'})).not.toBeInTheDocument();
             // Its creation, the actions tray says: no message of the list's own.
             expect(tray()).toContainEqual(['create', 'test-ns/sec/tls', 'succeeded', null]);

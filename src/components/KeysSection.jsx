@@ -21,6 +21,8 @@ import {hasPemCertificate} from "../utils/x509";
 import CertificateDetails from "./CertificateDetails";
 import {SecCertificate} from "./SecCertificate";
 import {Trans, useTranslation} from "react-i18next";
+import {readProblem, useConfigWait, withWriteParams} from "../app/config-write";
+import {WaitChoice} from "./ConfigWriteControls";
 
 const getAuthToken = () => {
     const token = localStorage.getItem("authToken");
@@ -289,13 +291,16 @@ const KeyFormDialog = ({
             ) : (
                 <div className="space-y-2">
                     {!fullscreen && (
-                        <Field label={t("keys.form.name")}>
+                        // An update writes the key named: renamed, it is from the key view (Rename),
+                        // not by a name changed here, which would write another key.
+                        <Field label={t("keys.form.name")} hint={mode === "update" ? t("keys.rename.fromView") : undefined}>
                             {(control) => (
                                 <Input
                                     {...control}
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
                                     disabled={loading}
+                                    readOnly={mode === "update"}
                                 />
                             )}
                         </Field>
@@ -397,6 +402,9 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey}) => {
     const updateRequest = useRef(0);
     const maxKeySize = useMaxKeySize(createDialogOpen || updateDialogOpen);
     const [updateContentLoading, setUpdateContentLoading] = useState(false);
+    // The key renamed (om <path> key rename): its name, the one typed, and why the daemon refused it.
+    const [rename, setRename] = useState(null);
+    const [wait, setWait] = useConfigWait();
     const titleId = useId();
 
     const fetchKeys = useCallback(async () => {
@@ -569,6 +577,44 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey}) => {
         } finally {
             setActionLoading(false);
             setUpdateDialogOpen(false);
+        }
+    };
+
+    /**
+     * Renames a key, its content kept, in one operation of the key store (PATCH
+     * data, rename), waiting for the nodes as asked: done, the actions tray says;
+     * refused, the dialog stays open and says why.
+     */
+    const handleRenameKey = async () => {
+        const token = getAuthToken();
+        if (!token) {
+            openSnackbar(t("keys.errors.noToken"), "error");
+            setRename(null);
+            return;
+        }
+        const {from, to} = rename;
+        const write = {...keyWrite("keyRename", from), label: t("actionTray.writes.keyRename", {key: from, to})};
+        setActionLoading(true);
+        setRename((r) => ({...r, error: null}));
+        try {
+            const response = await fetch(withWriteParams(`${buildObjectUrl(decodedObjectName)}/data`, {wait}), {
+                method: "PATCH",
+                headers: {Authorization: `Bearer ${token}`, "Content-Type": "application/json"},
+                body: JSON.stringify([{action: "rename", name: from, to}]),
+            });
+            const problem = response.ok || response.status === 408 ? null : await readProblem(response);
+            if (!(await trackWrite(response, write, keyRefusal))) {
+                setRename((r) => ({...r, error: problem.detail || `HTTP ${problem.status}`}));
+                return;
+            }
+            setPicked((l) => l.map((n) => (n === from ? to : n)));
+            setRename(null);
+            await fetchKeys();
+        } catch (err) {
+            trackRefused({...write, reason: err.message});
+            setRename((r) => ({...r, error: err.message}));
+        } finally {
+            setActionLoading(false);
         }
     };
 
@@ -786,6 +832,16 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey}) => {
                             onClick={() => {
                                 const name = keyToView;
                                 closeViewDialog();
+                                setRename({from: name, to: name, error: null});
+                            }}
+                        >
+                            {t("keys.rename.button")}
+                        </Button>
+                        <Button
+                            disabled={actionLoading || keyToView === null}
+                            onClick={() => {
+                                const name = keyToView;
+                                closeViewDialog();
                                 openUpdateDialog(name);
                             }}
                         >
@@ -887,6 +943,61 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey}) => {
                     />
                 </p>
             </Dialog>
+
+            {rename !== null && (() => {
+                const to = rename.to.trim();
+                // Said before it is sent: the daemon refuses these, an existing one as a failure of its own.
+                const invalid = to === ""
+                    ? "empty"
+                    : to === rename.from ? "same" : safeKeys.some((key) => key.name === to) ? "exists" : null;
+                return (
+                    <Dialog
+                        open
+                        onClose={() => !actionLoading && setRename(null)}
+                        title={t("keys.rename.title", {key: rename.from})}
+                        footer={
+                            <>
+                                <div className="mr-auto self-center">
+                                    <WaitChoice compact wait={wait} onChange={setWait} disabled={actionLoading}/>
+                                </div>
+                                <Button onClick={() => setRename(null)} disabled={actionLoading}>{t("common.cancel")}</Button>
+                                <Button
+                                    onClick={handleRenameKey}
+                                    disabled={actionLoading || invalid !== null}
+                                    icon={actionLoading ? <Spinner label={t("keys.rename.renaming")}/> : undefined}
+                                >
+                                    {t("keys.rename.submit")}
+                                </Button>
+                            </>
+                        }
+                    >
+                        <form
+                            className="space-y-2"
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                if (invalid === null && !actionLoading) void handleRenameKey();
+                            }}
+                        >
+                            <Field
+                                label={t("keys.rename.newName")}
+                                error={invalid === "exists" ? t("keys.rename.exists", {key: to}) : undefined}
+                            >
+                                {(control) => (
+                                    <Input
+                                        {...control}
+                                        autoFocus
+                                        className="font-mono"
+                                        value={rename.to}
+                                        onChange={(e) => setRename((r) => ({...r, to: e.target.value, error: null}))}
+                                        disabled={actionLoading}
+                                    />
+                                )}
+                            </Field>
+                            {rename.error && <Alert>{rename.error}</Alert>}
+                        </form>
+                    </Dialog>
+                );
+            })()}
 
             <KeyFormDialog
                 open={createDialogOpen}

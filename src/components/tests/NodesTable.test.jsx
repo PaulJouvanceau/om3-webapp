@@ -69,7 +69,10 @@ const mockClusterOrder = vi.hoisted(() => ({value: null}));
 vi.mock('../../hooks/useClusterNodeOrder', () => ({useClusterNodeOrder: () => mockClusterOrder.value}));
 // The grants of the user: root enrolls a node.
 const mockGrants = vi.hoisted(() => ({value: {}}));
-vi.mock('../../hooks/useGrants', () => ({useGrants: () => mockGrants.value}));
+vi.mock('../../hooks/useGrants', () => ({
+    useGrants: () => mockGrants.value,
+    useIsRoot: () => Object.prototype.hasOwnProperty.call(mockGrants.value, 'root'),
+}));
 
 // The confirmation of a node action is tested on its own (NodeActionDialog.test): here, the action confirmed.
 vi.mock('../NodeActionDialog', () => ({

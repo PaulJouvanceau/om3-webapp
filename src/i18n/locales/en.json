@@ -217,6 +217,31 @@
       "placeholder": "t1,t2"
     }
   },
+  "configWrite": {
+    "wait": {
+      "hint": "Wait until every live node of the object has the configuration (up to {{duration}}). A node that is down gets it when it comes back."
+    },
+    "force": {
+      "button": "Write anyway (--force)",
+      "rootOnly": "Only root can write it anyway, with --force."
+    }
+  },
+  "configEval": {
+    "open": "Evaluate the keywords",
+    "title": "Keywords of {{subject}}, evaluated",
+    "as": "Evaluate as",
+    "answering": "The node answering",
+    "keywords": "Keywords",
+    "keywordsHint": "Keywords or patterns, as fs#1.* or DEFAULT.nodes. None: the keywords the configuration sets, defaults left out.",
+    "evaluate": "Evaluate",
+    "evaluatedAs": "Evaluated as {{node}}.",
+    "loading": "Evaluating",
+    "none": "No keyword.",
+    "tableAria": "Keywords evaluated",
+    "keyword": "Keyword",
+    "value": "Value",
+    "evaluated": "Evaluated"
+  },
   "actions": {
     "labels": {
       "start": "Start",
@@ -883,7 +908,16 @@
     "selectionHelp": "Check keys to select them.",
     "removeSelected_one": "Remove 1 key",
     "removeSelected_other": "Remove {{count}} keys",
-    "selectAll": "Select all the keys"
+    "selectAll": "Select all the keys",
+    "rename": {
+      "button": "Rename",
+      "title": "Rename the key {{key}}",
+      "newName": "New name",
+      "exists": "A key {{key}} exists already.",
+      "submit": "Rename",
+      "renaming": "Renaming",
+      "fromView": "Renamed from the key view (Rename)."
+    }
   },
   "containerLogs": {
     "node": "Node of the container",
@@ -1552,7 +1586,11 @@
       "copyFailed": "The configuration of {{path}} could not be read: {{message}}",
       "readFailed": "The file could not be read: {{message}}"
     },
-    "datastoreHint": "Created empty: its keys are added next, in its panel."
+    "datastoreHint": "Created empty: its keys are added next, in its panel.",
+    "force": {
+      "replace": "Replace it (--force)",
+      "held": "Create anyway (--force)"
+    }
   },
   "objects": {
     "noInstanceStatus": "No status from {{node}}: the node is gone or not heard from",
@@ -2174,7 +2212,8 @@
       "claimsUpdate": "Update the claims",
       "claimDelete": "Remove claim {{section}}",
       "objectCreate": "Create",
-      "configCreate": "Create the configuration"
+      "configCreate": "Create the configuration",
+      "keyRename": "Rename key {{key}} to {{to}}"
     },
     "noNews": "no news of it within {{seconds}} s"
   },

@@ -5,7 +5,7 @@ import {Field, Input, Checkbox, Textarea} from "../ui/components/Field";
 import {Table, HeaderRow, HeaderCell, Row, Cell} from "../ui/components/Table";
 import {Alert} from "../ui/components/Alert";
 import {Spinner} from "../ui/components/Spinner";
-import {EyeIcon, EyeOffIcon, FileIcon, PencilIcon, PlusIcon, SlidersIcon, TrashIcon, UploadIcon} from "../ui/icons";
+import {CodeIcon, EyeIcon, EyeOffIcon, FileIcon, PencilIcon, PlusIcon, SlidersIcon, TrashIcon, UploadIcon} from "../ui/icons";
 import {formatSeconds, useAutoHide} from "../ui/lib/reveal";
 import {URL_OBJECT} from "../config/apiPath.js";
 import {parseObjectPath} from "../utils/objectUtils";
@@ -13,8 +13,12 @@ import {useTranslation} from "react-i18next";
 import {ConfigText} from "./ConfigText";
 import {CopyButton} from "../ui/components/CopyButton";
 import {extractSection, replaceSection} from "../utils/configSections";
-import {trackDone, trackRefused, trackWrite} from "../app/action-tracker";
-import {recordConfigWrite} from "../app/config-stamps";
+import {trackRefused, trackWrite} from "../app/action-tracker";
+import {PROBLEM_TITLE_HELD, forceLifts, readProblem, useConfigWait, withWriteParams} from "../app/config-write";
+import {useIsRoot} from "../hooks/useGrants";
+import {ForceRefusal, WaitChoice, strictestLift} from "./ConfigWriteControls";
+import ConfigEvalDialog from "./ConfigEvalDialog";
+import useEventStore from "../hooks/useEventStore.js";
 import {newId, withId} from "../app/object-create";
 
 /**
@@ -290,6 +294,8 @@ const FilePicker = ({id, file, onChange, disabled, emptyText}) => {
     );
 };
 
+// `wait`, the write waits for the configuration to reach the nodes; `refused`, why
+// the daemon refused the file, written anyway on demand when force lifts it.
 const UpdateConfigDialog = ({
                                 open,
                                 onClose,
@@ -297,6 +303,10 @@ const UpdateConfigDialog = ({
                                 setNewConfigFile,
                                 actionLoading,
                                 handleUpdateConfig,
+                                wait,
+                                setWait,
+                                refused,
+                                isRoot,
                             }) => {
     const {t} = useTranslation();
     return (
@@ -309,7 +319,7 @@ const UpdateConfigDialog = ({
             <>
                 <Button onClick={onClose} disabled={actionLoading}>{t("common.cancel")}</Button>
                 <Button
-                    onClick={handleUpdateConfig}
+                    onClick={() => handleUpdateConfig()}
                     disabled={actionLoading || !newConfigFile}
                     icon={actionLoading ? <Spinner label={t("config.update.updating")}/> : undefined}
                 >
@@ -318,13 +328,23 @@ const UpdateConfigDialog = ({
             </>
         }
     >
-        <FilePicker
-            id="update-config-file-upload"
-            file={newConfigFile}
-            onChange={setNewConfigFile}
-            disabled={actionLoading}
-            emptyText={t("config.filePicker.noFile")}
-        />
+        <div className="space-y-3">
+            <FilePicker
+                id="update-config-file-upload"
+                file={newConfigFile}
+                onChange={setNewConfigFile}
+                disabled={actionLoading}
+                emptyText={t("config.filePicker.noFile")}
+            />
+            <WaitChoice wait={wait} onChange={setWait} disabled={actionLoading}/>
+            <ForceRefusal
+                messages={refused?.messages}
+                lifts={refused?.lifts}
+                isRoot={isRoot}
+                onForce={() => handleUpdateConfig(true)}
+                disabled={actionLoading}
+            />
+        </div>
     </Dialog>
     );
 };
@@ -372,6 +392,10 @@ const ManageParamsDialog = ({
                                 actionLoading,
                                 handleManageParamsSubmit,
                                 openSnackbar,
+                                wait,
+                                setWait,
+                                refused,
+                                isRoot,
                             }) => {
     const {t} = useTranslation();
     const listId = useId();
@@ -500,9 +524,10 @@ const ManageParamsDialog = ({
             size="lg"
             footer={
                 <>
+                    <div className="mr-auto self-center"><WaitChoice compact wait={wait} onChange={setWait} disabled={actionLoading}/></div>
                     <Button onClick={onClose} disabled={actionLoading}>{t("common.cancel")}</Button>
                     <Button
-                        onClick={handleManageParamsSubmit}
+                        onClick={() => handleManageParamsSubmit()}
                         disabled={actionLoading}
                         icon={actionLoading ? <Spinner label={t("config.params.applying")}/> : undefined}
                     >
@@ -512,6 +537,14 @@ const ManageParamsDialog = ({
             }
         >
             {(keywordsLoading || existingParamsLoading) && <Spinner/>}
+            {/* Refused, what force would lift: the changes left are these. */}
+            <ForceRefusal
+                messages={refused?.messages}
+                lifts={refused?.lifts}
+                isRoot={isRoot}
+                onForce={() => handleManageParamsSubmit(true)}
+                disabled={actionLoading}
+            />
             {keywordsError && <Alert>{keywordsError}</Alert>}
             {existingParamsError && <Alert>{existingParamsError}</Alert>}
 
@@ -715,11 +748,18 @@ const ConfigSection = ({
     } = useExistingParams(decodedObjectName);
 
     const [updateConfigDialogOpen, setUpdateConfigDialogOpen] = useState(false);
+    // The keywords evaluated, as on a node of the object (om config eval --impersonate).
+    const [evalOpen, setEvalOpen] = useState(false);
+    const scope = useEventStore((s) => s.objectStatus?.[decodedObjectName]?.scope);
     const [newConfigFile, setNewConfigFile] = useState(null);
+    // Why the daemon refused the file uploaded, and who may write it anyway.
+    const [uploadRefused, setUploadRefused] = useState(null);
     const [manageParamsDialogOpen, setManageParamsDialogOpen] = useState(false);
     const [paramsToSet, setParamsToSet] = useState([]);
     const [paramsToUnset, setParamsToUnset] = useState([]);
     const [paramsToDelete, setParamsToDelete] = useState([]);
+    // The changes refused that force would lift: the daemon's words, and who may force them.
+    const [paramsRefused, setParamsRefused] = useState(null);
     const [actionLoading, setActionLoading] = useState(false);
 
     // Direct edition of the file: `file` is the file the edit started from, `base`
@@ -729,6 +769,11 @@ const ConfigSection = ({
     const [editLoading, setEditLoading] = useState(false);
     const [editError, setEditError] = useState(null);
     const [editConflict, setEditConflict] = useState(false);
+    // Who may write the edit refused anyway (forceLifts), null when force changes nothing of it.
+    const [editLifts, setEditLifts] = useState(null);
+    // The writes wait for the configuration to reach the nodes (om --wait), unless said otherwise.
+    const [wait, setWait] = useConfigWait();
+    const isRoot = useIsRoot();
     const editDirty = edit !== null && edit.text !== edit.base;
 
     const startEdit = async () => {
@@ -757,9 +802,11 @@ const ConfigSection = ({
         setEdit(null);
         setEditError(null);
         setEditConflict(false);
+        setEditLifts(null);
     };
 
-    const saveEdit = async () => {
+    // `force`, written anyway past a refusal force lifts (ForceRefusal).
+    const saveEdit = async (force = false) => {
         const token = localStorage.getItem("authToken");
         if (!token) {
             openSnackbar(t("config.feedback.tokenNotFound"), "error");
@@ -768,6 +815,7 @@ const ConfigSection = ({
         const {namespace, kind, name} = parseObjectPath(decodedObjectName);
         setEditError(null);
         setEditConflict(false);
+        setEditLifts(null);
         setActionLoading(true);
         try {
             // The daemon writes the whole file: a change landed since the edit
@@ -778,7 +826,7 @@ const ConfigSection = ({
                 setEditError(t("config.feedback.conflict"));
                 return;
             }
-            const response = await fetch(`${URL_OBJECT}/${namespace}/${kind}/${name}/config/file`, {
+            const response = await fetch(withWriteParams(`${URL_OBJECT}/${namespace}/${kind}/${name}/config/file`, {wait, force}), {
                 // None yet: created with the file, an id of its own.
                 method: absent ? "POST" : "PUT",
                 headers: {
@@ -790,16 +838,19 @@ const ConfigSection = ({
             });
             // What came of it, the actions tray says; refused, the editor stays open and says why.
             const label = t(absent ? "actionTray.writes.configCreate" : "actionTray.writes.configFile");
-            if (!response.ok) {
-                if (response.status === 409) setEditConflict(true);
+            // A wait that expired (408) is a write done: said so in the actions tray.
+            if (!response.ok && response.status !== 408) {
+                const problem = await readProblem(response);
+                // Changed meanwhile: started over. Held by another object: forced, if at all.
+                if (response.status === 409 && problem.title !== PROBLEM_TITLE_HELD) setEditConflict(true);
+                setEditLifts(forceLifts(problem, {creating: absent}));
                 const message = await problemMessage(response);
                 const reason = message.startsWith("HTTP ") ? message : `HTTP ${response.status} ${message}`;
                 trackRefused({action: "config", label, subject: decodedObjectName, reason});
                 setEditError(t("config.feedback.updateFailed", {message}));
                 return;
             }
-            recordConfigWrite(decodedObjectName, response);
-            trackDone({action: "config", label, subject: decodedObjectName, path: decodedObjectName});
+            await trackWrite(response, {action: "config", label, subject: decodedObjectName, path: decodedObjectName}, refusal);
             if (absent) setCreated(true);
             setEdit(null);
             if (configNode) await fetchConfig(configNode, true);
@@ -818,7 +869,8 @@ const ConfigSection = ({
         if (!absent) void fetchExistingParams();
     };
 
-    const handleUpdateConfig = async () => {
+    // `force`, written anyway past a refusal force lifts.
+    const handleUpdateConfig = async (force = false) => {
         /* istanbul ignore next */
         if (!newConfigFile) {
             openSnackbar(t("config.feedback.fileRequired"), "error");
@@ -831,10 +883,12 @@ const ConfigSection = ({
         }
         const {namespace, kind, name} = parseObjectPath(decodedObjectName);
         setActionLoading(true);
-        // What came of it, the actions tray says.
+        setUploadRefused(null);
+        // What came of it, the actions tray says; refused, the dialog stays open and says why.
         const write = {action: "config", label: t(absent ? "actionTray.writes.configCreate" : "actionTray.writes.configFile"), subject: decodedObjectName, path: decodedObjectName};
+        let done = true;
         try {
-            const response = await fetch(`${URL_OBJECT}/${namespace}/${kind}/${name}/config/file`, {
+            const response = await fetch(withWriteParams(`${URL_OBJECT}/${namespace}/${kind}/${name}/config/file`, {wait, force}), {
                 method: absent ? "POST" : "PUT",
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -842,7 +896,12 @@ const ConfigSection = ({
                 },
                 body: absent ? withId(await newConfigFile.text(), newId()) : newConfigFile,
             });
-            if (!(await trackWrite(response, write, refusal))) return;
+            const problem = response.ok || response.status === 408 ? null : await readProblem(response);
+            if (!(await trackWrite(response, write, refusal))) {
+                done = false;
+                setUploadRefused({messages: [problem.detail || `HTTP ${problem.status}`], lifts: forceLifts(problem, {creating: absent})});
+                return;
+            }
             if (absent) setCreated(true);
             if (configNode) {
                 await fetchConfig(configNode, true);
@@ -852,8 +911,10 @@ const ConfigSection = ({
             trackRefused({...write, reason: err.message});
         } finally {
             setActionLoading(false);
-            setUpdateConfigDialogOpen(false);
-            setNewConfigFile(null);
+            if (done) {
+                setUpdateConfigDialogOpen(false);
+                setNewConfigFile(null);
+            }
         }
     };
 
@@ -862,16 +923,32 @@ const ConfigSection = ({
         action: "config", label: t(`actionTray.writes.${kind}`, values), subject: decodedObjectName, path: decodedObjectName,
     });
 
-    const handleAddParams = async () => {
+    /**
+     * Writes one change, with the wait asked and `force`: done or refused, the
+     * actions tray says. Resolves to whether it is written, and refused, what force
+     * would lift of it ({message, lifts}), null when nothing.
+     */
+    const writeChange = async (url, init, info, {force = false, creating = false} = {}) => {
+        const response = await fetch(withWriteParams(url, {wait, force}), init);
+        const problem = response.ok || response.status === 408 ? null : await readProblem(response);
+        if (await trackWrite(response, info, refusal)) return {written: true, liftable: null};
+        const lifts = forceLifts(problem, {creating});
+        return {written: false, liftable: lifts && {message: problem.detail || `HTTP ${problem.status}`, lifts}};
+    };
+
+    // The handlers of the changes resolve to whether one was written, and the ones
+    // refused that force would lift, to ask again forced ({param, message, lifts}).
+    const handleAddParams = async (force) => {
+        const refused = [];
         /* istanbul ignore next */
         if (!paramsToSet.length) {
             openSnackbar(t("config.feedback.paramRequired"), "error");
-            return false;
+            return {written: false, refused};
         }
         const token = localStorage.getItem("authToken");
         if (!token) {
             openSnackbar(t("config.feedback.tokenNotFound"), "error");
-            return false;
+            return {written: false, refused};
         }
         const {namespace, kind, name} = parseObjectPath(decodedObjectName);
         setActionLoading(true);
@@ -905,15 +982,16 @@ const ConfigSection = ({
                     }
                 }
                 if (absent) {
-                    creating.push(`${fullKeyword}=${value}`);
+                    creating.push({param, keyword: `${fullKeyword}=${value}`});
                     continue;
                 }
                 const url = `${URL_OBJECT}/${namespace}/${kind}/${name}/config?set=${encodeURIComponent(fullKeyword)}=${encodeURIComponent(value)}`;
-                const response = await fetch(url, {
+                const {written, liftable} = await writeChange(url, {
                     method: "PATCH",
                     headers: {Authorization: `Bearer ${token}`},
-                });
-                if (await trackWrite(response, write("set", {keyword: fullKeyword, value}), refusal)) successCount++;
+                }, write("set", {keyword: fullKeyword, value}), {force});
+                if (written) successCount++;
+                if (liftable) refused.push({param, ...liftable});
             } catch (err) {
                 trackRefused({...write("set", {keyword: fullKeyword, value}), reason: err.message});
             }
@@ -921,16 +999,17 @@ const ConfigSection = ({
         if (creating.length > 0) {
             const created = write("configCreate");
             try {
-                const query = creating.map((kw) => `set=${encodeURIComponent(kw)}`).join("&");
-                const response = await fetch(`${URL_OBJECT}/${namespace}/${kind}/${name}/config/file?${query}`, {
+                const query = creating.map(({keyword}) => `set=${encodeURIComponent(keyword)}`).join("&");
+                const {written, liftable} = await writeChange(`${URL_OBJECT}/${namespace}/${kind}/${name}/config/file?${query}`, {
                     method: "POST",
                     headers: {Authorization: `Bearer ${token}`, "Content-Type": "application/octet-stream"},
                     body: withId("", newId()),
-                });
-                if (await trackWrite(response, created, refusal)) {
+                }, created, {force, creating: true});
+                if (written) {
                     successCount += creating.length;
                     setCreated(true);
                 }
+                if (liftable) creating.forEach(({param}) => refused.push({param, ...liftable}));
             } catch (err) {
                 trackRefused({...created, reason: err.message});
             }
@@ -943,15 +1022,16 @@ const ConfigSection = ({
             }
         }
         setActionLoading(false);
-        return successCount > 0;
+        return {written: successCount > 0, refused};
     };
 
-    const handleUnsetParams = async () => {
-        if (!paramsToUnset.length) return false;
+    const handleUnsetParams = async (force) => {
+        const refused = [];
+        if (!paramsToUnset.length) return {written: false, refused};
         const token = localStorage.getItem("authToken");
         if (!token) {
             openSnackbar(t("config.feedback.tokenNotFound"), "error");
-            return false;
+            return {written: false, refused};
         }
         const {namespace, kind, name} = parseObjectPath(decodedObjectName);
         setActionLoading(true);
@@ -966,11 +1046,12 @@ const ConfigSection = ({
                 }
                 const fullKeyword = section ? `${section}.${option}` : option;
                 const url = `${URL_OBJECT}/${namespace}/${kind}/${name}/config?unset=${encodeURIComponent(fullKeyword)}`;
-                const response = await fetch(url, {
+                const {written, liftable} = await writeChange(url, {
                     method: "PATCH",
                     headers: {Authorization: `Bearer ${token}`},
-                });
-                if (await trackWrite(response, write("unset", {keyword: fullKeyword}), refusal)) successCount++;
+                }, write("unset", {keyword: fullKeyword}), {force});
+                if (written) successCount++;
+                if (liftable) refused.push({param, ...liftable});
             } catch (err) {
                 trackRefused({...write("unset", {keyword: section ? `${section}.${option}` : option}), reason: err.message});
             }
@@ -983,15 +1064,16 @@ const ConfigSection = ({
             }
         }
         setActionLoading(false);
-        return successCount > 0;
+        return {written: successCount > 0, refused};
     };
 
-    const handleDeleteParams = async () => {
-        if (!paramsToDelete.length) return false;
+    const handleDeleteParams = async (force) => {
+        const refused = [];
+        if (!paramsToDelete.length) return {written: false, refused};
         const token = localStorage.getItem("authToken");
         if (!token) {
             openSnackbar(t("config.feedback.tokenNotFound"), "error");
-            return false;
+            return {written: false, refused};
         }
         const {namespace, kind, name} = parseObjectPath(decodedObjectName);
         setActionLoading(true);
@@ -999,11 +1081,12 @@ const ConfigSection = ({
         for (const section of paramsToDelete) {
             try {
                 const url = `${URL_OBJECT}/${namespace}/${kind}/${name}/config?delete=${encodeURIComponent(section)}`;
-                const response = await fetch(url, {
+                const {written, liftable} = await writeChange(url, {
                     method: "PATCH",
                     headers: {Authorization: `Bearer ${token}`},
-                });
-                if (await trackWrite(response, write("deleteSection", {section}), refusal)) successCount++;
+                }, write("deleteSection", {section}), {force});
+                if (written) successCount++;
+                if (liftable) refused.push({param: section, ...liftable});
             } catch (err) {
                 trackRefused({...write("deleteSection", {section}), reason: err.message});
             }
@@ -1016,19 +1099,37 @@ const ConfigSection = ({
             }
         }
         setActionLoading(false);
-        return successCount > 0;
+        return {written: successCount > 0, refused};
     };
 
-    const handleManageParamsSubmit = async () => {
-        let anySuccess = false;
-        if (paramsToSet.length) anySuccess = await handleAddParams() || anySuccess;
-        if (paramsToUnset.length) anySuccess = await handleUnsetParams() || anySuccess;
-        if (paramsToDelete.length) anySuccess = await handleDeleteParams() || anySuccess;
+    /**
+     * Writes the changes asked, each in its own request as before. Refused ones that
+     * force would lift stay in the dialog, alone, the daemon's words above them, to be
+     * written anyway (`force`) by whom may; the others refused are said in the actions
+     * tray only, as before.
+     */
+    const handleManageParamsSubmit = async (force = false) => {
         if (!paramsToSet.length && !paramsToUnset.length && !paramsToDelete.length) {
             openSnackbar(t("config.feedback.noSelection"), "error");
             return;
         }
-        if (anySuccess) {
+        setParamsRefused(null);
+        const none = {written: false, refused: []};
+        const set = paramsToSet.length ? await handleAddParams(force) : none;
+        const unset = paramsToUnset.length ? await handleUnsetParams(force) : none;
+        const deleted = paramsToDelete.length ? await handleDeleteParams(force) : none;
+        const refused = [...set.refused, ...unset.refused, ...deleted.refused];
+        if (refused.length > 0) {
+            setParamsToSet(set.refused.map(({param}) => param));
+            setParamsToUnset(unset.refused.map(({param}) => param));
+            setParamsToDelete(deleted.refused.map(({param}) => param));
+            setParamsRefused({
+                messages: [...new Set(refused.map(({message}) => message))],
+                lifts: strictestLift(refused.map(({lifts}) => lifts)),
+            });
+            return;
+        }
+        if (set.written || unset.written || deleted.written) {
             setParamsToSet([]);
             setParamsToUnset([]);
             setParamsToDelete([]);
@@ -1051,16 +1152,25 @@ const ConfigSection = ({
                         <p className="text-data text-ink-muted">
                             {t("config.view.editNotice")}
                         </p>
-                        {editError && (
+                        {editError && editConflict && (
                             <Alert
-                                action={editConflict && (
+                                action={
                                     <Button size="sm" onClick={startEdit} disabled={actionLoading || editLoading}>
                                         {t("config.view.startOver")}
                                     </Button>
-                                )}
+                                }
                             >
                                 {editError}
                             </Alert>
+                        )}
+                        {editError && !editConflict && (
+                            <ForceRefusal
+                                messages={[editError]}
+                                lifts={editLifts}
+                                isRoot={isRoot}
+                                onForce={() => saveEdit(true)}
+                                disabled={actionLoading}
+                            />
                         )}
                         <Textarea
                             aria-label={t("config.view.fileLabel")}
@@ -1121,6 +1231,12 @@ const ConfigSection = ({
                                         {/* The parameters set one by one, in the wizard: the sliders. */}
                                         <SlidersIcon/>
                                     </IconButton>
+                                    {/* None yet: nothing to evaluate. */}
+                                    {!absent && (
+                                        <IconButton label={t("configEval.open")} onClick={() => setEvalOpen(true)}>
+                                            <CodeIcon/>
+                                        </IconButton>
+                                    )}
                                 </>
                             )}
                         </div>
@@ -1151,9 +1267,10 @@ const ConfigSection = ({
                 );
     const footer = (edit ? (
                     <>
+                        <div className="mr-auto self-center"><WaitChoice compact wait={wait} onChange={setWait} disabled={actionLoading}/></div>
                         <Button onClick={cancelEdit} disabled={actionLoading}>{t("common.cancel")}</Button>
                         <Button
-                            onClick={saveEdit}
+                            onClick={() => saveEdit()}
                             disabled={actionLoading || !editDirty}
                             icon={actionLoading ? <Spinner label={t("config.view.saving")}/> : undefined}
                         >
@@ -1165,18 +1282,38 @@ const ConfigSection = ({
                 ));
     const subDialogs = (
         <>
+            <ConfigEvalDialog
+                open={evalOpen}
+                onClose={() => setEvalOpen(false)}
+                configUrl={`${URL_OBJECT}/${keywordsPath}/config`}
+                subject={decodedObjectName}
+                nodes={scope ?? []}
+            />
 
             <UpdateConfigDialog
                 open={updateConfigDialogOpen}
-                onClose={() => setUpdateConfigDialogOpen(false)}
+                onClose={() => {
+                    setUpdateConfigDialogOpen(false);
+                    setUploadRefused(null);
+                }}
                 newConfigFile={newConfigFile}
-                setNewConfigFile={setNewConfigFile}
+                setNewConfigFile={(file) => {
+                    setNewConfigFile(file);
+                    setUploadRefused(null);
+                }}
                 actionLoading={actionLoading}
                 handleUpdateConfig={handleUpdateConfig}
+                wait={wait}
+                setWait={setWait}
+                refused={uploadRefused}
+                isRoot={isRoot}
             />
             <ManageParamsDialog
                 open={manageParamsDialogOpen}
-                onClose={() => setManageParamsDialogOpen(false)}
+                onClose={() => {
+                    setManageParamsDialogOpen(false);
+                    setParamsRefused(null);
+                }}
                 keywordsData={keywordsData}
                 existingParams={absent ? [] : existingParams}
                 keywordsLoading={keywordsLoading}
@@ -1192,6 +1329,10 @@ const ConfigSection = ({
                 actionLoading={actionLoading}
                 handleManageParamsSubmit={handleManageParamsSubmit}
                 openSnackbar={openSnackbar}
+                wait={wait}
+                setWait={setWait}
+                refused={paramsRefused}
+                isRoot={isRoot}
             />
         </>
     );

@@ -217,6 +217,31 @@
       "placeholder": "t1,t2"
     }
   },
+  "configWrite": {
+    "wait": {
+      "hint": "Attendre que chaque nœud actif de l'objet ait la configuration (jusqu'à {{duration}}). Un nœud arrêté la reçoit à son retour."
+    },
+    "force": {
+      "button": "Écrire quand même (--force)",
+      "rootOnly": "Seul root peut l'écrire quand même, avec --force."
+    }
+  },
+  "configEval": {
+    "open": "Évaluer les mots-clés",
+    "title": "Mots-clés de {{subject}}, évalués",
+    "as": "Évaluer comme",
+    "answering": "Le nœud qui répond",
+    "keywords": "Mots-clés",
+    "keywordsHint": "Mots-clés ou motifs, comme fs#1.* ou DEFAULT.nodes. Aucun : les mots-clés que la configuration définit, sans les valeurs par défaut.",
+    "evaluate": "Évaluer",
+    "evaluatedAs": "Évalué comme {{node}}.",
+    "loading": "Évaluation",
+    "none": "Aucun mot-clé.",
+    "tableAria": "Mots-clés évalués",
+    "keyword": "Mot-clé",
+    "value": "Valeur",
+    "evaluated": "Évalué"
+  },
   "actions": {
     "labels": {
       "start": "Démarrer",
@@ -883,7 +908,16 @@
     "selectionHelp": "Cochez des clés pour les sélectionner.",
     "removeSelected_one": "Supprimer 1 clé",
     "removeSelected_other": "Supprimer {{count}} clés",
-    "selectAll": "Sélectionner toutes les clés"
+    "selectAll": "Sélectionner toutes les clés",
+    "rename": {
+      "button": "Renommer",
+      "title": "Renommer la clé {{key}}",
+      "newName": "Nouveau nom",
+      "exists": "Une clé {{key}} existe déjà.",
+      "submit": "Renommer",
+      "renaming": "Renommage",
+      "fromView": "Se renomme depuis la vue de la clé (Renommer)."
+    }
   },
   "containerLogs": {
     "node": "Nœud du conteneur",
@@ -1552,7 +1586,11 @@
       "copyFailed": "La configuration de {{path}} n'a pas pu être lue : {{message}}",
       "readFailed": "Le fichier n'a pas pu être lu : {{message}}"
     },
-    "datastoreHint": "Créé vide : ses clés s’ajoutent ensuite, dans son panneau."
+    "datastoreHint": "Créé vide : ses clés s’ajoutent ensuite, dans son panneau.",
+    "force": {
+      "replace": "Le remplacer (--force)",
+      "held": "Créer quand même (--force)"
+    }
   },
   "objects": {
     "noInstanceStatus": "Aucun état de {{node}} : le nœud est perdu ou ne répond pas",
@@ -2174,7 +2212,8 @@
       "claimsUpdate": "Mettre à jour les réclamations",
       "claimDelete": "Retirer la réclamation {{section}}",
       "objectCreate": "Créer",
-      "configCreate": "Créer la configuration"
+      "configCreate": "Créer la configuration",
+      "keyRename": "Renommer la clé {{key}} en {{to}}"
     },
     "noNews": "aucune nouvelle sous {{seconds}} s"
   },

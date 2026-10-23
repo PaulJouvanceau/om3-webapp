@@ -183,7 +183,8 @@ describe('ConfigSection Component', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
-        mockLocalStorage.getItem.mockReturnValue('mock-token');
+        // The writes not waiting for the nodes (--wait), but in the tests of the wait.
+        mockLocalStorage.getItem.mockImplementation((key) => (key === 'om3.config.wait' ? 'false' : 'mock-token'));
         mockUseParams.mockReturnValue({objectName: 'root/cfg/cfg1'});
         global.fetch = vi.fn(defaultFetchMock);
         clearKeywordsCache();
@@ -767,7 +768,8 @@ describe('ConfigSection Component', () => {
                 });
                 return defaultFetchMock(url, options);
             });
-        }, null, ['Update the configuration', 'root/cfg/cfg1', 'refused', 'HTTP 500'], true],
+        // Refused, the dialog stays open, saying why.
+        }, null, ['Update the configuration', 'root/cfg/cfg1', 'refused', 'HTTP 500'], false],
         ['network error', () => {
             global.fetch.mockImplementation((url, options) => {
                 if (url.includes('/config/file') && options.method === 'PUT') return Promise.reject(new Error('Network error'));
@@ -1165,7 +1167,8 @@ describe('ConfigSection Component', () => {
         await openManageDialog(user);
         await waitFor(() => expect(within(getDeleteGroup()).getByText('No sections.')).toBeInTheDocument());
         expect(within(getUnsetGroup()).getByText('No parameters set.')).toBeInTheDocument();
-        expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+        expect(within(getUnsetGroup()).queryAllByRole('checkbox')).toHaveLength(0);
+        expect(within(getDeleteGroup()).queryAllByRole('checkbox')).toHaveLength(0);
     });
 
     // ── Keywords dialog ──────────────────────────────────────────────────
@@ -1173,7 +1176,8 @@ describe('ConfigSection Component', () => {
     test('no button lists the keywords: the help of each one stands by its line', async () => {
         renderConfig();
         await screen.findByRole('group', {name: 'Configuration file'});
-        expect(screen.queryByRole('button', {name: /keywords/i})).not.toBeInTheDocument();
+        // The keywords evaluated have a button of their own (ConfigEvalDialog): no list of them.
+        expect(screen.queryByRole('button', {name: /keywords/i})).toHaveAccessibleName('Evaluate the keywords');
     });
 
     test('hovering the file reads the keywords of the kind once, and a "?" by each keyword tells what it does', async () => {

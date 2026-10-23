@@ -107,10 +107,15 @@ const uploadFileInDialog = async (dialog) => {
 
 const fillNameAndSubmit = async (dialog, name, btnName) => {
     const nameInput = within(dialog).getByRole('textbox', {name: /Key Name/i});
-    await act(async () => {
-        await user.clear(nameInput);
-        await user.type(nameInput, name);
-    });
+    // An update keeps the name of its key: renamed, it is from the key view.
+    if (nameInput.readOnly) {
+        expect(nameInput).toHaveValue(name);
+    } else {
+        await act(async () => {
+            await user.clear(nameInput);
+            await user.type(nameInput, name);
+        });
+    }
     const submitBtn = within(dialog).getByRole('button', {name: new RegExp(btnName, 'i')});
     await act(async () => {
         await user.click(submitBtn);
@@ -403,7 +408,7 @@ describe('KeysSection', () => {
 
     test.each([
         ['create', 'Create', 'newKey', true, 'Add key newKey'],
-        ['edit', 'Update', 'updatedKey', true, 'Update key updatedKey'],
+        ['edit', 'Update', 'key1', true, 'Update key key1'],
         ['delete', 'Delete', 'key1', false, 'Delete key key1'],
     ])('%s success', async (action, btn, name, needsFile, label) => {
         mockFetch({keys: [{name: 'key1', node: 'n1', size: 10}]});
@@ -437,7 +442,7 @@ describe('KeysSection', () => {
 
     test.each([
         ['create', 'POST', 'newKey', 'Create', 'Add key newKey'],
-        ['edit', 'PUT', 'updatedKey', 'Update', 'Update key updatedKey'],
+        ['edit', 'PUT', 'key1', 'Update', 'Update key key1'],
         ['delete', 'DELETE', 'key1', 'Delete', 'Delete key key1'],
     ])('%s HTTP error', async (action, method, name, btn, label) => {
         mockFetch({
@@ -460,7 +465,7 @@ describe('KeysSection', () => {
 
     test.each([
         ['create', 'POST', 'newKey', 'Create', 'Add key newKey'],
-        ['edit', 'PUT', 'updatedKey', 'Update', 'Update key updatedKey'],
+        ['edit', 'PUT', 'key1', 'Update', 'Update key key1'],
         ['delete', 'DELETE', 'key1', 'Delete', 'Delete key key1'],
     ])('%s network error', async (action, method, name, btn, label) => {
         mockFetch({
@@ -483,7 +488,7 @@ describe('KeysSection', () => {
 
     test.each([
         ['create', (d) => uploadFileInDialog(d, 'create').then(() => fillNameAndSubmit(d, 'newKey', 'Create'))],
-        ['edit', (d) => uploadFileInDialog(d, 'update').then(() => fillNameAndSubmit(d, 'updatedKey', 'Update'))],
+        ['edit', (d) => uploadFileInDialog(d, 'update').then(() => fillNameAndSubmit(d, 'key1', 'Update'))],
         ['delete', (d) => user.click(within(d).getByRole('button', {name: /Delete/i}))],
     ])('auth token missing for %s', async (action, actionFn) => {
         mockFetch({keys: [{name: 'key1', node: 'n1', size: 10}]});
@@ -521,7 +526,7 @@ describe('KeysSection', () => {
         const dialog = await openDialog(action);
         if (action !== 'delete') {
             await uploadFileInDialog(dialog, action === 'edit' ? 'update' : 'create');
-            await fillNameAndSubmit(dialog, action === 'create' ? 'newKey' : 'updatedKey', btn);
+            await fillNameAndSubmit(dialog, action === 'create' ? 'newKey' : 'key1', btn);
         } else {
             await act(async () => {
                 await user.click(within(dialog).getByRole('button', {name: /Delete/i}));

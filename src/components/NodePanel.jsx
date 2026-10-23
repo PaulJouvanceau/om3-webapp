@@ -24,7 +24,8 @@ import {Input, Textarea} from "../ui/components/Field";
 import {Table, HeaderRow, HeaderCell, Row, Cell, EmptyRow} from "../ui/components/Table";
 import {FrozenMark} from "../ui/components/FrozenMark";
 import {RelativeTime} from "../ui/components/RelativeTime";
-import {BoltIcon, EyeIcon, EyeOffIcon, PencilIcon, ResetIcon, SearchIcon} from "../ui/icons";
+import {BoltIcon, CodeIcon, EyeIcon, EyeOffIcon, PencilIcon, ResetIcon, SearchIcon} from "../ui/icons";
+import ConfigEvalDialog from "./ConfigEvalDialog";
 import {formatSeconds, useAutoHide} from "../ui/lib/reveal";
 import {formatBytes, formatSizeMiB} from "../ui/lib/format";
 import {NodeDaemon} from "./NodeDaemon";
@@ -759,6 +760,7 @@ function NodeConfig({node}) {
     const [edit, setEdit] = useState(null);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState(null);
+    const [evalOpen, setEvalOpen] = useState(false);
 
     // The file as stored, its secrets in clear: what an edit starts from and writes back.
     const read = async () => {
@@ -858,7 +860,13 @@ function NodeConfig({node}) {
                 <IconButton label={t("nodePanel.config.edit")} onClick={startEdit} disabled={file.loading}>
                     <PencilIcon/>
                 </IconButton>
+                <IconButton label={t("configEval.open")} onClick={() => setEvalOpen(true)}>
+                    <CodeIcon/>
+                </IconButton>
             </div>
+            {/* The node's own configuration, evaluated on it: no other node to impersonate. */}
+            <ConfigEvalDialog open={evalOpen} onClose={() => setEvalOpen(false)} configUrl={nodeUrl(node, "config")}
+                              subject={node} nodes={null}/>
             {error && <Alert tone="error">{error}</Alert>}
             <Loaded resource={file}>
                 <ConfigText text={file.data ?? ""} label={t("nodePanel.config.file")}

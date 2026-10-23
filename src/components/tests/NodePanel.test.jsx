@@ -34,7 +34,10 @@ vi.mock('../LogsViewer', () => ({
 // The confirmation dialogs are tested on their own: here, the action confirmed.
 // The grants of the user: root sets the thresholds of the health.
 const mockGrants = vi.hoisted(() => ({value: {}}));
-vi.mock('../../hooks/useGrants', () => ({useGrants: () => mockGrants.value}));
+vi.mock('../../hooks/useGrants', () => ({
+    useGrants: () => mockGrants.value,
+    useIsRoot: () => Object.prototype.hasOwnProperty.call(mockGrants.value, 'root'),
+}));
 
 vi.mock('../NodeActionDialog', () => ({
     NodeActionDialog: ({pending: pendingAction, onConfirm: handleConfirm, target}) => (pendingAction === null ? null : (

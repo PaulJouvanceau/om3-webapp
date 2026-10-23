@@ -85,7 +85,10 @@ vi.mock('../../hooks/useEventStore.js', async () => {
 });
 
 const mockGrants = vi.hoisted(() => ({value: {}}));
-vi.mock('../../hooks/useGrants', () => ({useGrants: () => mockGrants.value}));
+vi.mock('../../hooks/useGrants', () => ({
+    useGrants: () => mockGrants.value,
+    useIsRoot: () => Object.prototype.hasOwnProperty.call(mockGrants.value, 'root'),
+}));
 
 /** The panels open: a closed one stays mounted for its animation, inert. */
 const openDialogs = () => screen.queryAllByRole('dialog').filter((d) => !d.hasAttribute('inert'));

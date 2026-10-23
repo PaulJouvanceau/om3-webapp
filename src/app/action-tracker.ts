@@ -321,7 +321,20 @@ export function trackRefused({
  * An action done by the time the daemon answered, with nothing to follow (enable,
  * disable: 204 No Content): in the tray as the others, ended, succeeded.
  */
-export function trackDone({ action, subject, path, label }: { action: string; subject: string; path?: string; label?: string }) {
+export function trackDone({
+  action,
+  subject,
+  path,
+  label,
+  note,
+}: {
+  action: string;
+  subject: string;
+  path?: string;
+  label?: string;
+  /** What is still to come of it, said beside it: a configuration still propagating. */
+  note?: string;
+}) {
   sequence += 1;
   const now = Date.now();
   const id = `${String(now)}-${String(sequence)}`;
@@ -333,6 +346,7 @@ export function trackDone({ action, subject, path, label }: { action: string; su
     kind: "exec",
     node: "",
     ...(path === undefined ? {} : { path }),
+    ...(note === undefined ? {} : { error: note }),
     state: "succeeded",
     startedAt: now,
     endedAt: now,
@@ -359,21 +373,34 @@ export async function trackResponse(
 /**
  * Says what came of a write the daemon does before it answers (a configuration, a
  * key): done when accepted, refused with the reason otherwise. `reason` reads the
- * reason of a refusal from the response. Resolves to whether it was accepted.
+ * reason of a refusal from the response. Resolves to whether it was accepted:
+ * a wait for the configuration to reach the nodes that expired (408) is a write
+ * done, the nodes it has not reached said beside it.
  */
 export async function trackWrite(
   response: Response,
   info: { action: string; subject: string; label: string; path?: string },
   reason: (response: Response) => Promise<string>,
 ): Promise<boolean> {
-  if (response.ok) {
+  if (response.ok || response.status === 408) {
     // The configuration written, for the instance actions that follow to ask for it.
     recordConfigWrite(info.path, response);
-    trackDone(info);
+    trackDone(response.ok ? info : { ...info, note: await problemDetail(response) });
     return true;
   }
   trackRefused({ ...info, reason: await reason(response) });
   return false;
+}
+
+/** The detail of the problem an answer holds, its status when it holds none. */
+async function problemDetail(response: Response): Promise<string> {
+  try {
+    const problem = (await response.json()) as { detail?: string } | null;
+    if (problem?.detail) return problem.detail;
+  } catch {
+    // Not a problem document.
+  }
+  return `HTTP ${String(response.status)}`;
 }
 
 /** How long an action queued is waited for, before its outcome is said unknown. */

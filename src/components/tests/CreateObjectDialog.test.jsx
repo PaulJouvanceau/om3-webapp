@@ -22,6 +22,8 @@ describe('CreateObjectDialog', () => {
         useActionTracker.setState({tracked: [], revealed: 0});
         vi.clearAllMocks();
         localStorage.setItem('authToken', 'tok');
+        // The creation not waiting for the nodes (--wait), but in the tests of the wait.
+        localStorage.setItem('om3.config.wait', 'false');
         requests = [];
         answers = {};
         global.fetch = vi.fn((url, options = {}) => {

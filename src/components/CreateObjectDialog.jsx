@@ -4,14 +4,16 @@ import {Dialog} from "../ui/components/Dialog";
 import {Button} from "../ui/components/Button";
 import {Checkbox, Field, Input, Select, Textarea} from "../ui/components/Field";
 import {Combobox} from "../ui/components/Combobox";
-import {Alert} from "../ui/components/Alert";
 import {Spinner} from "../ui/components/Spinner";
 import {URL_OBJECT} from "../config/apiPath.js";
 import {getResponseErrorMessage} from "../services/api.jsx";
 import useEventStore from "../hooks/useEventStore.js";
 import {parseObjectPath} from "../utils/objectUtils.jsx";
 import {postAction, refusalReason} from "./objectActions";
-import {trackDone, trackRefused} from "../app/action-tracker";
+import {trackRefused, trackWrite} from "../app/action-tracker";
+import {PROBLEM_TITLE_HELD, forceLifts, readProblem, useConfigWait, withWriteParams} from "../app/config-write";
+import {useIsRoot} from "../hooks/useGrants";
+import {ForceRefusal, WaitChoice} from "./ConfigWriteControls";
 import {
     CREATABLE_KINDS,
     NSCFG_NAME,
@@ -90,6 +92,16 @@ const CreateObjectDialog = ({open, onClose, defaultKind = "svc", defaultNamespac
     const [provision, setProvision] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState(null);
+    // Refused, who may create it anyway (forceLifts): anyone over an object that
+    // exists, which is then replaced; root past a value another object holds.
+    const [lifts, setLifts] = useState(null);
+    const [held, setHeld] = useState(false);
+    useEffect(() => {
+        if (error === null) setLifts(null);
+    }, [error]);
+    // The creation waits for the configuration to reach the nodes (om --wait), unless said otherwise.
+    const [wait, setWait] = useConfigWait();
+    const isRoot = useIsRoot();
     // Errors show once a field was left, or a submit tried.
     const [touched, setTouched] = useState({});
     const nameRef = useRef(null);
@@ -168,7 +180,8 @@ const CreateObjectDialog = ({open, onClose, defaultKind = "svc", defaultNamespac
         }
     };
 
-    const submit = async (event) => {
+    // `force`, created anyway past a refusal force lifts.
+    const submit = async (event, force = false) => {
         event?.preventDefault();
         setTouched({name: true, namespace: true});
         if (invalid || submitting) {
@@ -180,7 +193,7 @@ const CreateObjectDialog = ({open, onClose, defaultKind = "svc", defaultNamespac
         const {namespace: ns, kind: k, name: n} = parseObjectPath(path);
         const creation = {action: "create", label: t("actionTray.writes.objectCreate"), subject: path, path};
         try {
-            const response = await fetch(`${URL_OBJECT}/${ns}/${k}/${n}/config/file`, {
+            const response = await fetch(withWriteParams(`${URL_OBJECT}/${ns}/${k}/${n}/config/file`, {wait, force}), {
                 method: "POST",
                 headers: {
                     Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`,
@@ -191,15 +204,21 @@ const CreateObjectDialog = ({open, onClose, defaultKind = "svc", defaultNamespac
                 body: withId(datastore ? "" : config, newId()),
             });
             // What came of it, the actions tray says; refused, the dialog stays open and says why.
-            if (!response.ok) {
+            // A wait for the nodes that expired (408) is a creation done, said so.
+            if (!response.ok && response.status !== 408) {
+                const problem = await readProblem(response);
                 const detail = await getResponseErrorMessage(response);
                 trackRefused({...creation, reason: refusalReason({status: response.status, detail})});
-                setError(response.status === 409
+                // Held by another object is a 409 too: not an object that exists.
+                const isHeld = problem.title === PROBLEM_TITLE_HELD;
+                setError(response.status === 409 && !isHeld
                     ? t("createObject.errors.exists", {path})
                     : t("createObject.feedback.failed", {message: detail || `HTTP ${response.status}`}));
+                setLifts(forceLifts(problem, {creating: true}));
+                setHeld(isHeld);
                 return;
             }
-            trackDone(creation);
+            await trackWrite(response, creation, async () => "");
             // Provisioned once the daemons know it: followed, or said refused, in the actions tray.
             if (provision && canProvision) {
                 try {
@@ -374,7 +393,18 @@ const CreateObjectDialog = ({open, onClose, defaultKind = "svc", defaultNamespac
                     />
                 )}
 
-                {error !== null && <Alert tone="error">{error}</Alert>}
+                <WaitChoice wait={wait} onChange={setWait} disabled={submitting}/>
+
+                {error !== null && (
+                    <ForceRefusal
+                        messages={[error]}
+                        lifts={lifts}
+                        isRoot={isRoot}
+                        onForce={() => submit(undefined, true)}
+                        disabled={submitting}
+                        forceLabel={t(held ? "createObject.force.held" : "createObject.force.replace")}
+                    />
+                )}
             </form>
         </Dialog>
     );
