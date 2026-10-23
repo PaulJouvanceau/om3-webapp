@@ -16,7 +16,7 @@ import {extractSection, replaceSection} from "../utils/configSections";
 import {trackRefused, trackWrite} from "../app/action-tracker";
 import {PROBLEM_TITLE_HELD, forceLifts, readProblem, useConfigWait, withWriteParams} from "../app/config-write";
 import {useIsRoot} from "../hooks/useGrants";
-import {ForceRefusal, WaitChoice, strictestLift} from "./ConfigWriteControls";
+import {ForceRefusal, WaitChoice} from "./ConfigWriteControls";
 import ConfigEvalDialog from "./ConfigEvalDialog";
 import useEventStore from "../hooks/useEventStore.js";
 import {newId, withId} from "../app/object-create";
@@ -537,7 +537,7 @@ const ManageParamsDialog = ({
             }
         >
             {(keywordsLoading || existingParamsLoading) && <Spinner/>}
-            {/* Refused, what force would lift: the changes left are these. */}
+            {/* Refused, nothing written: why, the changes kept, forced on demand when force lifts it. */}
             <ForceRefusal
                 messages={refused?.messages}
                 lifts={refused?.lifts}
@@ -918,222 +918,97 @@ const ConfigSection = ({
         }
     };
 
-    /** A keyword set, unset or a section deleted, as the actions tray says it. */
-    const write = (kind, values) => ({
-        action: "config", label: t(`actionTray.writes.${kind}`, values), subject: decodedObjectName, path: decodedObjectName,
-    });
-
-    /**
-     * Writes one change, with the wait asked and `force`: done or refused, the
-     * actions tray says. Resolves to whether it is written, and refused, what force
-     * would lift of it ({message, lifts}), null when nothing.
-     */
-    const writeChange = async (url, init, info, {force = false, creating = false} = {}) => {
-        const response = await fetch(withWriteParams(url, {wait, force}), init);
-        const problem = response.ok || response.status === 408 ? null : await readProblem(response);
-        if (await trackWrite(response, info, refusal)) return {written: true, liftable: null};
-        const lifts = forceLifts(problem, {creating});
-        return {written: false, liftable: lifts && {message: problem.detail || `HTTP ${problem.status}`, lifts}};
-    };
-
-    // The handlers of the changes resolve to whether one was written, and the ones
-    // refused that force would lift, to ask again forced ({param, message, lifts}).
-    const handleAddParams = async (force) => {
-        const refused = [];
-        /* istanbul ignore next */
-        if (!paramsToSet.length) {
-            openSnackbar(t("config.feedback.paramRequired"), "error");
-            return {written: false, refused};
+    /** The keyword a parameter to set names: [<section>.]<option>, the index of its section given. */
+    const keywordOf = (param) => {
+        if (param.sectionPrefix !== undefined) {
+            const section = param.sectionSuffix ? `${param.sectionPrefix}#${param.sectionSuffix}` : param.sectionPrefix;
+            return section ? `${section}.${param.option}` : param.option;
         }
-        const token = localStorage.getItem("authToken");
-        if (!token) {
-            openSnackbar(t("config.feedback.tokenNotFound"), "error");
-            return {written: false, refused};
-        }
-        const {namespace, kind, name} = parseObjectPath(decodedObjectName);
-        setActionLoading(true);
-        let successCount = 0;
-        // None yet: the keywords set all at once, in the request creating it.
-        const creating = [];
-        for (const param of paramsToSet) {
-            let fullKeyword;
-            if (param.section !== undefined) {
-                fullKeyword = param.section ? `${param.section}.${param.option}` : param.option;
-            } else if (param.sectionPrefix !== undefined) {
-                const section = param.sectionSuffix ? `${param.sectionPrefix}#${param.sectionSuffix}` : param.sectionPrefix;
-                fullKeyword = section ? `${section}.${param.option}` : param.option;
-            } else {
-                /* istanbul ignore next */
-                fullKeyword = param.option;
-            }
-            const {value, option} = param;
-            const keyword = param.keyword;
-            try {
-                /* istanbul ignore next */
-                if (!keyword) {
-                    openSnackbar(t("config.feedback.invalidParam", {name: option}), "error");
-                    continue;
-                }
-                if (keyword.converter === "converters.TListLowercase" && value.includes(",")) {
-                    const values = value.split(",").map((v) => v.trim().toLowerCase());
-                    if (values.some((v) => !v)) {
-                        openSnackbar(t("config.feedback.invalidList", {keyword: fullKeyword}), "error");
-                        continue;
-                    }
-                }
-                if (absent) {
-                    creating.push({param, keyword: `${fullKeyword}=${value}`});
-                    continue;
-                }
-                const url = `${URL_OBJECT}/${namespace}/${kind}/${name}/config?set=${encodeURIComponent(fullKeyword)}=${encodeURIComponent(value)}`;
-                const {written, liftable} = await writeChange(url, {
-                    method: "PATCH",
-                    headers: {Authorization: `Bearer ${token}`},
-                }, write("set", {keyword: fullKeyword, value}), {force});
-                if (written) successCount++;
-                if (liftable) refused.push({param, ...liftable});
-            } catch (err) {
-                trackRefused({...write("set", {keyword: fullKeyword, value}), reason: err.message});
-            }
-        }
-        if (creating.length > 0) {
-            const created = write("configCreate");
-            try {
-                const query = creating.map(({keyword}) => `set=${encodeURIComponent(keyword)}`).join("&");
-                const {written, liftable} = await writeChange(`${URL_OBJECT}/${namespace}/${kind}/${name}/config/file?${query}`, {
-                    method: "POST",
-                    headers: {Authorization: `Bearer ${token}`, "Content-Type": "application/octet-stream"},
-                    body: withId("", newId()),
-                }, created, {force, creating: true});
-                if (written) {
-                    successCount += creating.length;
-                    setCreated(true);
-                }
-                if (liftable) creating.forEach(({param}) => refused.push({param, ...liftable}));
-            } catch (err) {
-                trackRefused({...created, reason: err.message});
-            }
-        }
-        if (successCount > 0) {
-            if (configNode) {
-                await fetchConfig(configNode, true);
-                await fetchExistingParams();
-                setConfigDialogOpen(true);
-            }
-        }
-        setActionLoading(false);
-        return {written: successCount > 0, refused};
-    };
-
-    const handleUnsetParams = async (force) => {
-        const refused = [];
-        if (!paramsToUnset.length) return {written: false, refused};
-        const token = localStorage.getItem("authToken");
-        if (!token) {
-            openSnackbar(t("config.feedback.tokenNotFound"), "error");
-            return {written: false, refused};
-        }
-        const {namespace, kind, name} = parseObjectPath(decodedObjectName);
-        setActionLoading(true);
-        let successCount = 0;
-        for (const param of paramsToUnset) {
-            const {section, option} = param;
-            try {
-                /* istanbul ignore next */
-                if (!option) {
-                    openSnackbar(t("config.feedback.unsetErrorUnknown", {keyword: param.option || t("config.feedback.unknownParam")}), "error");
-                    continue;
-                }
-                const fullKeyword = section ? `${section}.${option}` : option;
-                const url = `${URL_OBJECT}/${namespace}/${kind}/${name}/config?unset=${encodeURIComponent(fullKeyword)}`;
-                const {written, liftable} = await writeChange(url, {
-                    method: "PATCH",
-                    headers: {Authorization: `Bearer ${token}`},
-                }, write("unset", {keyword: fullKeyword}), {force});
-                if (written) successCount++;
-                if (liftable) refused.push({param, ...liftable});
-            } catch (err) {
-                trackRefused({...write("unset", {keyword: section ? `${section}.${option}` : option}), reason: err.message});
-            }
-        }
-        if (successCount > 0) {
-            if (configNode) {
-                await fetchConfig(configNode, true);
-                await fetchExistingParams();
-                setConfigDialogOpen(true);
-            }
-        }
-        setActionLoading(false);
-        return {written: successCount > 0, refused};
-    };
-
-    const handleDeleteParams = async (force) => {
-        const refused = [];
-        if (!paramsToDelete.length) return {written: false, refused};
-        const token = localStorage.getItem("authToken");
-        if (!token) {
-            openSnackbar(t("config.feedback.tokenNotFound"), "error");
-            return {written: false, refused};
-        }
-        const {namespace, kind, name} = parseObjectPath(decodedObjectName);
-        setActionLoading(true);
-        let successCount = 0;
-        for (const section of paramsToDelete) {
-            try {
-                const url = `${URL_OBJECT}/${namespace}/${kind}/${name}/config?delete=${encodeURIComponent(section)}`;
-                const {written, liftable} = await writeChange(url, {
-                    method: "PATCH",
-                    headers: {Authorization: `Bearer ${token}`},
-                }, write("deleteSection", {section}), {force});
-                if (written) successCount++;
-                if (liftable) refused.push({param: section, ...liftable});
-            } catch (err) {
-                trackRefused({...write("deleteSection", {section}), reason: err.message});
-            }
-        }
-        if (successCount > 0) {
-            if (configNode) {
-                await fetchConfig(configNode, true);
-                await fetchExistingParams();
-                setConfigDialogOpen(true);
-            }
-        }
-        setActionLoading(false);
-        return {written: successCount > 0, refused};
+        return param.section ? `${param.section}.${param.option}` : param.option;
     };
 
     /**
-     * Writes the changes asked, each in its own request as before. Refused ones that
-     * force would lift stay in the dialog, alone, the daemon's words above them, to be
-     * written anyway (`force`) by whom may; the others refused are said in the actions
-     * tray only, as before.
+     * Writes the changes asked in one request, as om config update does: the
+     * sections deleted, the keywords unset, then set, the daemon applying them in
+     * that order, all or none; one wait for the nodes. The object none yet: created
+     * with the keywords set. Done, the dialog closes; refused, nothing is written,
+     * the dialog stays open with the changes and the daemon's words, written anyway
+     * (`force`) by whom may when force lifts the refusal.
      */
     const handleManageParamsSubmit = async (force = false) => {
         if (!paramsToSet.length && !paramsToUnset.length && !paramsToDelete.length) {
             openSnackbar(t("config.feedback.noSelection"), "error");
             return;
         }
-        setParamsRefused(null);
-        const none = {written: false, refused: []};
-        const set = paramsToSet.length ? await handleAddParams(force) : none;
-        const unset = paramsToUnset.length ? await handleUnsetParams(force) : none;
-        const deleted = paramsToDelete.length ? await handleDeleteParams(force) : none;
-        const refused = [...set.refused, ...unset.refused, ...deleted.refused];
-        if (refused.length > 0) {
-            setParamsToSet(set.refused.map(({param}) => param));
-            setParamsToUnset(unset.refused.map(({param}) => param));
-            setParamsToDelete(deleted.refused.map(({param}) => param));
-            setParamsRefused({
-                messages: [...new Set(refused.map(({message}) => message))],
-                lifts: strictestLift(refused.map(({lifts}) => lifts)),
-            });
+        // A change not valid is said before anything is sent: all are written, or none.
+        const sets = [];
+        for (const param of paramsToSet) {
+            const keyword = keywordOf(param);
+            /* istanbul ignore next */
+            if (!param.keyword) {
+                openSnackbar(t("config.feedback.invalidParam", {name: param.option}), "error");
+                return;
+            }
+            if (param.keyword.converter === "converters.TListLowercase" && param.value.includes(",")
+                && param.value.split(",").some((v) => !v.trim())) {
+                openSnackbar(t("config.feedback.invalidList", {keyword}), "error");
+                return;
+            }
+            sets.push({keyword, value: param.value});
+        }
+        const unsets = paramsToUnset.map(({section, option}) => (section ? `${section}.${option}` : option));
+        const token = localStorage.getItem("authToken");
+        if (!token) {
+            openSnackbar(t("config.feedback.tokenNotFound"), "error");
             return;
         }
-        if (set.written || unset.written || deleted.written) {
+        const {namespace, kind, name} = parseObjectPath(decodedObjectName);
+        // As om writes them: set=<keyword>=<value>, the keyword and the value each encoded.
+        const query = [
+            ...sets.map(({keyword, value}) => `set=${encodeURIComponent(keyword)}=${encodeURIComponent(value)}`),
+            // None yet: nothing to unset nor delete.
+            ...(absent ? [] : unsets.map((keyword) => `unset=${encodeURIComponent(keyword)}`)),
+            ...(absent ? [] : paramsToDelete.map((section) => `delete=${encodeURIComponent(section)}`)),
+        ].join("&");
+        // What it does, in the actions tray: each change, in the order applied.
+        const label = absent
+            ? t("actionTray.writes.configCreate")
+            : [
+                ...paramsToDelete.map((section) => t("actionTray.writes.deleteSection", {section})),
+                ...unsets.map((keyword) => t("actionTray.writes.unset", {keyword})),
+                ...sets.map(({keyword, value}) => t("actionTray.writes.set", {keyword, value})),
+            ].join("; ");
+        const info = {action: "config", label, subject: decodedObjectName, path: decodedObjectName};
+        const base = `${URL_OBJECT}/${namespace}/${kind}/${name}`;
+        setParamsRefused(null);
+        setActionLoading(true);
+        try {
+            const response = await fetch(withWriteParams(`${base}/${absent ? "config/file" : "config"}?${query}`, {wait, force}), absent
+                ? {method: "POST", headers: {Authorization: `Bearer ${token}`, "Content-Type": "application/octet-stream"}, body: withId("", newId())}
+                : {method: "PATCH", headers: {Authorization: `Bearer ${token}`}});
+            const problem = response.ok || response.status === 408 ? null : await readProblem(response);
+            if (!(await trackWrite(response, info, refusal))) {
+                setParamsRefused({
+                    messages: [problem.detail || `HTTP ${problem.status}`],
+                    lifts: forceLifts(problem, {creating: absent}),
+                });
+                return;
+            }
+            if (absent) setCreated(true);
             setParamsToSet([]);
             setParamsToUnset([]);
             setParamsToDelete([]);
             setManageParamsDialogOpen(false);
+            if (configNode) {
+                await fetchConfig(configNode, true);
+                await fetchExistingParams();
+                setConfigDialogOpen(true);
+            }
+        } catch (err) {
+            trackRefused({...info, reason: err.message});
+            setParamsRefused({messages: [err.message], lifts: null});
+        } finally {
+            setActionLoading(false);
         }
     };
 

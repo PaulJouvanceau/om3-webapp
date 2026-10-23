@@ -53,6 +53,3 @@ export function ForceRefusal({messages, lifts, isRoot, onForce, disabled, forceL
         </Alert>
     );
 }
-
-/** Who may force refusals force lifts all: root if one needs it, null when there are none. */
-export const strictestLift = (lifts) => (lifts.includes("root") ? "root" : lifts.length > 0 ? "anyone" : null);

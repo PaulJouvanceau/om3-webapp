@@ -155,9 +155,9 @@ describe('the force of a configuration write', () => {
         expect(within(alert).queryByRole('button')).toBeNull();
     });
 
-    test('the parameters: the ones refused that force lifts stay, alone, written anyway on demand', async () => {
+    test('the parameters: written in one request, waiting once; refused, all kept, written anyway on demand', async () => {
         const user = userEvent.setup();
-        refusals[`PATCH ${OBJ}/config`] = [null, {status: 409, body: HELD}, null];
+        refusals[`PATCH ${OBJ}/config`] = [{status: 409, body: HELD}, null];
         renderConfig();
         await screen.findByRole('group', {name: 'Configuration file'});
         await act(() => user.click(screen.getByRole('button', {name: /Manage configuration parameters/i})));
@@ -178,16 +178,16 @@ describe('the force of a configuration write', () => {
         const alert = await within(dialog).findByRole('alert');
         expect(alert).toHaveTextContent(HELD.detail);
         expect(writes().map((w) => decodeURIComponent(w.url))).toEqual([
-            `${OBJ}/config?set=nodes=n1 n2&wait=30s`,
-            `${OBJ}/config?set=fs#1.mnt=/srv&wait=30s`,
+            `${OBJ}/config?set=nodes=n1 n2&set=fs#1.mnt=/srv&wait=30s`,
         ]);
-        // The one written is gone from the dialog; the one refused is left.
-        expect(within(dialog).getAllByRole('textbox', {name: 'Value'}).map((i) => i.value)).toEqual(['/srv']);
+        // Refused, nothing written: every change is kept.
+        expect(within(dialog).getAllByRole('textbox', {name: 'Value'}).map((i) => i.value)).toEqual(['n1 n2', '/srv']);
 
         await act(() => user.click(within(alert).getByRole('button', {name: 'Write anyway (--force)'})));
-        await waitFor(() => expect(writes()).toHaveLength(3));
-        expect(decodeURIComponent(writes()[2].url)).toBe(`${OBJ}/config?set=fs#1.mnt=/srv&wait=30s&force=true`);
+        await waitFor(() => expect(writes()).toHaveLength(2));
+        expect(decodeURIComponent(writes()[1].url)).toBe(`${OBJ}/config?set=nodes=n1 n2&set=fs#1.mnt=/srv&wait=30s&force=true`);
         await waitFor(() => expect(screen.queryByRole('heading', {name: 'Manage Configuration Parameters'})).toBeNull());
+        expect(tray()[0]).toEqual(['Set nodes = n1 n2; Set fs#1.mnt = /srv', 'succeeded', null]);
     });
 
     test('a file uploaded and refused: the dialog stays open, the file written anyway on demand', async () => {

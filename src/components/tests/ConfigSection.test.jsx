@@ -410,7 +410,7 @@ describe('ConfigSection Component', () => {
             await act(() => user.click(screen.getByRole('button', {name: /Apply/i})));
             await waitFor(() => expect(posts()).toHaveLength(1));
             const [url, options] = posts()[0];
-            expect(url).toBe(`${URL_OBJECT}/dev/nscfg/namespace/config/file?set=orchestrate%3Dno`);
+            expect(url).toBe(`${URL_OBJECT}/dev/nscfg/namespace/config/file?set=orchestrate=no`);
             expect(options.body).toMatch(/^\[DEFAULT\]\nid = /);
             expect(global.fetch.mock.calls.some(([, o]) => o?.method === 'PATCH')).toBe(false);
             await waitFor(() => expect(tray()).toEqual([['Create the configuration', 'dev/nscfg/namespace', 'succeeded', null]]));
@@ -1052,13 +1052,16 @@ describe('ConfigSection Component', () => {
         await act(() => checkExisting(user, 1, 'nodes'));
         await act(() => checkExisting(user, 2, 'fs#1'));
         await act(() => user.click(screen.getByRole('button', {name: /Apply/i})));
-        // Each one refused, newest first.
+        // One request, all or none, the changes in the order the daemon applies them: refused once.
         await waitFor(() => expect(tray()).toEqual([
-            ['Delete section fs#1', 'root/cfg/cfg1', 'refused', 'HTTP 500'],
-            ['Unset nodes', 'root/cfg/cfg1', 'refused', 'HTTP 500'],
-            ['Set orchestrate = test', 'root/cfg/cfg1', 'refused', 'HTTP 500'],
+            ['Delete section fs#1; Unset nodes; Set orchestrate = test', 'root/cfg/cfg1', 'refused', 'HTTP 500'],
         ]));
+        const patches = global.fetch.mock.calls.filter(([, options]) => options?.method === 'PATCH').map(([url]) => url);
+        expect(patches).toEqual([`${URL_OBJECT}/root/cfg/cfg1/config?set=orchestrate=test&unset=nodes&delete=fs%231`]);
+        // Nothing written: the changes kept, and why said in the dialog.
         expect(screen.getByRole('heading', {name: 'Manage Configuration Parameters'})).toBeInTheDocument();
+        expect(within(getParamsTable()).getByText('orchestrate')).toBeInTheDocument();
+        expect(screen.getByRole('alert')).toHaveTextContent('HTTP 500');
     });
 
     test.each([
