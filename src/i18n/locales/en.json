@@ -129,6 +129,94 @@
       "messageGeneric": "Are you sure you want to perform this action on {{target}}?"
     }
   },
+  "actionOptions": {
+    "summary": "Options",
+    "summarySet_one": "Options ({{count}} set)",
+    "summarySet_other": "Options ({{count}} set)",
+    "destination": {
+      "label": "--to",
+      "hint": "The node to move the object to. Without one, the daemon picks the next preferred node.",
+      "none": "Next preferred node"
+    },
+    "live": {
+      "label": "--live",
+      "hint": "Use live migration where the resources allow it."
+    },
+    "interrupt_syncs": {
+      "label": "--interrupt-syncs",
+      "hint": "Stop the syncs running on the stopped instance instead of waiting for them to end."
+    },
+    "force": {
+      "label": "--force",
+      "hint": "Allow dangerous operations."
+    },
+    "adopt": {
+      "label": "--adopt",
+      "hint": "Take over the system resources already holding what the provision would take (for example, the replicated storage a restored object finds) instead of refusing them."
+    },
+    "disable_rollback": {
+      "label": "--disable-rollback",
+      "hint": "If the action fails, leave the activated resources as they are instead of returning them to their previous state."
+    },
+    "force_affinity": {
+      "label": "--force-affinity",
+      "hint": "Start even where the hard affinities of the object are not satisfied."
+    },
+    "leader": {
+      "label": "--leader",
+      "hint": "Act on all the resources, including the shared ones, which are provisioned only once."
+    },
+    "state_only": {
+      "label": "--state-only",
+      "hint": "Change only the state the agent records, not the system."
+    },
+    "preflight": {
+      "label": "--preflight",
+      "hint": "Only check that nothing on the node holds what the provision would take. Nothing is provisioned."
+    },
+    "confirm": {
+      "label": "--confirm",
+      "hint": "Confirm a run of a task configured to ask for a confirmation."
+    },
+    "cron": {
+      "label": "--cron",
+      "hint": "Run the task as the daemon runs it on its schedule."
+    },
+    "env": {
+      "label": "--env",
+      "hint": "Variables set in the environment of the task, one VAR=value per line."
+    },
+    "move-to": {
+      "label": "--move-to",
+      "hint": "The node to live-migrate the capable resources to.",
+      "none": "None"
+    },
+    "sync-to": {
+      "label": "--sync-to",
+      "hint": "After the stop, send the sync resources replicating to these nodes (comma-separated). If a send fails, the instance is started again.",
+      "placeholder": "n2,n3"
+    },
+    "target": {
+      "label": "--target",
+      "hint": "The peers to sync to, comma-separated: nodes, drpnodes, or node names.",
+      "placeholder": "nodes"
+    },
+    "to": {
+      "label": "--to",
+      "hint": "Stop processing once this resource or driver group is done.",
+      "placeholder": "fs#1"
+    },
+    "subset": {
+      "label": "--subset",
+      "hint": "Only the resources of these subsets (comma-separated).",
+      "placeholder": "g1,g2"
+    },
+    "tag": {
+      "label": "--tag",
+      "hint": "Only the resources with these tags (comma-separated).",
+      "placeholder": "t1,t2"
+    }
+  },
   "actions": {
     "labels": {
       "start": "Start",

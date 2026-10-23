@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { URL_NODE } from "../config/apiPath.js";
 import { readClusterStatus } from "../hooks/clusterStatusOnce";
 import useEventStore from "../hooks/useEventStore.js";
+import { recordConfigWrite } from "./config-stamps";
 
 /*
  * The actions asked, followed to their end, as `om ... --wait` follows them: the
@@ -366,6 +367,8 @@ export async function trackWrite(
   reason: (response: Response) => Promise<string>,
 ): Promise<boolean> {
   if (response.ok) {
+    // The configuration written, for the instance actions that follow to ask for it.
+    recordConfigWrite(info.path, response);
     trackDone(info);
     return true;
   }

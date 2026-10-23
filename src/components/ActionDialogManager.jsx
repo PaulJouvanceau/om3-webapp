@@ -15,13 +15,14 @@ import {
 import logger from '../utils/logger.js';
 import {useTranslation} from 'react-i18next';
 import {actionDescription} from '../app/action-menu';
+import ActionOptions from './ActionOptions';
 
 // The translated label of an action, as actionLabel() of constants/actions, kept local
 // so that the tests mocking constants/actions still render these dialogs.
 const labelOf = (t, action) => t(`actions.labels.${action.replace(/\s+(\w)/g, (_, c) => c.toUpperCase())}`,
     {defaultValue: action.charAt(0).toUpperCase() + action.slice(1)});
 
-export const SimpleConfirmDialog = ({open, onClose, onConfirm, action, scope = 'object', target, names, disabled, cancelDisabled}) => {
+export const SimpleConfirmDialog = ({open, onClose, onConfirm, action, scope = 'object', target, names, disabled, cancelDisabled, options}) => {
     const {t} = useTranslation();
     const known = typeof action === 'string' && action;
     // The action name stays as is in the English sentence, French shows its translated label.
@@ -55,6 +56,7 @@ export const SimpleConfirmDialog = ({open, onClose, onConfirm, action, scope = '
                     : t('actionDialogs.simpleConfirm.messageGeneric', values)}
             </p>
             <Subject names={names}/>
+            {options}
         </Dialog>
     );
 };
@@ -65,6 +67,7 @@ const ActionDialogManager = ({
                                  names,
                                  instances = false,
                                  supportedActions = [],
+                                 nodes = [],
                                  onClose,
                              }) => {
     // What the action runs on, for the confirmation to say what it does: resources
@@ -85,6 +88,9 @@ const ActionDialogManager = ({
         simpleConfirm: false,
     });
     const [lastAction, setLastAction] = useState(null);
+    // The options of the action (ActionOptions), given to handleConfirm with it: the
+    // ones of a new action start unset.
+    const [options, setOptions] = useState({});
 
     const dialogConfig = useMemo(() => ({
         freeze: {
@@ -94,7 +100,7 @@ const ActionDialogManager = ({
                     if (onClose) onClose();
                 },
                 onConfirm: () => {
-                    handleConfirm(pendingAction?.action);
+                    handleConfirm(pendingAction?.action, options);
                     if (onClose) onClose();
                 },
                 checked: checkboxState.freeze,
@@ -113,7 +119,7 @@ const ActionDialogManager = ({
                     if (onClose) onClose();
                 },
                 onConfirm: () => {
-                    handleConfirm(pendingAction?.action);
+                    handleConfirm(pendingAction?.action, options);
                     if (onClose) onClose();
                 },
                 checked: checkboxState.stop,
@@ -132,7 +138,7 @@ const ActionDialogManager = ({
                     if (onClose) onClose();
                 },
                 onConfirm: () => {
-                    handleConfirm(pendingAction?.action);
+                    handleConfirm(pendingAction?.action, options);
                     if (onClose) onClose();
                 },
                 checkboxes: checkboxState.shutdown,
@@ -171,7 +177,7 @@ const ActionDialogManager = ({
                     if (onClose) onClose();
                 },
                 onConfirm: () => {
-                    handleConfirm(pendingAction?.action);
+                    handleConfirm(pendingAction?.action, options);
                     if (onClose) onClose();
                 },
                 checkboxes: checkboxState.unprovision,
@@ -210,7 +216,7 @@ const ActionDialogManager = ({
                     if (onClose) onClose();
                 },
                 onConfirm: () => {
-                    handleConfirm(pendingAction?.action);
+                    handleConfirm(pendingAction?.action, options);
                     if (onClose) onClose();
                 },
                 checkboxes: checkboxState.purge,
@@ -248,7 +254,7 @@ const ActionDialogManager = ({
                     if (onClose) onClose();
                 },
                 onConfirm: () => {
-                    handleConfirm(pendingAction?.action);
+                    handleConfirm(pendingAction?.action, options);
                     if (onClose) onClose();
                 },
                 checkboxes: checkboxState["delete"],
@@ -287,7 +293,7 @@ const ActionDialogManager = ({
                     if (onClose) onClose();
                 },
                 onConfirm: () => {
-                    handleConfirm(pendingAction?.action);
+                    handleConfirm(pendingAction?.action, options);
                     if (onClose) onClose();
                 },
                 checked: checkboxState["switch"],
@@ -306,7 +312,7 @@ const ActionDialogManager = ({
                     if (onClose) onClose();
                 },
                 onConfirm: () => {
-                    handleConfirm(pendingAction?.action);
+                    handleConfirm(pendingAction?.action, options);
                     if (onClose) onClose();
                 },
                 checked: checkboxState.giveback,
@@ -325,7 +331,7 @@ const ActionDialogManager = ({
                     if (onClose) onClose();
                 },
                 onConfirm: () => {
-                    handleConfirm(pendingAction?.action);
+                    handleConfirm(pendingAction?.action, options);
                     if (onClose) onClose();
                 },
                 action: pendingAction?.action,
@@ -336,10 +342,11 @@ const ActionDialogManager = ({
                 cancelDisabled: false,
             },
         },
-    }), [checkboxState, handleConfirm, pendingAction, target, names, instances, onClose]);
+    }), [checkboxState, handleConfirm, pendingAction, target, names, instances, onClose, options]);
     useEffect(() => {
         if (pendingAction === null) {
             setLastAction(null);
+            setOptions({});
             if (onClose) onClose();
             return;
         }
@@ -388,6 +395,7 @@ const ActionDialogManager = ({
             } else {
                 initCheckbox.simpleConfirm();
             }
+            setOptions({});
             setLastAction(action);
         }
     }, [pendingAction, supportedActions, onClose, lastAction]);
@@ -401,7 +409,8 @@ const ActionDialogManager = ({
     }
     const config = dialogConfig[action] || dialogConfig.simpleConfirm;
     const Component = config.component;
-    const props = {...config.props, open: true, disabled: false};
+    const form = <ActionOptions action={action} scope={scope} nodes={nodes} values={options} onChange={setOptions}/>;
+    const props = {...config.props, open: true, disabled: false, options: form};
     return <Component key={action} {...props} />;
 };
 

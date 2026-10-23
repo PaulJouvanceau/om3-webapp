@@ -1276,7 +1276,8 @@ describe('Objects Component', () => {
             await clickMenuItem('Stop');
             await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
             const dialog = screen.getByRole('dialog');
-            const checkbox = /** @type {HTMLInputElement} */ (within(dialog).getByRole('checkbox'));
+            // The acknowledgement, not an option of the stop (--interrupt-syncs).
+            const checkbox = /** @type {HTMLInputElement} */ (within(dialog).getByRole('checkbox', {name: 'Confirm service interruption'}));
             fireEvent.click(checkbox);
             fireEvent.click(within(dialog).getByRole('button', {name: /confirm stop/i}));
             await waitFor(() =>

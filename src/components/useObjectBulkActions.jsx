@@ -6,7 +6,7 @@ import logger from "../utils/logger.js";
 import {isActionAllowedForSelection, parseObjectPath} from "../utils/objectUtils";
 import {KEY_KINDS, OBJECT_ACTIONS, actionLabel, isKeyKindAction} from "../constants/actions";
 import {trackRefused, trackResponse} from "../app/action-tracker";
-import {actionUrl, refusalReason} from "./objectActions";
+import {actionRequest, refusalReason} from "./objectActions";
 import {getResponseErrorMessage} from "../services/api.jsx";
 import ActionDialogManager from "./ActionDialogManager";
 import {Alert} from "../ui/components/Alert";
@@ -85,7 +85,7 @@ export function useObjectBulkActions({selectedObjects, onDone}) {
         setPendingAction({action, target: null});
     }, []);
 
-    const execute = useCallback(async (action) => {
+    const execute = useCallback(async (action, options) => {
         const token = localStorage.getItem("authToken");
         if (!token) {
             notify(t("objects.feedback.authTokenNotFound"), "error");
@@ -111,11 +111,12 @@ export function useObjectBulkActions({selectedObjects, onDone}) {
                 refuse(objectName, t("actionTray.reasons.alreadyUnfrozen"));
                 return;
             }
-            const url = actionUrl({path: objectName, action});
+            const {url, body} = actionRequest({path: objectName, action, options});
             try {
                 const response = await fetch(url, {
                     method: "POST",
                     headers: {Authorization: `Bearer ${token}`, "Content-Type": "application/json"},
+                    ...(body === undefined ? {} : {body}),
                 });
                 if (!response.ok) {
                     const detail = await getResponseErrorMessage(response);
@@ -181,6 +182,12 @@ export function useObjectBulkActions({selectedObjects, onDone}) {
     ) : null;
 
     const dialogNames = useMemo(() => actedOn(selectedObjects), [selectedObjects]);
+    // The nodes of the objects acted on, for the options naming one (switch --to): a
+    // node not one of an object's, the daemon refuses the action on that one.
+    const dialogNodes = useMemo(() => {
+        const objects = pendingAction?.target ? [pendingAction.target] : dialogNames;
+        return [...new Set(objects.flatMap((obj) => objectStatus[obj]?.scope ?? []))];
+    }, [pendingAction, dialogNames, objectStatus]);
     const dialog = (
         <ActionDialogManager
             pendingAction={pendingAction}
@@ -190,6 +197,7 @@ export function useObjectBulkActions({selectedObjects, onDone}) {
                 : t("objects.dialogTarget.objects", {count: dialogNames.length})}
             names={pendingAction?.target ? undefined : dialogNames}
             supportedActions={OBJECT_ACTIONS.map((action) => action.name)}
+            nodes={dialogNodes}
             onClose={() => setPendingAction(null)}
         />
     );

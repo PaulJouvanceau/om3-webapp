@@ -268,7 +268,7 @@ describe('ActionDialogManager', () => {
         expect(props).toMatchObject({open: true, disabled: false, checked: false, target: 'test-target'});
         expect(screen.getByText('test-target')).toBeInTheDocument();
         fireEvent.click(screen.getByText('Confirm'));
-        expect(defaultProps.handleConfirm).toHaveBeenCalledWith('FREEZE');
+        expect(defaultProps.handleConfirm).toHaveBeenCalledWith('FREEZE', {});
     });
 
     test('opens SimpleConfirmDialog for unknown action', async () => {
@@ -292,7 +292,7 @@ describe('ActionDialogManager', () => {
         const checkbox = await screen.findByTestId('freeze-checkbox');
         fireEvent.click(checkbox);
         fireEvent.click(screen.getByText('Confirm'));
-        expect(defaultProps.handleConfirm).toHaveBeenCalledWith('freeze');
+        expect(defaultProps.handleConfirm).toHaveBeenCalledWith('freeze', {});
     });
 
     test('handles shutdown checkboxes properly', async () => {
@@ -307,7 +307,7 @@ describe('ActionDialogManager', () => {
         fireEvent.click(instancesDownCheckbox);
         fireEvent.click(peerTakeoverCheckbox);
         fireEvent.click(screen.getByText('Confirm'));
-        expect(defaultProps.handleConfirm).toHaveBeenCalledWith('shutdown');
+        expect(defaultProps.handleConfirm).toHaveBeenCalledWith('shutdown', {});
     });
 
     test('handles invalid setCheckboxes value for shutdown', async () => {
@@ -332,7 +332,7 @@ describe('ActionDialogManager', () => {
         fireEvent.click(dataLossCheckbox);
         fireEvent.click(serviceInterruptionCheckbox);
         fireEvent.click(screen.getByText('Confirm'));
-        expect(defaultProps.handleConfirm).toHaveBeenCalledWith('unprovision');
+        expect(defaultProps.handleConfirm).toHaveBeenCalledWith('unprovision', {});
     });
 
     test('handles invalid setCheckboxes value for unprovision', async () => {
@@ -372,7 +372,7 @@ describe('ActionDialogManager', () => {
         fireEvent.click(screen.getByTestId('delete-configLoss-checkbox'));
         fireEvent.click(screen.getByTestId('delete-clusterwide-checkbox'));
         fireEvent.click(screen.getByText('Confirm'));
-        expect(defaultProps.handleConfirm).toHaveBeenCalledWith('delete');
+        expect(defaultProps.handleConfirm).toHaveBeenCalledWith('delete', {});
     });
 
     test('handles switch dialog correctly', async () => {
@@ -380,7 +380,7 @@ describe('ActionDialogManager', () => {
         await screen.findByTestId('switch-dialog');
         fireEvent.click(screen.getByTestId('switch-checkbox'));
         fireEvent.click(screen.getByText('Confirm'));
-        expect(defaultProps.handleConfirm).toHaveBeenCalledWith('switch');
+        expect(defaultProps.handleConfirm).toHaveBeenCalledWith('switch', {});
     });
 
     test('handles giveback dialog correctly', async () => {
@@ -388,14 +388,14 @@ describe('ActionDialogManager', () => {
         await screen.findByTestId('giveback-dialog');
         fireEvent.click(screen.getByTestId('giveback-checkbox'));
         fireEvent.click(screen.getByText('Confirm'));
-        expect(defaultProps.handleConfirm).toHaveBeenCalledWith('giveback');
+        expect(defaultProps.handleConfirm).toHaveBeenCalledWith('giveback', {});
     });
 
     test('handles simpleConfirm fallback dialog', async () => {
         render(<ActionDialogManager {...defaultProps} pendingAction={{action: 'other'}}/>);
         expect(await screen.findByText('Confirm Other')).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', {name: 'Confirm'}));
-        expect(defaultProps.handleConfirm).toHaveBeenCalledWith('other');
+        expect(defaultProps.handleConfirm).toHaveBeenCalledWith('other', {});
     });
 
     test('handles purge dialog correctly', async () => {
@@ -405,7 +405,7 @@ describe('ActionDialogManager', () => {
         fireEvent.click(screen.getByTestId('purge-configLoss-checkbox'));
         fireEvent.click(screen.getByTestId('purge-serviceInterruption-checkbox'));
         fireEvent.click(screen.getByText('Confirm'));
-        expect(defaultProps.handleConfirm).toHaveBeenCalledWith('purge');
+        expect(defaultProps.handleConfirm).toHaveBeenCalledWith('purge', {});
     });
 
     test('covers setCheckboxes branches for shutdown', async () => {
@@ -497,7 +497,7 @@ describe('ActionDialogManager', () => {
             await screen.findByTestId(dialog);
             if (checkbox) fireEvent.click(screen.getByTestId(checkbox));
             fireEvent.click(screen.getByText('Confirm'));
-            expect(defaultProps.handleConfirm).toHaveBeenCalledWith(action);
+            expect(defaultProps.handleConfirm).toHaveBeenCalledWith(action, {});
             expect(defaultProps.onClose).toHaveBeenCalled();
             unmount();
 
@@ -516,7 +516,7 @@ describe('ActionDialogManager', () => {
             await screen.findByTestId(dialog);
             if (checkbox) fireEvent.click(screen.getByTestId(checkbox));
             fireEvent.click(screen.getByText('Confirm'));
-            expect(defaultProps.handleConfirm).toHaveBeenCalledWith(action);
+            expect(defaultProps.handleConfirm).toHaveBeenCalledWith(action, {});
             unmount();
         }
     );

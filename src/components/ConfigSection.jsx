@@ -14,6 +14,7 @@ import {ConfigText} from "./ConfigText";
 import {CopyButton} from "../ui/components/CopyButton";
 import {extractSection, replaceSection} from "../utils/configSections";
 import {trackDone, trackRefused, trackWrite} from "../app/action-tracker";
+import {recordConfigWrite} from "../app/config-stamps";
 import {newId, withId} from "../app/object-create";
 
 /**
@@ -797,6 +798,7 @@ const ConfigSection = ({
                 setEditError(t("config.feedback.updateFailed", {message}));
                 return;
             }
+            recordConfigWrite(decodedObjectName, response);
             trackDone({action: "config", label, subject: decodedObjectName, path: decodedObjectName});
             if (absent) setCreated(true);
             setEdit(null);

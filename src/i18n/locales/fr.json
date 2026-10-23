@@ -129,6 +129,94 @@
       "messageGeneric": "Voulez-vous vraiment exécuter cette action sur {{target}} ?"
     }
   },
+  "actionOptions": {
+    "summary": "Options",
+    "summarySet_one": "Options ({{count}} définie)",
+    "summarySet_other": "Options ({{count}} définies)",
+    "destination": {
+      "label": "--to",
+      "hint": "Le nœud vers lequel déplacer l'objet. Sans nœud choisi, le démon prend le nœud préféré suivant.",
+      "none": "Nœud préféré suivant"
+    },
+    "live": {
+      "label": "--live",
+      "hint": "Utiliser la migration à chaud là où les ressources le permettent."
+    },
+    "interrupt_syncs": {
+      "label": "--interrupt-syncs",
+      "hint": "Arrêter les synchronisations en cours sur l'instance arrêtée au lieu d'attendre leur fin."
+    },
+    "force": {
+      "label": "--force",
+      "hint": "Autoriser les opérations dangereuses."
+    },
+    "adopt": {
+      "label": "--adopt",
+      "hint": "Reprendre les ressources système qui occupent déjà ce que le provisionnement prendrait (par exemple le stockage répliqué que trouve un objet restauré) au lieu de les refuser."
+    },
+    "disable_rollback": {
+      "label": "--disable-rollback",
+      "hint": "En cas d'échec, laisser les ressources activées en l'état au lieu de les remettre dans leur état précédent."
+    },
+    "force_affinity": {
+      "label": "--force-affinity",
+      "hint": "Démarrer même là où les affinités strictes de l'objet ne sont pas satisfaites."
+    },
+    "leader": {
+      "label": "--leader",
+      "hint": "Agir sur toutes les ressources, y compris les ressources partagées, qui ne sont provisionnées qu'une fois."
+    },
+    "state_only": {
+      "label": "--state-only",
+      "hint": "Ne modifier que l'état enregistré par l'agent, pas le système."
+    },
+    "preflight": {
+      "label": "--preflight",
+      "hint": "Vérifier seulement que rien sur le nœud n'occupe ce que le provisionnement prendrait. Rien n'est provisionné."
+    },
+    "confirm": {
+      "label": "--confirm",
+      "hint": "Confirmer l'exécution d'une tâche configurée pour demander une confirmation."
+    },
+    "cron": {
+      "label": "--cron",
+      "hint": "Exécuter la tâche comme le démon le fait selon sa planification."
+    },
+    "env": {
+      "label": "--env",
+      "hint": "Variables définies dans l'environnement de la tâche, une VAR=valeur par ligne."
+    },
+    "move-to": {
+      "label": "--move-to",
+      "hint": "Le nœud vers lequel migrer à chaud les ressources qui le permettent.",
+      "none": "Aucun"
+    },
+    "sync-to": {
+      "label": "--sync-to",
+      "hint": "Après l'arrêt, envoyer les ressources de synchronisation qui répliquent vers ces nœuds (séparés par des virgules). Si un envoi échoue, l'instance est redémarrée.",
+      "placeholder": "n2,n3"
+    },
+    "target": {
+      "label": "--target",
+      "hint": "Les pairs vers lesquels synchroniser, séparés par des virgules : nodes, drpnodes ou des noms de nœuds.",
+      "placeholder": "nodes"
+    },
+    "to": {
+      "label": "--to",
+      "hint": "Arrêter le traitement une fois cette ressource ou ce groupe de drivers traité.",
+      "placeholder": "fs#1"
+    },
+    "subset": {
+      "label": "--subset",
+      "hint": "Seulement les ressources de ces sous-ensembles (séparés par des virgules).",
+      "placeholder": "g1,g2"
+    },
+    "tag": {
+      "label": "--tag",
+      "hint": "Seulement les ressources portant ces tags (séparés par des virgules).",
+      "placeholder": "t1,t2"
+    }
+  },
   "actions": {
     "labels": {
       "start": "Démarrer",

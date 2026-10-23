@@ -185,14 +185,14 @@ const ObjectStatus = ({path, onOrchestrationLogs, linkNode, linkResource, openCe
         setPending({action, targets, subject: subject ?? object, fromSelection});
     }, [path, t]);
 
-    const run = useCallback(async () => {
+    const run = useCallback(async (_action, options) => {
         if (pending === null) return;
         const {action, fromSelection} = pending;
         setPending(null);
         setRunning(true);
         const targets = pending.targets.length === 0
-            ? [{path, action}]
-            : pending.targets.map(({node, rid}) => ({path, action, node, rid}));
+            ? [{path, action, options}]
+            : pending.targets.map(({node, rid}) => ({path, action, node, rid, options}));
         await Promise.all(targets.map((target) => postAction(target)));
         if (fromSelection) {
             setPickedNodes([]);
@@ -442,6 +442,7 @@ const ObjectStatus = ({path, onOrchestrationLogs, linkNode, linkResource, openCe
                 target={pending?.subject ?? ""}
                 instances={(pending?.targets?.length ?? 0) > 0}
                 supportedActions={SUPPORTED_ACTIONS}
+                nodes={allNodes}
                 onClose={() => setPending(null)}
             />
             <ConsoleTerminal open={consoleTarget !== null} target={consoleTarget} onClose={() => setConsoleTarget(null)}/>

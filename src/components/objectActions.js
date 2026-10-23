@@ -3,6 +3,8 @@ import {INSTANCE_ACTIONS, NODE_ACTIONS, OBJECT_ACTIONS, RESOURCE_ACTIONS} from "
 import {getResponseErrorMessage} from "../services/api.jsx";
 import {parseObjectPath} from "../utils/objectUtils.jsx";
 import {trackRefused, trackResponse} from "../app/action-tracker";
+import {optionsRequest} from "../app/action-options";
+import {configStamp} from "../app/config-stamps";
 import i18n from "../i18n";
 
 /*
@@ -45,6 +47,35 @@ export function actionUrl({path, action, node, rid}) {
     return `${instance}/${endpoint}`;
 }
 
+/** The instance actions asking for no configuration in particular: they change nothing of it. */
+const UNSTAMPED = [CLEAR_ACTION.name, "status", "info", "console"];
+
+/** What an action runs on, for its options: the object, instances, resources of instances. */
+export const actionScope = ({node, rid}) => (rid !== undefined ? "resource" : node !== undefined ? "instance" : "object");
+
+/**
+ * The request of an action, its `options` set (app/action-options): the address
+ * with the options read from the query, and the json body of the ones read from
+ * it, none when no option goes there. An instance action asks for the
+ * configuration last written here of the object (app/config-stamps), refused by an
+ * instance not holding it yet, but for the ones only reading it (a refresh of the
+ * status, the info). The cluster object's actions take none.
+ */
+export function actionRequest({path, action, node, rid, options}) {
+    const url = actionUrl({path, action, node, rid});
+    if (parseObjectPath(path).kind === "ccfg" && rid === undefined) return {url};
+    const scope = actionScope({node, rid});
+    const {query, body} = optionsRequest(action, scope, options);
+    const params = new URLSearchParams(query);
+    const stamp = scope === "object" || UNSTAMPED.includes(action) ? undefined : configStamp(path);
+    if (stamp !== undefined) params.append("config_updated_at", stamp);
+    const extra = params.toString();
+    return {
+        url: extra === "" ? url : `${url}${url.includes("?") ? "&" : "?"}${extra}`,
+        ...(body === undefined ? {} : {body: JSON.stringify(body)}),
+    };
+}
+
 /** Actions with nothing to follow: a refresh of the status, a clear of a failed monitor. */
 const UNTRACKED = ["status", CLEAR_ACTION.name, "console"];
 
@@ -60,18 +91,22 @@ export function actionSubject({path, node, rid}) {
 export const refusalReason = ({status, detail}) => [status ? `HTTP ${status}` : "", detail ?? ""].join(" ").trim();
 
 /**
- * Posts an action; resolves to null when the daemon accepted it, to the reason it
- * gave otherwise ({status, detail}). Accepted, it is followed to its end in the
- * actions tray; refused, or not sent, it is said there too.
+ * Posts an action, with its `options` if any (actionRequest); resolves to null when
+ * the daemon accepted it, to the reason it gave otherwise ({status, detail}).
+ * Accepted, it is followed to its end in the actions tray; refused, or not sent, it
+ * is said there too.
  */
 export async function postAction(target) {
     const tracked = !UNTRACKED.includes(target.action);
     const subject = actionSubject(target);
+    const {url, body} = actionRequest(target);
+    const headers = {Authorization: `Bearer ${localStorage.getItem("authToken")}`};
     let response;
     try {
-        response = await fetch(actionUrl(target), {
+        response = await fetch(url, {
             method: "POST",
-            headers: {Authorization: `Bearer ${localStorage.getItem("authToken")}`},
+            headers: body === undefined ? headers : {...headers, "Content-Type": "application/json"},
+            ...(body === undefined ? {} : {body}),
         });
     } catch (err) {
         if (tracked) trackRefused({action: target.action, subject, reason: err.message});

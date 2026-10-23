@@ -8,6 +8,7 @@ import ActionDialogManager from "./ActionDialogManager";
 import ConsoleTerminal from "./ConsoleTerminal.jsx";
 import {CLEAR_ACTION, postAction} from "./objectActions";
 import {parseObjectPath} from "../utils/objectUtils.jsx";
+import useEventStore from "../hooks/useEventStore.js";
 
 /** Icon of an action in a menu: the action icons are sized to the menu line. */
 const ICON = "flex h-4 w-4 items-center justify-center text-ink-muted [&>svg]:h-4! [&>svg]:w-4!";
@@ -42,12 +43,15 @@ export function useActionRunner(path) {
         setPending({action, targets, subject, onDone});
     }, [path]);
 
-    const run = useCallback(async () => {
+    // The nodes of the object, for the options naming one (stop --move-to).
+    const scope = useEventStore((s) => s.objectStatus?.[path]?.scope);
+
+    const run = useCallback(async (_action, options) => {
         if (pending === null) return;
         const {action, targets, onDone} = pending;
         setPending(null);
         setRunning(true);
-        await Promise.all(targets.map(({node, rid}) => postAction({path, action, node, rid})));
+        await Promise.all(targets.map(({node, rid}) => postAction({path, action, node, rid, options})));
         onDone?.();
         setRunning(false);
     }, [pending, path]);
@@ -60,6 +64,7 @@ export function useActionRunner(path) {
                 target={pending?.subject ?? ""}
                 instances={pending?.targets?.some(({node}) => node !== undefined) ?? false}
                 supportedActions={SUPPORTED_ACTIONS}
+                nodes={scope ?? []}
                 onClose={() => setPending(null)}
             />
             <ConsoleTerminal open={consoleTarget !== null} target={consoleTarget} onClose={() => setConsoleTarget(null)}/>
