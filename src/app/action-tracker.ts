@@ -301,21 +301,30 @@ export function trackRefused({
   subject,
   reason,
   label,
+  orchestrationId,
+  node,
 }: {
   action: string;
   subject: string;
   reason: string;
   label?: string;
+  /**
+   * The orchestration the daemon recorded the refusal under (an object action its
+   * instance monitor refused), and the node answering for it: its logs a click away,
+   * as an orchestration accepted. The nil id names none.
+   */
+  orchestrationId?: string;
+  node?: string;
 }) {
   sequence += 1;
   const now = Date.now();
+  const recorded = orchestrationId !== undefined && orchestrationId !== "" && !/^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(orchestrationId);
   const refused: Tracked = {
     id: `${String(now)}-${String(sequence)}`,
     action,
     ...(label === undefined ? {} : { label }),
     subject,
-    kind: "exec",
-    node: "",
+    ...(recorded ? { kind: "orchestration" as const, followedId: orchestrationId, node: node ?? "" } : { kind: "exec" as const, node: "" }),
     state: "refused",
     error: reason || undefined,
     startedAt: now,

@@ -138,8 +138,15 @@ export async function postAction(target) {
         }
         return null;
     }
+    // Refused by the instance monitor, the id it recorded the refusal under, and its node: its logs then shown.
+    const problem = typeof response.clone === "function" ? await response.clone().json().catch(() => null) : null;
     const refusal = {status: response.status, detail: await getResponseErrorMessage(response)};
-    if (tracked) trackRefused({action: target.action, subject, reason: refusalReason(refusal)});
+    if (tracked) {
+        trackRefused({
+            action: target.action, subject, reason: refusalReason(refusal),
+            orchestrationId: problem?.orchestration_id, node: problem?.node,
+        });
+    }
     return refusal;
 }
 

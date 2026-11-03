@@ -1,7 +1,7 @@
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
 import {actionRequest, postAction} from '../objectActions';
 import {clearConfigStamps, recordConfigWrite} from '../../app/config-stamps';
-import {trackWrite} from '../../app/action-tracker';
+import {trackWrite, useActionTracker} from '../../app/action-tracker';
 
 const written = (stamp) => new Response(null, {status: 200, headers: stamp ? {'OM-Last-Modified': stamp} : {}});
 
@@ -82,6 +82,29 @@ describe('postAction', () => {
             headers: {Authorization: 'Bearer tok', 'Content-Type': 'application/json'},
             body: JSON.stringify({destination: ['n2'], live: false}),
         });
+    });
+
+    test('refused by the instance monitor: the reason said, the orchestration it is recorded under kept, its logs then shown', async () => {
+        useActionTracker.setState({tracked: [], revealed: 0});
+        const ID = '33333333-3333-3333-3333-333333333333';
+        global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+            status: 409, title: 'set instance monitor', detail: 'no instance to switch from', orchestration_id: ID, node: 'n2',
+        }), {status: 409, headers: {'Content-Type': 'application/json'}}));
+        const refusal = await postAction({path: 'ns1/svc/web', action: 'switch', options: {destination: 'n2'}});
+        expect(refusal).toMatchObject({status: 409, detail: expect.stringMatching(/no instance to switch from/)});
+        expect(useActionTracker.getState().tracked[0]).toMatchObject({
+            state: 'refused', kind: 'orchestration', followedId: ID, node: 'n2', error: expect.stringMatching(/no instance to switch from/),
+        });
+    });
+
+    test('a refusal naming no orchestration, or the nil one, has none to follow', async () => {
+        useActionTracker.setState({tracked: [], revealed: 0});
+        global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+            status: 409, title: 'set instance monitor', detail: 'refused', orchestration_id: '00000000-0000-0000-0000-000000000000', node: 'n2',
+        }), {status: 409, headers: {'Content-Type': 'application/json'}}));
+        await postAction({path: 'ns1/svc/web', action: 'switch', options: {destination: 'n2'}});
+        expect(useActionTracker.getState().tracked[0]).toMatchObject({state: 'refused', kind: 'exec'});
+        expect(useActionTracker.getState().tracked[0].followedId).toBeUndefined();
     });
 
     test('without one, no body, as before', async () => {

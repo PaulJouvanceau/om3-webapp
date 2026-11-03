@@ -247,6 +247,8 @@ describe("ActionTray, the logs of each action", () => {
       trackAccepted({ orchestration_id: ORCH, node: "dev3n1" }, { action: "provision", subject: "foo" });
       trackAccepted({ exec_id: EXEC }, { action: "start", subject: "foo on dev3n2", node: "dev3n2" });
       trackRefused({ action: "stop", subject: "bar", reason: "HTTP 403" });
+      // Refused by the instance monitor, recorded under an orchestration: its logs there.
+      trackRefused({ action: "switch", subject: "baz", reason: "no instance to switch from", orchestrationId: ORCH, node: "dev3n2" });
     });
     const tray = openTray();
     fireEvent.click(within(tray).getByRole("button", { name: "Logs of Provision foo" }));
@@ -259,6 +261,11 @@ describe("ActionTray, the logs of each action", () => {
     expect(exec).toHaveAttribute("data-id", EXEC);
     expect(exec).toHaveAttribute("data-node", "dev3n2");
     expect(within(tray).queryByRole("button", { name: /^Logs of Stop/ })).toBeNull();
+    fireEvent.click(within(tray).getByRole("button", { name: "Logs of Switch baz" }));
+    const refused = screen.getByRole("dialog", { name: "logs Switch baz" });
+    expect(refused).toHaveAttribute("data-kind", "orchestration");
+    expect(refused).toHaveAttribute("data-id", ORCH);
+    expect(refused).toHaveAttribute("data-node", "dev3n2");
     act(() => {
       useActionTracker.setState({ tracked: [] });
     });
