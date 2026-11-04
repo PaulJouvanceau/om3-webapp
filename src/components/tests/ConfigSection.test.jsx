@@ -350,6 +350,26 @@ describe('ConfigSection Component', () => {
         await waitFor(() => expect(configFileGets()).toHaveLength(1));
     });
 
+    test('each button its word beside its icon: what it does read before a click', async () => {
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, 'clipboard', {value: {writeText}, configurable: true});
+        try {
+            global.fetch.mockImplementation((url, options) => (url.includes('/config/file')
+                ? Promise.resolve({ok: true, status: 200, text: () => Promise.resolve('[DEFAULT]\nnodes = *\n')})
+                : defaultFetchMock(url, options)));
+            renderConfig({inline: true});
+            const copy = await screen.findByRole('button', {name: 'Copy the configuration shown'});
+            expect(copy).toHaveTextContent(/^Copy$/);
+            expect(screen.getByRole('button', {name: 'Show secrets'})).toHaveTextContent(/^Show secrets$/);
+            expect(screen.getByRole('button', {name: 'Edit configuration file'})).toHaveTextContent(/^Edit$/);
+            expect(screen.getByRole('button', {name: 'Upload new configuration file'})).toHaveTextContent(/^Upload$/);
+            expect(screen.getByRole('button', {name: 'Design the configuration'})).toHaveTextContent(/^Design$/);
+            expect(screen.getByRole('button', {name: 'Evaluate the keywords'})).toHaveTextContent(/^Evaluate$/);
+        } finally {
+            Object.defineProperty(navigator, 'clipboard', {value: undefined, configurable: true});
+        }
+    });
+
     test('the configuration shown copied, its secrets as shown', async () => {
         const writeText = vi.fn().mockResolvedValue(undefined);
         Object.defineProperty(navigator, 'clipboard', {value: {writeText}, configurable: true});

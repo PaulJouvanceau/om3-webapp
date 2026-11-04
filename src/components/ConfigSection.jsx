@@ -1,6 +1,6 @@
 import React, {useState, useEffect, useRef, useMemo, useReducer, useCallback} from "react";
 import {Dialog} from "../ui/components/Dialog";
-import {Button, IconButton} from "../ui/components/Button";
+import {Button} from "../ui/components/Button";
 import {Checkbox, Textarea} from "../ui/components/Field";
 import {Alert} from "../ui/components/Alert";
 import {Spinner} from "../ui/components/Spinner";
@@ -677,7 +677,9 @@ const ConfigSection = ({
                     </div>
                 ) : (
                     <>
-                        <div className="flex items-center justify-end gap-1">
+                        {/* Each button its word beside its icon: what it does read before a click,
+                            on a touch screen with no hover too. Narrow, on more lines. */}
+                        <div className="flex flex-wrap items-center justify-end gap-1.5">
                             {configData !== null && !configLoading && (
                                 <p className="mr-auto text-data text-ink-muted">
                                     {showSecrets
@@ -687,48 +689,67 @@ const ConfigSection = ({
                             )}
                             {/* The text shown copied: its secrets masked unless shown. */}
                             {shownText !== null && !configLoading && (
-                                <CopyButton size="md" text={shownText} label={t("config.view.copy")}/>
+                                <CopyButton text={shownText} label={t("config.view.copy")} word={t("config.view.copyShort")}/>
                             )}
-                            {!absent && <IconButton
-                                label={showSecrets ? t("config.view.hideSecrets") : t("config.view.showSecrets")}
-                                aria-pressed={showSecrets}
-                                onClick={() => setShowSecrets((shown) => !shown)}
-                                // Hidden at any time, a slow read in clear dropped.
-                                disabled={configLoading && !showSecrets}
-                            >
-                                {showSecrets ? <EyeOffIcon/> : <EyeIcon/>}
-                            </IconButton>}
-                            <IconButton
-                                label={t("config.view.editFile")}
+                            {!absent && (
+                                <Button
+                                    size="sm"
+                                    aria-label={showSecrets ? t("config.view.hideSecrets") : t("config.view.showSecrets")}
+                                    aria-pressed={showSecrets}
+                                    icon={showSecrets ? <EyeOffIcon/> : <EyeIcon/>}
+                                    onClick={() => setShowSecrets((shown) => !shown)}
+                                    // Hidden at any time, a slow read in clear dropped.
+                                    disabled={configLoading && !showSecrets}
+                                >
+                                    {showSecrets ? t("config.view.hideSecretsShort") : t("config.view.showSecretsShort")}
+                                </Button>
+                            )}
+                            <Button
+                                size="sm"
+                                aria-label={t("config.view.editFile")}
+                                title={t("config.view.editFile")}
+                                // The file edited: the pencil.
+                                icon={<PencilIcon/>}
                                 onClick={startEdit}
                                 disabled={actionLoading || editLoading || (!configNode && !absent)}
                             >
-                                {/* The file edited: the pencil. */}
-                                <PencilIcon/>
-                            </IconButton>
+                                {t("config.view.editShort")}
+                            </Button>
                             {/* The whole file uploaded, its parameters set: not from a section. */}
                             {section === null && (
                                 <>
-                                    <IconButton
-                                        label={t("config.view.uploadFile")}
+                                    <Button
+                                        size="sm"
+                                        aria-label={t("config.view.uploadFile")}
+                                        title={t("config.view.uploadFile")}
+                                        icon={<UploadIcon/>}
                                         onClick={() => setUpdateConfigDialogOpen(true)}
                                         disabled={actionLoading}
                                     >
-                                        <UploadIcon/>
-                                    </IconButton>
-                                    <IconButton
-                                        label={t("config.view.manageParams")}
+                                        {t("config.view.uploadShort")}
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        aria-label={t("config.view.manageParams")}
+                                        title={t("config.view.manageParams")}
+                                        // The configuration designed, its sections and keywords: the sliders.
+                                        icon={<SlidersIcon/>}
                                         onClick={openDesign}
                                         disabled={actionLoading}
                                     >
-                                        {/* The configuration designed, its sections and keywords: the sliders. */}
-                                        <SlidersIcon/>
-                                    </IconButton>
+                                        {t("config.view.designShort")}
+                                    </Button>
                                     {/* None yet: nothing to evaluate. */}
                                     {!absent && (
-                                        <IconButton label={t("configEval.open")} onClick={() => setEvalOpen(true)}>
-                                            <CodeIcon/>
-                                        </IconButton>
+                                        <Button
+                                            size="sm"
+                                            aria-label={t("configEval.open")}
+                                            title={t("configEval.open")}
+                                            icon={<CodeIcon/>}
+                                            onClick={() => setEvalOpen(true)}
+                                        >
+                                            {t("config.view.evaluateShort")}
+                                        </Button>
                                     )}
                                 </>
                             )}

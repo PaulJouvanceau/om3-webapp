@@ -399,6 +399,13 @@
       "empty": "No configuration available.",
       "noSection": "No section [{{section}}] in the configuration.",
       "copy": "Copy the configuration shown",
+      "copyShort": "Copy",
+      "showSecretsShort": "Show secrets",
+      "hideSecretsShort": "Hide secrets",
+      "editShort": "Edit",
+      "uploadShort": "Upload",
+      "designShort": "Design",
+      "evaluateShort": "Evaluate",
       "absent": "No configuration yet: it is created with the first change written."
     },
     "feedback": {
