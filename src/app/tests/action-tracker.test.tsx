@@ -114,6 +114,25 @@ describe("trackAccepted", () => {
     });
   });
 
+  test("queued, unknown by its id until its monitor reads it: said queued, then followed to a refusal", async () => {
+    globalThis.fetch = daemon({ orchestration: ["410", "410", "refused"] });
+    trackAccepted({ orchestration_id: ORCH, node: "dev3n1", queued: true }, { action: "start", subject: "foo" });
+    expect(tracked()[0]).toMatchObject({ kind: "orchestration", queued: true, state: "running" });
+    render(<ActionTray />);
+    expect(within(openTray()).getByText(/queued on dev3n1/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(tracked()[0]?.state).toBe("refused");
+    }, { timeout: 5000 });
+    expect(tracked()[0]?.queued).toBe(false);
+    expect(tracked()[0]?.error).toBe("no candidate");
+  });
+
+  test("accepted, not queued: said accepted", () => {
+    globalThis.fetch = daemon();
+    trackAccepted({ orchestration_id: ORCH, node: "dev3n1", queued: false }, { action: "start", subject: "foo" });
+    expect(tracked()[0]?.queued).toBeUndefined();
+  });
+
   test("an instance action is the run of its node, its failure said", async () => {
     globalThis.fetch = daemon();
     trackAccepted({ exec_id: EXEC, session_id: "s" }, { action: "start", subject: "foo on dev3n2", node: "dev3n2" });
@@ -238,6 +257,33 @@ describe("ActionTray", () => {
   });
 });
 
+describe("ActionTray, the warnings of a write", () => {
+  test("said under it, one a line", () => {
+    useActionTracker.setState({
+      tracked: [
+        {
+          id: "w1",
+          action: "config",
+          label: "Update the key db_password",
+          subject: "ns1/sec/oc3",
+          kind: "exec",
+          node: "",
+          state: "succeeded",
+          startedAt: 0,
+          endedAt: 1,
+          steps: [],
+          warnings: ["ns1/svc/oc3 volume#1: refresh failed"],
+        },
+      ],
+    });
+    render(<ActionTray />);
+    const tray = openTray();
+    const list = within(tray).getByRole("list", { name: /What went wrong beside/ });
+    expect(within(list).getByText("ns1/svc/oc3 volume#1: refresh failed")).toBeInTheDocument();
+    expect(list).toHaveClass("text-state-warn");
+  });
+});
+
 describe("ActionTray, the logs of each action", () => {
   test("an orchestration's logs and an exec's, in a modal, by their id; none for an action refused", () => {
     // Never answered: never ends while the test looks.
@@ -247,6 +293,8 @@ describe("ActionTray, the logs of each action", () => {
       trackAccepted({ orchestration_id: ORCH, node: "dev3n1" }, { action: "provision", subject: "foo" });
       trackAccepted({ exec_id: EXEC }, { action: "start", subject: "foo on dev3n2", node: "dev3n2" });
       trackRefused({ action: "stop", subject: "bar", reason: "HTTP 403" });
+      // Refused by the instance monitor, recorded under an orchestration: its logs there.
+      trackRefused({ action: "switch", subject: "baz", reason: "no instance to switch from", orchestrationId: ORCH, node: "dev3n2" });
     });
     const tray = openTray();
     fireEvent.click(within(tray).getByRole("button", { name: "Logs of Provision foo" }));
@@ -259,6 +307,11 @@ describe("ActionTray, the logs of each action", () => {
     expect(exec).toHaveAttribute("data-id", EXEC);
     expect(exec).toHaveAttribute("data-node", "dev3n2");
     expect(within(tray).queryByRole("button", { name: /^Logs of Stop/ })).toBeNull();
+    fireEvent.click(within(tray).getByRole("button", { name: "Logs of Switch baz" }));
+    const refused = screen.getByRole("dialog", { name: "logs Switch baz" });
+    expect(refused).toHaveAttribute("data-kind", "orchestration");
+    expect(refused).toHaveAttribute("data-id", ORCH);
+    expect(refused).toHaveAttribute("data-node", "dev3n2");
     act(() => {
       useActionTracker.setState({ tracked: [] });
     });

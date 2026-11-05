@@ -4,13 +4,11 @@ import {useApiNode} from "../hooks/useApiNode";
 import {retainEventReception} from "../eventSourceManager";
 import useEventStore from "../hooks/useEventStore.js";
 import {useClusterNodeOrder} from "../hooks/useClusterNodeOrder";
-import {trackRefused, trackResponse} from "../app/action-tracker";
-import {refusalReason} from "./objectActions";
-import {getResponseErrorMessage} from "../services/api.jsx";
+import {trackRefused} from "../app/action-tracker";
 import NodeRow from "../components/NodeRow.jsx";
 import logger from '../utils/logger.js';
 import {URL_NODE_INFO} from "../config/apiPath.js";
-import {nodeActionRequest, nodeMenuItems} from "../app/node-actions";
+import {nodeMenuItems, postNodeAction} from "../app/node-actions";
 import {useTranslation} from "react-i18next";
 import {NodeActionDialog} from "./NodeActionDialog";
 import {Table, HeaderRow, HeaderCell, SortHeaderCell, EmptyRow, LIST_RAIL_QUERY} from "../ui/components/Table";
@@ -210,26 +208,7 @@ const NodesTable = () => {
                 refuse(node, t("actionTray.reasons.alreadyUnfrozen"));
                 return;
             }
-            const {url, body} = nodeActionRequest(node, action);
-            try {
-                const response = await fetch(url, {
-                    method: "POST",
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        "Content-Type": "application/json",
-                    },
-                    ...(body === undefined ? {} : {body}),
-                });
-                if (!response.ok) {
-                    logger.error(`Failed to execute ${action} on ${node}: HTTP error! status: ${response.status}`);
-                    refuse(node, refusalReason({status: response.status, detail: await getResponseErrorMessage(response)}));
-                    return;
-                }
-                await trackResponse(response, {action, subject: node, node});
-            } catch (error) {
-                logger.error(`Failed to execute ${action} on ${node}: ${error.message}`);
-                refuse(node, error.message);
-            }
+            await postNodeAction(node, action, {Authorization: `Bearer ${token}`});
         });
 
         await Promise.all(promises);

@@ -246,6 +246,7 @@
       "restart": "Restart",
       "freeze": "Freeze",
       "unfreeze": "Unfreeze",
+      "networkSetup": "Network setup",
       "provision": "Provision",
       "unprovision": "Unprovision",
       "install": "Install",
@@ -1410,6 +1411,11 @@
       "rewrite": "Its type changes from {{from}} to {{to}}: its section is written anew, the keys of {{from}} dropped."
     },
     "panel": {
+      "actions": "Actions on the network {{name}}",
+      "setupDescription": "Set up this network again on each node of the cluster: its bridge, routes and rules, as its section configures them. Up to two minutes a node, each followed in the actions asked.",
+      "setupTarget_one": "{{name}} on the node",
+      "setupTarget_other": "{{name}} on the {{count}} nodes",
+      "setupSubject": "{{name}} on {{node}}",
       "tabs": {
         "overview": "Overview",
         "addresses": "Addresses",
@@ -2413,6 +2419,9 @@
     "dismiss": "Dismiss {{action}} on {{subject}}",
     "steps": "The runs of {{action}} on the nodes",
     "acceptedBy": "accepted by {{node}}",
+    "warnings": "What went wrong beside {{action}}",
+    "queuedOn": "queued on {{node}}",
+    "neverTakenOn": "its monitor on {{node}} never took it on",
     "noStep": "Waiting for the nodes to run it…",
     "exitCode": "exit code {{code}}",
     "gone": "the daemon no longer knows how it ended",
@@ -2501,6 +2510,10 @@
     "unfreeze": {
       "label": "Unfreeze",
       "description": "Let the daemon orchestrate the instances of the node again."
+    },
+    "networkSetup": {
+      "label": "Network setup",
+      "description": "Set up the networks of the node again: its bridges, routes and rules, as the cluster configures them. Up to two minutes."
     },
     "abort": {
       "label": "Abort",

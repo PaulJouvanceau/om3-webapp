@@ -127,9 +127,12 @@ function Entry({ entry, now }: { entry: Tracked; now: number }) {
           </p>
           <p className={cn("text-data", entry.state === "failed" || entry.state === "refused" ? "text-state-down" : "text-ink-muted")}>
             {state}
-            {entry.state === "running" && entry.kind === "orchestration" && ` · ${t("actionTray.acceptedBy", { node: entry.node })}`}
-            {entry.error && entry.error !== "gone" && ` · ${entry.error}`}
+            {entry.state === "running" &&
+              entry.kind === "orchestration" &&
+              ` · ${t(entry.queued ? "actionTray.queuedOn" : "actionTray.acceptedBy", { node: entry.node })}`}
+            {entry.error && entry.error !== "gone" && entry.error !== "queued" && ` · ${entry.error}`}
             {entry.error === "gone" && ` · ${t("actionTray.gone")}`}
+            {entry.error === "queued" && ` · ${t("actionTray.neverTakenOn", { node: entry.node })}`}
           </p>
         </div>
         <span className="shrink-0 pt-0.5 text-data text-ink-muted tabular-nums">{formatDuration(took)}</span>
@@ -156,6 +159,13 @@ function Entry({ entry, now }: { entry: Tracked; now: number }) {
           <span className="sr-only">{t("actionTray.dismiss", { action, subject: entry.subject })}</span>
         </button>
       </div>
+      {entry.warnings !== undefined && entry.warnings.length > 0 && (
+        <ul aria-label={t("actionTray.warnings", { action })} className="space-y-1 pl-6 text-data text-state-warn">
+          {entry.warnings.map((warning) => (
+            <li key={warning}>{warning}</li>
+          ))}
+        </ul>
+      )}
       {(entry.steps.length > 0 || monitors.length > 0) && (
         <ul aria-label={t("actionTray.steps", { action })} className="space-y-1 pl-6 text-data">
           {entry.steps.map((step) => (

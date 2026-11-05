@@ -439,11 +439,6 @@ describe('NodesTable', () => {
             renderWithRouter(<NodesTable/>);
             await actOnFirstNode('Freeze');
             fireEvent.click(await screen.findByRole('button', {name: 'Confirm'}));
-            await waitFor(() => {
-                expect(mockLogger.error).toHaveBeenCalledWith(
-                    expect.stringContaining('Failed to execute freeze on node-1: HTTP error! status: 500')
-                );
-            });
             await waitFor(() => expect(tray()).toEqual([['freeze', 'node-1', 'refused', expect.stringMatching(/^HTTP 500/)]]));
         });
 
@@ -633,7 +628,7 @@ describe('NodesTable', () => {
             expect(menu.querySelector('.md\\:columns-2')).not.toBeNull();
             const entries = within(menu).getAllByRole('menuitem');
             expect(entries.map((item) => item.getAttribute('aria-labelledby') && document.getElementById(item.getAttribute('aria-labelledby')).textContent)).toEqual([
-                'Freeze', 'Unfreeze',
+                'Freeze', 'Unfreeze', 'Network setup',
                 'Asset', 'Capabilities', 'Disks', 'Packages', 'SCSI', 'Sysreport',
                 'Clear monitor', 'Restart', 'Shutdown', 'Stop', 'Drain', 'Evict',
             ]);

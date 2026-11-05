@@ -30,7 +30,11 @@ import {EventLog, OBJECT_EVENT_TYPES} from "./EventLogger";
 import {createPortal} from "react-dom";
 import {usePanelHeader} from "../app/panel-header";
 import {MenuButton} from "../ui/components/MenuButton";
-import {BoltIcon, TrashIcon} from "../ui/icons";
+import {BoltIcon, SwapIcon, TrashIcon} from "../ui/icons";
+import {useClusterNodeOrder} from "../hooks/useClusterNodeOrder";
+import {postNodeAction} from "../app/node-actions";
+import {NodeActionDialog} from "./NodeActionDialog";
+import {authHeaders} from "../services/api.jsx";
 import {actionIcon, useActionRunner} from "./InstanceActions";
 import {useGrants} from "../hooks/useGrants";
 import {canWriteClaims} from "../app/namespace-claims";
@@ -178,6 +182,57 @@ export function ObjectDetailPanel({path, tab, onTabChange, onClose}) {
 }
 
 /**
+ * The actions on a network, in the title bar of its panel: its setup on every node
+ * of the cluster (`om node network setup --name`), by root, confirmed first; the
+ * tray following it on each node, two minutes at most.
+ */
+export function NetworkActions({name}) {
+    const {t} = useTranslation();
+    const header = usePanelHeader();
+    const isRoot = Object.prototype.hasOwnProperty.call(useGrants(), "root");
+    const nodes = useClusterNodeOrder();
+    const [pending, setPending] = useState(null);
+    const run = () => {
+        setPending(null);
+        (nodes ?? []).forEach((node) => {
+            void postNodeAction(node, "network setup", authHeaders(), {
+                names: [name],
+                subject: t("networks.panel.setupSubject", {name, node}),
+            });
+        });
+    };
+    const menu = (
+        <MenuButton
+            solid
+            text={t("statusBoard.actions.object")}
+            icon={<BoltIcon className="h-3.5 w-3.5"/>}
+            label={t("networks.panel.actions", {name})}
+            align="end"
+            items={[{
+                key: "network setup",
+                label: t("nodeActions.networkSetup.label"),
+                description: t("networks.panel.setupDescription"),
+                icon: actionIcon({icon: <SwapIcon className="h-4 w-4"/>}),
+                disabled: !isRoot || !nodes?.length,
+                onSelect: () => setPending({action: "network setup"}),
+            }]}
+        />
+    );
+    return (
+        <>
+            {header.actions !== null && createPortal(menu, header.actions)}
+            <NodeActionDialog
+                pending={pending}
+                target={t("networks.panel.setupTarget", {name, count: nodes?.length ?? 0})}
+                description={t("networks.panel.setupDescription")}
+                onConfirm={run}
+                onClose={() => setPending(null)}
+            />
+        </>
+    );
+}
+
+/**
  * A network: what it is and hands out, root deleting it; the addresses it handed out;
  * its section of the cluster configuration. A tab each, the tab in the URL, as for the
  * other records. `onDeleted`, the network deleted, the panel closed by its page.
@@ -197,11 +252,16 @@ export function NetworkDetailPanel({name, tab, onTabChange, onClose, onDeleted})
             onTabChange={onTabChange}
             size="wide"
         >
-            {(active) => (active === "addresses"
-                ? <NetworkDetails key={name} name={name} embedded/>
-                : active === "config"
-                    ? <NetworkConfig key={name} name={name} onDeleted={onDeleted ?? onClose}/>
-                    : <NetworkOverview key={name} name={name}/>)}
+            {(active) => (
+                <>
+                    <NetworkActions key={`actions-${name}`} name={name}/>
+                    {active === "addresses"
+                        ? <NetworkDetails key={name} name={name} embedded/>
+                        : active === "config"
+                            ? <NetworkConfig key={name} name={name} onDeleted={onDeleted ?? onClose}/>
+                            : <NetworkOverview key={name} name={name}/>}
+                </>
+            )}
         </RecordPanel>
     );
 }

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { forceLifts, readProblem, withWriteParams } from "../config-write";
 import { trackWrite, useActionTracker } from "../action-tracker";
 import { clearConfigStamps, configStamp } from "../config-stamps";
@@ -61,5 +61,43 @@ describe("a wait for the nodes that expired", () => {
     expect(entry?.state).toBe("succeeded");
     expect(entry?.error).toContain("has not reached n2");
     expect(configStamp("ns1/svc/web")).toBe("2026-10-23T10:00:00Z");
+  });
+});
+
+describe("a key written", () => {
+  afterEach(() => {
+    useActionTracker.setState({ tracked: [] });
+  });
+
+  const info = { action: "config", subject: "ns1/sec/oc3", label: "Update the key db_password", path: "ns1/sec/oc3" };
+
+  test("done, what a service installing it failed beside it said, one a line, kept", async () => {
+    vi.useFakeTimers();
+    try {
+      const response = new Response(
+        JSON.stringify({ is_changed: true, warnings: ["ns1/svc/oc3 volume#1: refresh failed", "ns1/svc/web volume#2: refresh failed"] }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+      expect(await trackWrite(response, info, async () => "refused")).toBe(true);
+      vi.advanceTimersByTime(60_000);
+      const [entry] = useActionTracker.getState().tracked;
+      expect(entry?.state).toBe("succeeded");
+      expect(entry?.warnings).toEqual(["ns1/svc/oc3 volume#1: refresh failed", "ns1/svc/web volume#2: refresh failed"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("done, nothing beside it: an answer with no warning, or the 204 of an older node", async () => {
+    for (const response of [
+      new Response(JSON.stringify({ is_changed: false }), { status: 200 }),
+      new Response(null, { status: 204 }),
+    ]) {
+      useActionTracker.setState({ tracked: [] });
+      expect(await trackWrite(response, info, async () => "refused")).toBe(true);
+      const [entry] = useActionTracker.getState().tracked;
+      expect(entry?.state).toBe("succeeded");
+      expect(entry?.warnings).toBeUndefined();
+    }
   });
 });

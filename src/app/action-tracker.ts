@@ -46,6 +46,10 @@ export interface Tracked {
   node: string;
   /** The object it acts on, whose instance monitors say where an orchestration stands. */
   path?: string;
+  /** An orchestration the node answered for before its monitor read it: taken on, or refused, later. */
+  queued?: boolean;
+  /** What went wrong beside a write done: a service installing a key written that failed to refresh, one a line. */
+  warnings?: string[];
   state: TrackState;
   error?: string;
   startedAt: number;
@@ -58,6 +62,7 @@ interface Accepted {
   orchestration_id?: string;
   exec_id?: string;
   node?: string;
+  queued?: boolean;
 }
 
 interface ExecItem {
@@ -89,6 +94,8 @@ export const END_EVERY_MS = 1000;
 const STEPS_EVERY_MS = 2000;
 /** Read errors in a row before the outcome is given up as unknown. */
 const MAX_ERRORS = 5;
+/** How long an orchestration queued may stay unknown by its id, its monitor yet to read it. */
+export const QUEUED_TIMEOUT_MS = 120_000;
 /** The actions kept, the oldest ended ones dropped first. */
 const MAX_TRACKED = 30;
 /** A success leaves on its own after a while; a failure stays until dismissed. */
@@ -143,17 +150,32 @@ const daemonUrl = (node: string, rest: string) => `${URL_NODE}/${encodeURICompon
  * daemon (END_EVERY_MS says why). Resolves to the item ended, or to the reason it
  * could not be known.
  */
-async function waitEnd<T extends { state: string }>(url: string, id: string): Promise<T | { lost: string }> {
+async function waitEnd<T extends { state: string }>(
+  url: string,
+  id: string,
+  { queued = false, seen }: { queued?: boolean; seen?: () => void } = {},
+): Promise<T | { lost: string }> {
   let errors = 0;
+  // Queued, its monitor has yet to read it: unknown by its id until then.
+  let unseenSince = queued ? Date.now() : null;
   for (;;) {
     if (!isLive(id)) return { lost: "" };
     try {
       const response = await fetch(url, { headers: headers() });
       // A daemon holding it all the same (a wait run out): read again.
       if (response.status === 408) continue;
-      // Ended long ago and dropped: how it went is no longer known.
-      if (response.status === 410) return { lost: "gone" };
+      if (response.status === 410) {
+        // Ended long ago and dropped: how it went is no longer known.
+        if (unseenSince === null) return { lost: "gone" };
+        if (Date.now() - unseenSince > QUEUED_TIMEOUT_MS) return { lost: "queued" };
+        await sleep(END_EVERY_MS);
+        continue;
+      }
       if (!response.ok) throw new Error(`HTTP ${String(response.status)}`);
+      if (unseenSince !== null) {
+        unseenSince = null;
+        seen?.();
+      }
       const item = (await response.json()) as T;
       if (item.state !== "running") return item;
       errors = 0;
@@ -188,7 +210,7 @@ async function readSteps(orchestrationId: string, nodes: string[]): Promise<Trac
   return steps.sort((a, b) => (a.startedAt ?? "").localeCompare(b.startedAt ?? ""));
 }
 
-async function followOrchestration(id: string, orchestrationId: string, node: string) {
+async function followOrchestration(id: string, orchestrationId: string, node: string, queued = false) {
   const status = await readClusterStatus().catch(() => null);
   const configured = (status as { cluster?: { config?: { nodes?: string[] } } } | null)?.cluster?.config?.nodes;
   const nodes = Array.isArray(configured) && configured.length > 0 ? configured : [node];
@@ -208,7 +230,12 @@ async function followOrchestration(id: string, orchestrationId: string, node: st
       await Promise.race([sleep(STEPS_EVERY_MS), stopped]);
     }
   })();
-  const end = await waitEnd<OrchestrationItem>(daemonUrl(node, `orchestration/id/${encodeURIComponent(orchestrationId)}`), id);
+  const end = await waitEnd<OrchestrationItem>(daemonUrl(node, `orchestration/id/${encodeURIComponent(orchestrationId)}`), id, {
+    queued,
+    seen: () => {
+      update(id, { queued: false });
+    },
+  });
   running = false;
   stop();
   await stepsLoop;
@@ -283,12 +310,13 @@ export function trackAccepted(
     followedId: orchestrationId || execId,
     node: answering,
     ...(path === undefined ? {} : { path }),
+    ...(orchestrationId && body.queued === true ? { queued: true } : {}),
     state: "running",
     startedAt: Date.now(),
     steps: [],
   };
   useActionTracker.setState((s) => ({ tracked: withNew(tracked, s.tracked) }));
-  if (orchestrationId) void followOrchestration(id, orchestrationId, answering);
+  if (orchestrationId) void followOrchestration(id, orchestrationId, answering, body.queued === true);
   else if (execId) void followExec(id, execId, answering);
 }
 
@@ -301,21 +329,30 @@ export function trackRefused({
   subject,
   reason,
   label,
+  orchestrationId,
+  node,
 }: {
   action: string;
   subject: string;
   reason: string;
   label?: string;
+  /**
+   * The orchestration the daemon recorded the refusal under (an object action its
+   * instance monitor refused), and the node answering for it: its logs a click away,
+   * as an orchestration accepted. The nil id names none.
+   */
+  orchestrationId?: string;
+  node?: string;
 }) {
   sequence += 1;
   const now = Date.now();
+  const recorded = orchestrationId !== undefined && orchestrationId !== "" && !/^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(orchestrationId);
   const refused: Tracked = {
     id: `${String(now)}-${String(sequence)}`,
     action,
     ...(label === undefined ? {} : { label }),
     subject,
-    kind: "exec",
-    node: "",
+    ...(recorded ? { kind: "orchestration" as const, followedId: orchestrationId, node: node ?? "" } : { kind: "exec" as const, node: "" }),
     state: "refused",
     error: reason || undefined,
     startedAt: now,
@@ -335,6 +372,7 @@ export function trackDone({
   path,
   label,
   note,
+  warnings,
 }: {
   action: string;
   subject: string;
@@ -342,6 +380,8 @@ export function trackDone({
   label?: string;
   /** What is still to come of it, said beside it: a configuration still propagating. */
   note?: string;
+  /** What went wrong beside it, one a line: kept in the tray until dismissed. */
+  warnings?: string[];
 }) {
   sequence += 1;
   const now = Date.now();
@@ -355,13 +395,51 @@ export function trackDone({
     node: "",
     ...(path === undefined ? {} : { path }),
     ...(note === undefined ? {} : { error: note }),
+    ...(warnings?.length ? { warnings } : {}),
     state: "succeeded",
     startedAt: now,
     endedAt: now,
     steps: [],
   };
   useActionTracker.setState((s) => ({ tracked: withNew(done, s.tracked) }));
-  lingerIfSucceeded(id);
+  // Its warnings stay until read.
+  if (!warnings?.length) lingerIfSucceeded(id);
+}
+
+/**
+ * An action the node answers only once done (a network setup, two minutes at most):
+ * running in the tray from its request on, ended by its answer. `ended` says it
+ * done; `refused` says why it was not, the state of an answer after it ran told by
+ * its status: a server error failed, a wait run out unknown, the others refused.
+ */
+export function trackPending(info: { action: string; subject: string; node?: string; label?: string }) {
+  sequence += 1;
+  const id = `${String(Date.now())}-${String(sequence)}`;
+  const entry: Tracked = {
+    id,
+    action: info.action,
+    ...(info.label === undefined ? {} : { label: info.label }),
+    subject: info.subject,
+    kind: "exec",
+    node: info.node ?? "",
+    state: "running",
+    startedAt: Date.now(),
+    steps: [],
+  };
+  useActionTracker.setState((s) => ({ tracked: withNew(entry, s.tracked) }));
+  return {
+    ended: () => {
+      if (!isLive(id)) return;
+      update(id, { state: "succeeded", endedAt: Date.now() });
+      lingerIfSucceeded(id);
+    },
+    refused: (reason: string, status?: number) => {
+      if (!isLive(id)) return;
+      const state: TrackState =
+        status === undefined || status >= 500 ? "failed" : status === 408 ? "unknown" : "refused";
+      update(id, { state, error: reason, endedAt: Date.now() });
+    },
+  };
 }
 
 /**
@@ -393,7 +471,17 @@ export async function trackWrite(
   if (response.ok || response.status === 408) {
     // The configuration written, for the instance actions that follow to ask for it.
     recordConfigWrite(info.path, response);
-    trackDone(response.ok ? info : { ...info, note: await problemDetail(response) });
+    if (!response.ok) {
+      trackDone({ ...info, note: await problemDetail(response) });
+      return true;
+    }
+    // A key written answers what failed beside it: a service installing it that
+    // could not refresh. Older nodes answer 204, no body.
+    const committed = response.status === 200 ? ((await acceptedBody(response)) as { warnings?: unknown } | null) : null;
+    const warnings = Array.isArray(committed?.warnings)
+      ? committed.warnings.filter((w): w is string => typeof w === "string" && w !== "")
+      : [];
+    trackDone({ ...info, warnings });
     return true;
   }
   trackRefused({ ...info, reason: await reason(response) });
