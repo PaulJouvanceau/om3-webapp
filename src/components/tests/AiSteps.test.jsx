@@ -100,6 +100,55 @@ describe('the steps of an answer', () => {
     const answer = () => screen.getByText('Not stopped.').closest('li');
     const step = (sentence) => within(answer()).getByRole('button', {name: sentence}).closest('li');
 
+    test.each([
+        ['stream', undefined, 'search_docs', 'Search the documentation'],
+        ['stream', false, 'search_docs', 'Search the documentation'],
+        ['stream', true, 'search_docs', 'Search the documentation'],
+        ['snapshot', undefined, 'search_docs', 'Search the documentation'],
+        ['snapshot', false, 'search_docs', 'Search the documentation'],
+        ['snapshot', true, 'search_docs', 'Search the documentation'],
+        ['stream', undefined, 'search_code', 'Search the code'],
+        ['stream', true, 'search_code', 'Search the code'],
+        ['snapshot', undefined, 'search_code', 'Search the code'],
+        ['snapshot', true, 'search_code', 'Search the code'],
+    ])('shows the status of an agent search from a %s with isError=%s: %s', async (delivery, isError, tool, label) => {
+        const payload = {
+            content: [{type: 'text', text: isError ? 'Documentation unavailable.' : 'Frozen nodes do not evaluate quorum.'}],
+            ...(isError === undefined ? {} : {isError}),
+        };
+        const answerText = 'Documentation checked.';
+        const events = delivery === 'stream' ? [
+            ...call('docs-1', tool, {query: 'frozen quorum'}, T0 + 100),
+            result('docs-1', payload, T0 + 150),
+            ...text('turn-s:2', answerText, T0 + 200),
+        ] : [
+            {type: 'MESSAGES_SNAPSHOT', messages: [
+                {id: 'turn-s:1', role: 'user', content: 'Does a frozen node evaluate quorum?'},
+                {id: 'turn-s:2', role: 'assistant', content: '', toolCalls: [{id: 'docs-1', type: 'function', function: {name: tool, arguments: '{"query":"frozen quorum"}'}}]},
+                {id: 'docs-1-result', role: 'tool', toolCallId: 'docs-1', content: JSON.stringify(payload)},
+                {id: 'turn-s:4', role: 'assistant', content: answerText},
+            ]},
+        ];
+        mocks.client.run.mockImplementationOnce(replayEvents([
+            {type: 'RUN_STARTED', ...run, timestamp: T0},
+            ...events,
+            {type: 'RUN_FINISHED', ...run, timestamp: T0 + 300, outcome: {type: 'success'}, result: {turnId: 'turn-s'}},
+        ]));
+        await ask('Does a frozen node evaluate quorum?');
+        const message = (await screen.findByText(answerText)).closest('li');
+        fireEvent.click(within(message).getByRole('button', {name: /^1 step · /}));
+        const list = within(message).getByRole('list', {name: 'Steps of the answer'});
+        const toggle = within(list).getByRole('button', {expanded: false});
+        expect(toggle).toHaveTextContent(`${label}: “frozen quorum”`);
+        const search = toggle.closest('li');
+        const mark = within(search).getByText(isError ? 'refused by the tool' : 'done');
+        expect(mark.parentElement).toHaveClass(isError ? 'text-state-down' : 'text-state-up');
+        fireEvent.click(toggle);
+        if (isError) expect(within(search).getByText('Refused by the tool:')).toBeInTheDocument();
+        else expect(within(search).queryByText('Refused by the tool:')).not.toBeInTheDocument();
+        expect(within(search).getByText(/"content"/)).toHaveTextContent(payload.content[0].text);
+    });
+
     test('tells each step of the turn, in order, with the times of the agent', async () => {
         mocks.client.run.mockImplementationOnce(replayEvents(firstRun)).mockImplementationOnce(replayEvents(secondRun));
         const {container} = await ask('Stop web on dev5n1');
