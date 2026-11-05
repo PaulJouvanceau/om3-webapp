@@ -229,7 +229,8 @@ export function ConfigText({text, keywordsUrl, label, lineNumbers = false, path,
 
     return (
         <div className="overflow-x-auto rounded-(--radius-control) border border-line bg-surface-sunken p-2">
-            <div role="group" aria-label={label} className="font-mono text-data whitespace-pre-wrap text-ink [&_[data-cross-link]]:text-accent [&_[data-cross-link]]:underline [&_[data-cross-link]]:decoration-dotted">
+            {/* On a touch screen, a line 28px high: its keyword taken by a finger, not the one under it. */}
+            <div role="group" aria-label={label} className="font-mono text-data whitespace-pre-wrap text-ink pointer-coarse:leading-7 [&_[data-cross-link]]:text-accent [&_[data-cross-link]]:underline [&_[data-cross-link]]:decoration-dotted">
                 {lines.map((l, index) => {
                     const self = l.prose ? undefined : path;
                     const name = l.start === undefined ? null : <span data-config-token="key" className="text-ink-muted">{keyName(l.line.slice(l.start, l.end))}</span>;

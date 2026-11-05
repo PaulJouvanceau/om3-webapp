@@ -148,7 +148,9 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
                                     <Link
                                         to={item.path}
                                         aria-label={t("nav.breadcrumb.navigateTo", {name: label})}
-                                        className="truncate hover:underline"
+                                        // As high as the bar, for a finger: cut to its text, its zone of taps
+                                        // could not reach past it.
+                                        className="truncate leading-11 hover:underline"
                                     >
                                         {label}
                                     </Link>

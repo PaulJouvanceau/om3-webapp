@@ -227,18 +227,24 @@
   .dark input[type="checkbox"]:indeterminate {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%230c1417' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4.5 8h7'/%3E%3C/svg%3E");
   }
+  /* A field of text or a choice 40px high at the least, as a finger needs: no zone
+     of taps around it, as a field has none. */
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="hidden"]),
+  select {
+    min-height: 2.5rem;
+  }
   input[type="checkbox"]:disabled {
     opacity: 0.6;
     cursor: default;
   }
-  :where(button, a[href], [role="tab"], summary):not([class*="after:"]):not(
+  :where(button, a[href], [role="tab"], [role="button"], summary):not([class*="after:"]):not(
       [class~="absolute"],
       [class~="fixed"],
       [class~="sticky"]
     ) {
     position: relative;
   }
-  :where(button, a[href], [role="tab"], summary):not([class*="after:"])::after {
+  :where(button, a[href], [role="tab"], [role="button"], summary):not([class*="after:"])::after {
     content: "";
     position: absolute;
     top: min(0px, calc((100% - 32px) / 2));

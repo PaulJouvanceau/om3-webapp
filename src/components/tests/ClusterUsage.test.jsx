@@ -56,6 +56,22 @@ describe('ClusterUsage', () => {
         expect(lines().map((l) => l[0])).toEqual(['opensvc.slice', 'devopensvc-ns.dev.slice', 'web', 'opensvc-server.service and the rest']);
     });
 
+    test('narrow, its lines as cards drawn alike: a marked one its name alone bold, the depth no indent, a slice under its name', () => {
+        view();
+        const row = (key) => table().querySelector(`tr[data-group="${key}"]`);
+        const name = (key) => row(key).cells[0].firstElementChild;
+        // A table, the line of the opensvc slice bold; narrow, its name alone.
+        expect(row('opensvc')).toHaveClass('font-semibold', 'max-md:font-normal');
+        expect(name('opensvc')).toHaveClass('max-md:font-semibold');
+        expect(row('namespace:dev')).not.toHaveClass('font-semibold');
+        expect(name('namespace:dev')).not.toHaveClass('max-md:font-semibold');
+        // Its depth an indent in a table, none in a card: its name beside its title, in its room.
+        expect(name('namespace:dev')).toHaveStyle({paddingLeft: '1.25rem'});
+        expect(name('namespace:dev')).toHaveClass('max-md:pl-0!', 'max-md:min-w-0', 'max-md:flex-1');
+        // The namespace and its slice, the slice under it when the card is too narrow.
+        expect(within(row('namespace:dev')).getByText('opensvc-ns.dev.slice').parentElement).toHaveClass('max-md:flex-wrap');
+    });
+
     test('no tasks nor io told: no column for them', () => {
         view();
         const headers = within(table()).getAllByRole('columnheader').map((h) => h.textContent);
