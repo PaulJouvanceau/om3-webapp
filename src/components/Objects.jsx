@@ -11,7 +11,7 @@ import {useObjectBulkActions} from "./useObjectBulkActions";
 import CreateObjectDialog from "./CreateObjectDialog";
 import {useObjectData} from "../hooks/useObjectData";
 import {useClusterNodeOrder} from "../hooks/useClusterNodeOrder";
-import {Table, HeaderRow, HeaderCell, SortHeaderCell, Row, Cell, EmptyRow, toggleCheckbox, LIST_PAGE, LIST_RAIL_QUERY} from "../ui/components/Table";
+import {Table, HeaderRow, HeaderCell, SortHeaderCell, Row, Cell, EmptyRow, toggleCheckbox, LIST_PAGE, LIST_RAIL_QUERY, useListOffsets} from "../ui/components/Table";
 import {NotProvisionedMark as PMark} from "../ui/components/StateMarks";
 import {StatusMark} from "../ui/components/StatusMark";
 import {MenuButton} from "../ui/components/MenuButton";
@@ -286,6 +286,8 @@ const NamespaceRow = ({namespace, colSpan, nodeCount = 0, selectedCount, total, 
     return (
         <tr
             data-namespace-row={namespace}
+            // Held at the top of the table while its objects pass (index.css).
+            data-group-row=""
             tabIndex={exists ? 0 : undefined}
             onClick={exists ? open : undefined}
             onKeyDown={exists ? (event) => {
@@ -410,6 +412,13 @@ function useNoteFix() {
 /** The icon of an action, at the size of the reason line. */
 const FIX_ICON = "flex h-3 w-3 items-center justify-center [&>svg]:h-3! [&>svg]:w-3!";
 
+/** A path breaking after a slash when too long for its line. */
+const BreakablePath = ({objectName}) => (
+    <span className="whitespace-normal">
+        {objectName.split("/").map((part, i) => <React.Fragment key={i}>{i > 0 && <>/<wbr/></>}{part}</React.Fragment>)}
+    </span>
+);
+
 /**
  * Under the name of an object not up, why, in a line: its first note, as its status
  * board says it, the others counted; the board in its panel.
@@ -436,8 +445,9 @@ function ObjectReason({objectName}) {
     return (
         <span
             data-reason={reason.level}
-            // No wider than the room of the names on a phone: cut, not past the table.
-            className="flex max-w-md min-w-0 items-center gap-1 text-[0.75rem] font-normal text-ink-muted max-md:max-w-[44vw]"
+            // No wider than the room of the names on a phone: cut, not past the table. The
+            // smallest, what the checkboxes, the up and status columns and the margins leave.
+            className="flex max-w-md min-w-0 items-center gap-1 text-[0.75rem] font-normal text-ink-muted max-md:max-w-[min(44vw,calc(100vw-12.5rem))]"
         >
             <Icon aria-hidden="true" className={cn("h-3 w-3 shrink-0", REASON_INK[reason.level])}/>
             <span className="truncate">{reason.text}</span>
@@ -504,14 +514,12 @@ const TableRowComponent = React.memo(({
                                 <OrchestrateBadge objectName={objectName}/>
                             </span>
                             {/* A long path on two lines, after a slash, rather than the table out of the screen. */}
-                            <span className="whitespace-normal">
-                                {objectName.split("/").map((part, i) => <React.Fragment key={i}>{i > 0 && <>/<wbr/></>}{part}</React.Fragment>)}
-                            </span>
+                            <BreakablePath objectName={objectName}/>
                             {/* Not up, why, under its name. */}
                             <ObjectReason objectName={objectName}/>
                         </span>
                     )
-                    : namesOnly ? objectName : (
+                    : namesOnly ? (isNarrow ? <BreakablePath objectName={objectName}/> : objectName) : (
                         <span className="flex flex-col items-start">
                             {objectName}
                             <ObjectReason objectName={objectName}/>
@@ -1084,10 +1092,14 @@ const Objects = () => {
     const nodeColumns = !namesOnly && isWideScreen ? allNodes.length : 0;
     const columnCount = namesOnly ? 4 : 3 + propertyColumns.length + (nodeColumns > 0 ? nodeColumns + 1 : 0);
 
+    // The namespace lines stick under the header of the table, or the tools held in view.
+    const page = useRef(null);
+    useListOffsets(page);
+
     return (
         <NoteFixContext.Provider value={noteFix.ask}>
         <VolumeSizesContext.Provider value={volumeSizes}>
-            <div className={`flex h-full gap-6 p-4 ${LIST_PAGE}`}>
+            <div ref={page} className={`flex h-full gap-6 p-4 ${LIST_PAGE}`}>
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
                     {/* Wide, the actions and the pager at the head of the rail: their rows to the table. */}
                     {!hasRail && (

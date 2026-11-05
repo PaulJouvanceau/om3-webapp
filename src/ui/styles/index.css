@@ -143,6 +143,36 @@
       0 -0.75rem 0 var(--surface),
       0 0.5rem 0 var(--surface);
   }
+  /* Its lines opening a group stick to the page, not to the frame of the table: the
+     frame no scroller then, its header left above. Under the tools held in view.
+     Clipped, not scrolled sideways: a path broken anywhere, the table no wider
+     than its frame. */
+  .list-page [data-table-scroll]:has([data-group-row]) {
+    overflow: clip visible;
+  }
+  .list-page [data-table-scroll]:has([data-group-row]) td {
+    overflow-wrap: anywhere;
+  }
+  .list-page [data-table-scroll]:has([data-group-row]) thead th {
+    position: static;
+  }
+  .list-page [data-group-row] > * {
+    top: 0;
+  }
+  .list-page:has([data-list-tools][data-selecting]) [data-group-row] > * {
+    top: calc(var(--list-tools, 0px) + 0.5rem);
+  }
+}
+
+/* A line opening a group of rows, a namespace, stays at the top of its table while
+   its rows pass under it, the next one taking its place: the group of a row still
+   read, deep in the list. Its cells stick, as its row may not; under the header of
+   the table, of the height its page gives (`--list-head`). om3 addition. */
+[data-group-row] > * {
+  position: sticky;
+  top: var(--list-head, 0px);
+  z-index: 5;
+  background-color: inherit;
 }
 
 /* A field under 16px makes iOS zoom the page in on focus. Out of the layers, so no
