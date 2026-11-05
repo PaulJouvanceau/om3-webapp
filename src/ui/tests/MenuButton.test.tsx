@@ -376,6 +376,17 @@ describe("MenuButton prominent", () => {
     expect(screen.getByText("Actions")).toHaveClass("max-md:sr-only");
     expect(button).toHaveClass("max-md:w-7");
   });
+
+  test("worded: its label in a wide window, its icon, its word and its chevron in a narrow one, named by its label", () => {
+    render(
+      <MenuButton label="Actions on the resources selected" text="Actions" items={items()} prominent worded icon={<svg data-testid="bolt" />} />,
+    );
+    const button = screen.getByRole("button", { name: "Actions on the resources selected" });
+    expect(button).not.toHaveClass("max-md:w-7");
+    expect(screen.getByTestId("bolt").parentElement).toHaveClass("hidden", "max-md:inline-flex");
+    expect(screen.getByText("Actions on the resources selected")).toHaveClass("max-md:hidden");
+    expect(screen.getByText("Actions")).toHaveClass("hidden", "max-md:inline");
+  });
 });
 
 describe("MenuButton groups", () => {

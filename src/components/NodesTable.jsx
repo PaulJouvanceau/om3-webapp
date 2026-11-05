@@ -338,6 +338,8 @@ const NodesTable = () => {
                 <Button
                     size="sm"
                     variant="create"
+                    // Nodes selected on a phone, the tools of the selection alone on its line.
+                    className={selectedNodes.length > 0 ? "max-md:hidden" : undefined}
                     icon={<PlusIcon className="h-4 w-4"/>}
                     onClick={() => setEnrollOpen(true)}
                 >
@@ -350,8 +352,9 @@ const NodesTable = () => {
                 <>
                     <span className="whitespace-nowrap text-ink-muted">{t("common.selected", {count: selectedNodes.length})}</span>
                     <MenuButton
-                        // The actions: a solid pill.
+                        // The actions: a solid pill, said in a word on a phone too.
                         prominent
+                        worded
                         icon={<BoltIcon className="h-3.5 w-3.5"/>}
                         label={t("nodes.bulkActions")}
                         align={align}

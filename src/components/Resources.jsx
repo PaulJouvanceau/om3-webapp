@@ -349,8 +349,10 @@ const Resources = () => {
             <span className="whitespace-nowrap text-ink-muted">{t("common.selected", {count: selectedLines.length})}</span>
             <Button size="sm" onClick={clearSelection}>{t("resources.selection.clear")}</Button>
             <MenuButton
-                // The actions: a solid pill.
+                // The actions: a solid pill, said in a word on a phone too.
                 prominent
+                worded
+                text={t("common.actions")}
                 icon={<BoltIcon className="h-3.5 w-3.5"/>}
                 label={t("resources.selection.actions")}
                 disabled={running || actionItems.length === 0}

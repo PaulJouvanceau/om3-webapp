@@ -1047,8 +1047,11 @@ const Objects = () => {
     // What the marks of the objects and of their instances mean, the status board's
     // legend: none for a list of names only, with no marks.
     const [legendOpen, setLegendOpen] = useState(false);
+    // Objects selected on a phone, the tools of the selection alone on its line: none
+    // other than its actions, its count and its clearing, on one line with the filters.
+    const selectionOnly = selectedObjects.length > 0 ? "max-md:hidden" : undefined;
     const legendButton = namesOnly ? null : (
-        <Button size="sm" icon={<InfoIcon className="h-4 w-4"/>} onClick={() => setLegendOpen(true)}>
+        <Button size="sm" className={selectionOnly} icon={<InfoIcon className="h-4 w-4"/>} onClick={() => setLegendOpen(true)}>
             {t("legend.title")}
         </Button>
     );
@@ -1058,7 +1061,7 @@ const Objects = () => {
     // A new object, and the actions on the selection: over the table, or at the head of the rail.
     const listActions = (align) => (
         <>
-            <Button size="sm" variant="create" icon={<PlusIcon className="h-4 w-4"/>} onClick={() => {
+            <Button size="sm" variant="create" className={selectionOnly} icon={<PlusIcon className="h-4 w-4"/>} onClick={() => {
                 setCreateIn(null);
                 setCreateOpen(true);
             }}>
@@ -1070,8 +1073,9 @@ const Objects = () => {
                     <span className="whitespace-nowrap text-ink-muted">{t("common.selected", {count: selectedObjects.length})}</span>
                     <Button size="sm" onClick={clearSelection}>{t("objects.clearSelection")}</Button>
                     <MenuButton
-                        // The actions: a solid pill.
+                        // The actions: a solid pill, said in a word on a phone too.
                         prominent
+                        worded
                         icon={<BoltIcon className="h-3.5 w-3.5"/>}
                         label={t("objects.actionsMenu")}
                         align={align}
