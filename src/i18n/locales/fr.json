@@ -246,6 +246,7 @@
       "restart": "Redémarrer",
       "freeze": "Geler",
       "unfreeze": "Dégeler",
+      "networkSetup": "Configurer les réseaux",
       "provision": "Provisionner",
       "unprovision": "Déprovisionner",
       "install": "Installer",
@@ -1410,6 +1411,11 @@
       "rewrite": "Son type passe de {{from}} à {{to}} : sa section est réécrite, les clés de {{from}} abandonnées."
     },
     "panel": {
+      "actions": "Actions sur le réseau {{name}}",
+      "setupDescription": "Configurer à nouveau ce réseau sur chaque nœud du cluster : son pont, ses routes et ses règles, comme sa section les définit. Jusqu'à deux minutes par nœud, chacun suivi dans les actions demandées.",
+      "setupTarget_one": "{{name}} sur le nœud",
+      "setupTarget_other": "{{name}} sur les {{count}} nœuds",
+      "setupSubject": "{{name}} sur {{node}}",
       "tabs": {
         "overview": "Vue d'ensemble",
         "addresses": "Adresses",
@@ -2413,6 +2419,9 @@
     "dismiss": "Retirer {{action}} sur {{subject}}",
     "steps": "Les exécutions de {{action}} sur les nœuds",
     "acceptedBy": "acceptée par {{node}}",
+    "warnings": "Ce qui a échoué à côté de {{action}}",
+    "queuedOn": "en file sur {{node}}",
+    "neverTakenOn": "jamais prise en charge par le moniteur de {{node}}",
     "noStep": "En attente de son exécution par les nœuds…",
     "exitCode": "code de sortie {{code}}",
     "gone": "le démon ne sait plus comment elle s'est terminée",
@@ -2501,6 +2510,10 @@
     "unfreeze": {
       "label": "Dégeler",
       "description": "Le démon orchestre de nouveau les instances du nœud."
+    },
+    "networkSetup": {
+      "label": "Configurer les réseaux",
+      "description": "Configurer à nouveau les réseaux du nœud : ses ponts, ses routes et ses règles, comme le cluster les définit. Jusqu'à deux minutes."
     },
     "abort": {
       "label": "Annuler",

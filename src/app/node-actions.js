@@ -7,6 +7,9 @@
 import {URL_CLUSTER, URL_NODE} from "../config/apiPath.js";
 import {NODE_ACTION_GROUPS, NODE_ACTIONS} from "../constants/actions";
 import {actionKeywords, impactBadges} from "./action-menu";
+import {trackPending, trackRefused, trackResponse} from "./action-tracker";
+import {refusalReason} from "../components/objectActions";
+import {getResponseErrorMessage} from "../services/api.jsx";
 
 /** The key of an action in the texts of the node actions: "restart daemon" is restartDaemon. */
 export const nodeActionKey = (name) => name.replace(/\s+(\w)/g, (_, c) => c.toUpperCase());
@@ -16,14 +19,47 @@ export const nodeAction = (name) => NODE_ACTIONS.find((action) => action.name ==
 
 /**
  * The request of an action on a node: its url, its body. Evict goes to the api node,
- * the cluster evicting the node; the others to the node.
+ * the cluster evicting the node; the others to the node. `names`, the networks a
+ * network setup sets up, all of them when none.
  */
-export function nodeActionRequest(node, name) {
+export function nodeActionRequest(node, name, {names = []} = {}) {
     const action = nodeAction(name);
     if (action?.cluster === "evict") {
         return {url: `${URL_CLUSTER}/evict`, body: JSON.stringify({nodename: node})};
     }
-    return {url: `${URL_NODE}/${encodeURIComponent(node)}/${action?.endpoint ?? `action/${name}`}`};
+    const query = names.map((n) => `name=${encodeURIComponent(n)}`).join("&");
+    return {url: `${URL_NODE}/${encodeURIComponent(node)}/${action?.endpoint ?? `action/${name}`}${query ? `?${query}` : ""}`};
+}
+
+/**
+ * Posts an action on a node with the `headers` of the user, what comes of it,
+ * accepted or refused, said by the actions tray: an action held (a network setup)
+ * in it from its request on, ended by the answer of the node. `names`, the networks
+ * of a network setup; `subject`, what the tray says it acts on, the node by default.
+ */
+export async function postNodeAction(node, name, headers, {names, subject = node} = {}) {
+    const {url, body} = nodeActionRequest(node, name, {names});
+    const pending = nodeAction(name)?.held ? trackPending({action: name, subject, node}) : null;
+    const refuse = (reason, status) => {
+        if (pending) pending.refused(reason, status);
+        else trackRefused({action: name, subject, reason});
+    };
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {...headers, "Content-Type": "application/json"},
+            ...(body === undefined ? {} : {body}),
+        });
+        if (!response.ok) {
+            const detail = await getResponseErrorMessage(response);
+            refuse(refusalReason({status: response.status, detail}), response.status);
+            return;
+        }
+        if (pending) pending.ended();
+        else await trackResponse(response, {action: name, subject, node});
+    } catch (error) {
+        refuse(error.message);
+    }
 }
 
 /**

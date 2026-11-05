@@ -7,7 +7,7 @@ import useEventStore from "../hooks/useEventStore.js";
 import {retainEventReception} from "../eventSourceManager";
 import {URL_NODE} from "../config/apiPath.js";
 import {authHeaders, getResponseErrorMessage} from "../services/api.jsx";
-import {nodeActionRequest, nodeMenuItems} from "../app/node-actions";
+import {nodeActionRequest, nodeMenuItems, postNodeAction} from "../app/node-actions";
 import {useApiNode} from "../hooks/useApiNode";
 import {NodeActionDialog} from "./NodeActionDialog";
 import LogsViewer from "./LogsViewer";
@@ -214,22 +214,7 @@ function NodeActions({node, monitor, onOrchestrationLogs}) {
     const run = async (action) => {
         setPending(null);
         // What comes of it, accepted or refused, the actions tray says.
-        const {url, body} = nodeActionRequest(node, action);
-        try {
-            const response = await fetch(url, {
-                method: "POST",
-                headers: {...authHeaders(), "Content-Type": "application/json"},
-                ...(body === undefined ? {} : {body}),
-            });
-            if (!response.ok) {
-                const detail = await getResponseErrorMessage(response);
-                trackRefused({action, subject: node, reason: refusalReason({status: response.status, detail})});
-                return;
-            }
-            await trackResponse(response, {action, subject: node, node});
-        } catch (error) {
-            trackRefused({action, subject: node, reason: error.message});
-        }
+        await postNodeAction(node, action, authHeaders());
     };
 
     return (

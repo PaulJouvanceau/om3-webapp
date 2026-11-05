@@ -178,13 +178,15 @@ export const RESOURCE_ACTIONS = [
  * The actions on a node, in the groups of its menu, in their order: the node, its
  * inventory pushed to the collector, its daemon. `menu: false`, offered elsewhere (abort,
  * by the badge of the orchestration). `cluster`, an action of the cluster on the node,
- * posted to the api node rather than to it (leave: the cluster evicts it).
+ * posted to the api node rather than to it (leave: the cluster evicts it). `held`, an
+ * action the node answers only once done, in the tray from its request on.
  */
 export const NODE_ACTION_GROUPS = ["node", "inventory", "daemon"];
 
 export const NODE_ACTIONS = [
     {name: "freeze", group: "node", icon: icon(SnowflakeIcon), endpoint: "action/freeze"},
     {name: "unfreeze", group: "node", icon: icon(SunIcon), endpoint: "action/unfreeze"},
+    {name: "network setup", group: "node", icon: icon(SwapIcon), endpoint: "network/setup", held: true},
     {name: "abort", icon: icon(CloseIcon), endpoint: "action/abort", menu: false},
 
     {name: "asset", group: "inventory", icon: icon(CpuIcon), endpoint: "action/push/asset"},
