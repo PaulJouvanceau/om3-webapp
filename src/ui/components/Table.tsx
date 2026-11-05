@@ -101,6 +101,15 @@ export function Table({
 export const LIST_PAGE_FIT = "2xl:w-fit 2xl:max-w-full";
 
 /**
+ * The root of a page of a list whose rows scroll in their table (`sticky`), its
+ * tools above held in view. On a small screen, a phone upright or on its side, those
+ * tools and the intro of the page left only a few rows to see: there, the rows run
+ * in the page, which scrolls as one, and the tools marked `data-list-tools` stay at
+ * its top while rows are selected, their actions at hand (index.css).
+ */
+export const LIST_PAGE = "list-page";
+
+/**
  * Wide enough for the tools of a list beside its table (`FilterRail`): its filters as
  * facets, its actions and pager at their head. The width the list page fits its table
  * from (2xl).

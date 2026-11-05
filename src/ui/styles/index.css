@@ -123,6 +123,28 @@
   }
 }
 
+/* On a small screen, the rows of a list in the page rather than in a frame of their
+   own under its tools: the page scrolls as one, its intro and tools out of the way
+   once read (`LIST_PAGE`). Its tools stay at its top while rows are selected, the
+   page under them hidden by a band of its color. om3 addition. */
+@media (width < 48rem), (height < 32rem) {
+  .list-page {
+    height: auto;
+  }
+  .list-page [data-table-scroll] {
+    max-height: none;
+  }
+  .list-page [data-list-tools][data-selecting] {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--surface);
+    box-shadow:
+      0 -0.75rem 0 var(--surface),
+      0 0.5rem 0 var(--surface);
+  }
+}
+
 /* A field under 16px makes iOS zoom the page in on focus. Out of the layers, so no
    text size utility on a field wins over it. om3 addition. */
 @media (pointer: coarse) {

@@ -26,6 +26,7 @@ import {FrozenMark} from "../ui/components/FrozenMark";
 import {RelativeTime} from "../ui/components/RelativeTime";
 import {BoltIcon, CodeIcon, EyeIcon, EyeOffIcon, PencilIcon, RefreshIcon, ResetIcon, SearchIcon} from "../ui/icons";
 import ConfigEvalDialog from "./ConfigEvalDialog";
+import {ConfigValidationResult, ValidateButton, useConfigValidation} from "./ConfigValidation";
 import {formatSeconds, useAutoHide} from "../ui/lib/reveal";
 import {formatBytes, formatSizeMiB} from "../ui/lib/format";
 import {NodeDaemon} from "./NodeDaemon";
@@ -799,6 +800,9 @@ function NodeConfig({node}) {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState(null);
     const [evalOpen, setEvalOpen] = useState(false);
+    // The configuration validated on the node, the cluster's merged (om node config
+    // validate): stale once the file is written.
+    const validation = useConfigValidation(nodeUrl(node, "config/validate"));
 
     // The file as stored, its secrets in clear: what an edit starts from and writes back.
     const read = async () => {
@@ -841,6 +845,7 @@ function NodeConfig({node}) {
             }
             trackDone(write);
             setEdit(null);
+            validation.reset();
             file.reload();
         } catch (err) {
             trackRefused({...write, reason: err.message});
@@ -879,7 +884,8 @@ function NodeConfig({node}) {
 
     return (
         <div className="space-y-2">
-            <div className="flex items-center justify-end gap-1">
+            {/* Each button its word beside its icon, as in the configuration of an object. */}
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
                 {file.data !== null && !file.loading && (
                     <p className="mr-auto text-data text-ink-muted">
                         {showSecrets
@@ -887,21 +893,25 @@ function NodeConfig({node}) {
                             : t("config.view.secretsHidden")}
                     </p>
                 )}
-                <IconButton
-                    label={showSecrets ? t("config.view.hideSecrets") : t("config.view.showSecrets")}
+                <Button
+                    size="sm"
+                    aria-label={showSecrets ? t("config.view.hideSecrets") : t("config.view.showSecrets")}
                     aria-pressed={showSecrets}
+                    icon={showSecrets ? <EyeOffIcon/> : <EyeIcon/>}
                     onClick={() => setShowSecrets((shown) => !shown)}
                     disabled={file.loading}
                 >
-                    {showSecrets ? <EyeOffIcon/> : <EyeIcon/>}
-                </IconButton>
-                <IconButton label={t("nodePanel.config.edit")} onClick={startEdit} disabled={file.loading}>
-                    <PencilIcon/>
-                </IconButton>
-                <IconButton label={t("configEval.open")} onClick={() => setEvalOpen(true)}>
-                    <CodeIcon/>
-                </IconButton>
+                    {showSecrets ? t("config.view.hideSecretsShort") : t("config.view.showSecretsShort")}
+                </Button>
+                <Button size="sm" aria-label={t("nodePanel.config.edit")} icon={<PencilIcon/>} onClick={startEdit} disabled={file.loading}>
+                    {t("config.view.editShort")}
+                </Button>
+                <Button size="sm" aria-label={t("configEval.open")} icon={<CodeIcon/>} onClick={() => setEvalOpen(true)}>
+                    {t("config.view.evaluateShort")}
+                </Button>
+                <ValidateButton onClick={() => void validation.validate()} disabled={validation.result?.loading === true}/>
             </div>
+            <ConfigValidationResult result={validation.result} onClose={validation.reset}/>
             {/* The node's own configuration, evaluated on it: no other node to impersonate. */}
             <ConfigEvalDialog open={evalOpen} onClose={() => setEvalOpen(false)} configUrl={nodeUrl(node, "config")}
                               subject={node} nodes={null}/>

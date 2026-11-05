@@ -44,7 +44,6 @@ export function CopyButton({ text, label, size = "sm", word }: { text: string; l
         <Button
           size="sm"
           aria-label={copied ? t("common.copied") : label}
-          title={label}
           icon={copied ? <CheckIcon className="text-state-up" /> : <CopyIcon />}
           onClick={copy}
         >

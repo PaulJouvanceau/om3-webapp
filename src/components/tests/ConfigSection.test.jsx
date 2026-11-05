@@ -370,6 +370,29 @@ describe('ConfigSection Component', () => {
         }
     });
 
+    test('validated as loaded on the node read, as om config validate: none found, said so', async () => {
+        const validated = [];
+        global.fetch.mockImplementation((url, options) => {
+            if (url.endsWith('/config/validate')) {
+                validated.push(url);
+                return Promise.resolve(new Response(JSON.stringify({kind: 'ConfigAlertList', items: []}), {status: 200}));
+            }
+            return defaultFetchMock(url, options);
+        });
+        renderConfig({inline: true});
+        const run = await screen.findByRole('button', {name: 'Validate the configuration'});
+        expect(run).toHaveTextContent(/^Validate$/);
+        await act(() => user.click(run));
+        expect(await screen.findByText('The configuration is valid: no error, no warning.')).toBeInTheDocument();
+        expect(validated).toEqual(['/api/node/name/node1/instance/path/root/cfg/cfg1/config/validate']);
+    });
+
+    test('a configuration not yet created: nothing to validate', async () => {
+        renderConfig({inline: true, absent: true});
+        await screen.findByRole('button', {name: 'Edit configuration file'});
+        expect(screen.queryByRole('button', {name: 'Validate the configuration'})).toBeNull();
+    });
+
     test('the configuration shown copied, its secrets as shown', async () => {
         const writeText = vi.fn().mockResolvedValue(undefined);
         Object.defineProperty(navigator, 'clipboard', {value: {writeText}, configurable: true});

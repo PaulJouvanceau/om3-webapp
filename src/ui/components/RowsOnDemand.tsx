@@ -33,6 +33,19 @@ export function useRowsOnDemand(total: number, reset: DependencyList): RowsOnDem
 }
 
 /**
+ * What scrolls the rows: the frame of their table, or on a small screen the page
+ * holding it (`LIST_PAGE`), their frame then as tall as they are. Watched from a
+ * frame that does not scroll, the last line would always be in view, and every row
+ * drawn at once.
+ */
+function scrollerOf(element: Element): Element | null {
+  for (let box = element.closest("[data-table-scroll]"); box !== null; box = box.parentElement) {
+    if (box.scrollHeight > box.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(box).overflowY)) return box;
+  }
+  return null;
+}
+
+/**
  * The last line of a list drawn on demand, while rows remain: how many are drawn out
  * of all, and a button drawing more, for the keyboard. Nearing the view in the
  * scroller of its table, it draws more by itself.
@@ -49,7 +62,7 @@ export function MoreRows({ rows, colSpan }: { rows: RowsOnDemand; colSpan: numbe
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) more();
       },
-      { root: element.closest("[data-table-scroll]"), rootMargin: AHEAD },
+      { root: scrollerOf(element), rootMargin: AHEAD },
     );
     observer.observe(element);
     return () => {

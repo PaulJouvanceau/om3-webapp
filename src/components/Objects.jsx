@@ -11,7 +11,7 @@ import {useObjectBulkActions} from "./useObjectBulkActions";
 import CreateObjectDialog from "./CreateObjectDialog";
 import {useObjectData} from "../hooks/useObjectData";
 import {useClusterNodeOrder} from "../hooks/useClusterNodeOrder";
-import {Table, HeaderRow, HeaderCell, SortHeaderCell, Row, Cell, EmptyRow, toggleCheckbox, LIST_RAIL_QUERY} from "../ui/components/Table";
+import {Table, HeaderRow, HeaderCell, SortHeaderCell, Row, Cell, EmptyRow, toggleCheckbox, LIST_PAGE, LIST_RAIL_QUERY} from "../ui/components/Table";
 import {NotProvisionedMark as PMark} from "../ui/components/StateMarks";
 import {StatusMark} from "../ui/components/StatusMark";
 import {MenuButton} from "../ui/components/MenuButton";
@@ -1087,11 +1087,12 @@ const Objects = () => {
     return (
         <NoteFixContext.Provider value={noteFix.ask}>
         <VolumeSizesContext.Provider value={volumeSizes}>
-            <div className="flex h-full gap-6 p-4">
+            <div className={`flex h-full gap-6 p-4 ${LIST_PAGE}`}>
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
                     {/* Wide, the actions and the pager at the head of the rail: their rows to the table. */}
                     {!hasRail && (
-                        <div className="flex shrink-0 flex-wrap items-center gap-3">
+                        <div data-list-tools="" data-selecting={selectedObjects.length > 0 ? "" : undefined}
+                             className="flex shrink-0 flex-wrap items-center gap-3">
                             {/* Wide, the filters stand beside the table, as facets. */}
                             <FilterToolbar
                                 facets={toolbarFacets}

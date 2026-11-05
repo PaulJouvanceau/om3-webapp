@@ -239,6 +239,25 @@
     "value": "Valeur",
     "evaluated": "Évalué"
   },
+  "configValidate": {
+    "title": "Validation de la configuration",
+    "run": "Valider",
+    "runHeld": "Valider la configuration",
+    "checking": "Validation de la configuration",
+    "unsupported": "Ce démon ne valide pas de configuration : il est antérieur à la validation.",
+    "failed": "La configuration n'a pas pu être validée : {{message}}",
+    "none": "La configuration est valide : aucune erreur, aucun avertissement.",
+    "errors_one": "{{count}} erreur",
+    "errors_other": "{{count}} erreurs",
+    "warnings_one": "{{count}} avertissement",
+    "warnings_other": "{{count}} avertissements",
+    "refused": "une écriture avec des erreurs est refusée",
+    "levels": {
+      "error": "Erreur",
+      "warning": "Avertissement"
+    },
+    "close": "Fermer la validation"
+  },
   "actions": {
     "labels": {
       "start": "Démarrer",

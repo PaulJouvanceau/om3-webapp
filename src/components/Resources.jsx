@@ -6,7 +6,7 @@ import useEventStore from "../hooks/useEventStore.js";
 import {useMenuState} from "../hooks/useSidebarAlerts";
 import {retainEventReception} from "../eventSourceManager";
 import {getResponseErrorMessage} from "../services/api.jsx";
-import {Table, HeaderRow, HeaderCell, SortHeaderCell, Row, Cell, EmptyRow, LIST_PAGE_FIT, LIST_RAIL_QUERY} from "../ui/components/Table";
+import {Table, HeaderRow, HeaderCell, SortHeaderCell, Row, Cell, EmptyRow, LIST_PAGE, LIST_PAGE_FIT, LIST_RAIL_QUERY} from "../ui/components/Table";
 import {Alert} from "../ui/components/Alert";
 import {Button} from "../ui/components/Button";
 import {Checkbox} from "../ui/components/Field";
@@ -364,11 +364,12 @@ const Resources = () => {
     }
 
     return (
-        <div ref={page} className={`flex h-full gap-6 p-4 ${LIST_PAGE_FIT}`}>
+        <div ref={page} className={`flex h-full gap-6 p-4 ${LIST_PAGE} ${LIST_PAGE_FIT}`}>
             <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
                 {/* Wide, the tools at the head of the rail and the filters in it: their rows to the table. */}
                 {!hasRail && (
-                    <div className="flex shrink-0 flex-wrap items-center gap-3">
+                    <div data-list-tools="" data-selecting={selectedLines.length > 0 ? "" : undefined}
+                         className="flex shrink-0 flex-wrap items-center gap-3">
                         <FilterToolbar
                             facets={facets}
                             search={filter}

@@ -11,7 +11,7 @@ import {URL_NODE_INFO} from "../config/apiPath.js";
 import {nodeMenuItems, postNodeAction} from "../app/node-actions";
 import {useTranslation} from "react-i18next";
 import {NodeActionDialog} from "./NodeActionDialog";
-import {Table, HeaderRow, HeaderCell, SortHeaderCell, EmptyRow, LIST_RAIL_QUERY} from "../ui/components/Table";
+import {Table, HeaderRow, HeaderCell, SortHeaderCell, EmptyRow, LIST_PAGE, LIST_RAIL_QUERY} from "../ui/components/Table";
 import {Checkbox} from "../ui/components/Field";
 import {Button, IconButton} from "../ui/components/Button";
 import {MenuButton} from "../ui/components/MenuButton";
@@ -376,11 +376,12 @@ const NodesTable = () => {
     );
 
     return (
-        <div ref={page} className="flex gap-6 p-4">
+        <div ref={page} className={`flex gap-6 p-4 ${LIST_PAGE}`}>
             <div className="min-w-0 flex-1 space-y-3">
                 {/* Wide, the tools at the head of the rail and the filters in it; narrower, over the table. */}
                 {!hasRail && (
-                    <div className="flex min-h-7 flex-wrap items-center gap-3">
+                    <div data-list-tools="" data-selecting={selectedNodes.length > 0 ? "" : undefined}
+                         className="flex min-h-7 flex-wrap items-center gap-3">
                         <FilterToolbar
                             facets={facets}
                             search={search}

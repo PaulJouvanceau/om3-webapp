@@ -5,7 +5,7 @@ import {retainEventReception} from "../eventSourceManager.jsx";
 import useEventStore from "../hooks/useEventStore";
 import {useNamespaceClaims, useNamespacePg} from "../hooks/useNamespaceUsage";
 import {computeLimit, formatCpu, kindCounts, networkUsage, poolUsage} from "../app/namespace-usage";
-import {Table, HeaderRow, HeaderCell, SortHeaderCell, Row, Cell, EmptyRow} from "../ui/components/Table";
+import {Table, HeaderRow, HeaderCell, SortHeaderCell, Row, Cell, EmptyRow, LIST_PAGE} from "../ui/components/Table";
 import {useFitLevel} from "../ui/lib/fit-level";
 import {SegmentedBar} from "../ui/components/SegmentedBar";
 import {usageState} from "../ui/components/UsageBar";
@@ -430,7 +430,7 @@ const Namespaces = () => {
     const handleClose = useCallback(() => selectNamespace(undefined), [selectNamespace]);
 
     return (
-        <div className="flex h-full flex-col gap-3 p-4">
+        <div className={`flex h-full flex-col gap-3 p-4 ${LIST_PAGE}`}>
             <p className="text-ink-muted tabular-nums">{t("namespaces.count", {count: sortedRows.length})}</p>
 
             <Table
