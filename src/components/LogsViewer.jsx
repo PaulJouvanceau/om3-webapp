@@ -706,7 +706,9 @@ const LogsViewer = ({
                                         data-block-start={merged && opens ? "" : undefined}
                                         className={cn(
                                             // A very light line between entries, no frame around them.
-                                            "log-line col-span-full grid grid-cols-subgrid items-baseline border-b px-2 py-0.5 transition-colors max-md:grid-cols-1",
+                                            // Narrow, not a column a part: the time, the level and the node on a
+                                            // line, the badges and the text after, on the next.
+                                            "log-line col-span-full grid grid-cols-subgrid items-baseline border-b px-2 py-0.5 transition-colors max-md:flex max-md:flex-wrap max-md:gap-x-2",
                                             closes ? "border-line" : "border-line/40",
                                             isFiltered && "cursor-pointer hover:bg-surface-raised",
                                             highlightedLogId === (log.key ?? log.__REALTIME_TIMESTAMP) && "bg-accent-soft"
@@ -716,7 +718,7 @@ const LogsViewer = ({
                                         onClick={() => handleLogClick(log)}
                                     >
                                         {/* The time, the level under it in its colour, the word alone. */}
-                                        <span className="flex flex-col">
+                                        <span className="flex flex-col max-md:flex-row max-md:gap-2">
                                         <span className="text-ink-muted">{formatTime(log.timestamp)}</span>
                                         <span className={getLevelClass(log.level)}>{log.level.toUpperCase()}</span>
                                     </span>
@@ -731,9 +733,10 @@ const LogsViewer = ({
                                         {/* The message apart from what tells where and when, by a line: on
                                         a first line, what it is about, small badges; on the next, its text. */}
                                         <span
-                                            className="flex min-w-0 flex-col border-l border-line pl-2 max-md:border-l-0 max-md:pl-0">
+                                            className="flex min-w-0 flex-col border-l border-line pl-2 max-md:block max-md:basis-full max-md:border-l-0 max-md:pl-0">
                                         {(log.prefixes?.length > 0 || log.method || log.path) && (
-                                            <span className="flex flex-wrap gap-1 font-sans" data-meta="">
+                                            // Narrow, the badges before the text, on its line.
+                                            <span className="flex flex-wrap gap-1 font-sans max-md:mr-1.5 max-md:inline-flex" data-meta="">
                                                 {[...(log.prefixes ?? []), log.method, log.path].filter(Boolean).map((meta, j) => (
                                                     <span
                                                         key={`${j}-${meta}`}
@@ -752,7 +755,8 @@ const LogsViewer = ({
                             })}
                         </div>
                     )}
-                    <div ref={logsEndRef} style={{height: bottomSpacing}}/>
+                    {/* Narrow, a few pixels: the room of a line more. */}
+                    <div ref={logsEndRef} style={{height: bottomSpacing}} className="max-md:h-2!"/>
                 </div>
                 <FollowOverlay
                     scrollAge={scrollAge}
