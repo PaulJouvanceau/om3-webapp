@@ -1,5 +1,6 @@
 import React from "react";
 import {useHref, useNavigate} from "react-router-dom";
+import {useRoomWidth} from "../ui/lib/room-width";
 
 const RING_RADIUS = 52;
 const ROUND = 2 * Math.PI * RING_RADIUS;
@@ -9,6 +10,12 @@ export const RING_INK = {up: "text-state-up", warn: "text-state-warn", down: "te
 /** The room of the labels: on each side of the ring, its width; and their least gap, one above the other. */
 const LABEL_ROOM = 64;
 const LABEL_GAP = 11;
+/**
+ * The size of the labels in the drawing, and the least they are read at, in pixels:
+ * the drawing shrunk to a phone, its labels larger in it, not smaller than that.
+ */
+const LABEL_SIZE = 8;
+const LABEL_READ = 11.5;
 /** How far to a side the middle of an arc stands for its label to leave from it (the sine of its angle). */
 const SIDEWAYS = 0.6;
 /** Where a label's line leaves the ring, outside its stroke, and where it turns along the label. */
@@ -20,7 +27,7 @@ const LEAD_TO = RING_RADIUS + 12;
  * side of the ring the middle stands, one above the other with room between them, kept
  * in the drawing.
  */
-function placeLabels(arcs, cx, cy, height) {
+function placeLabels(arcs, cx, cy, height, gap = LABEL_GAP) {
     const placed = arcs.map((arc) => {
         // From its middle; near the top or the bottom of the ring, from the point of the arc
         // farthest to a side, its label beside the ring rather than under or over it.
@@ -47,11 +54,12 @@ function placeLabels(arcs, cx, cy, height) {
     });
     for (const right of [true, false]) {
         const side = placed.filter((l) => l.right === right).sort((a, b) => a.y - b.y);
-        for (let i = 1; i < side.length; i += 1) side[i].y = Math.max(side[i].y, side[i - 1].y + LABEL_GAP);
+        for (let i = 1; i < side.length; i += 1) side[i].y = Math.max(side[i].y, side[i - 1].y + gap);
         // Pushed past the bottom: back up, the gaps kept.
         const over = (side.at(-1)?.y ?? 0) - (height - 4);
         if (over > 0) for (const l of side) l.y -= over;
-        for (const l of side) l.y = Math.max(l.y, 10);
+        // Its text in the drawing, however large: its line under its top.
+        for (const l of side) l.y = Math.max(l.y, gap - 1);
     }
     return placed;
 }
@@ -96,9 +104,12 @@ export function StateRing({parts, total = parts.reduce((sum, [, count]) => sum +
     const labelled = parts.some(([, , , label]) => label);
     const width = labelled ? 120 + 2 * LABEL_ROOM : 120;
     const cx = width / 2;
-    const labels = labelled ? placeLabels(arcs.filter((a) => a.label), cx, 60, 120) : [];
+    // Its labels read on a phone: as large in the drawing as its shrinking asks.
+    const [box, room] = useRoomWidth();
+    const size = room ? Math.max(LABEL_SIZE, (LABEL_READ * width) / room) : LABEL_SIZE;
+    const labels = labelled ? placeLabels(arcs.filter((a) => a.label), cx, 60, 120, Math.max(LABEL_GAP, size + 3)) : [];
     return (
-        <div className={labelled ? "relative aspect-[248/120] w-full max-w-[23rem]" : "relative size-44"}>
+        <div ref={box} className={labelled ? "relative aspect-[248/120] w-full max-w-[23rem]" : "relative size-44"}>
             <svg viewBox={`0 0 ${width} 120`} className="size-full overflow-visible">
                 <g aria-hidden="true" transform={`rotate(-90 ${cx} 60)`}>
                     <circle cx={cx} cy="60" r={RING_RADIUS} fill="none" strokeWidth="8" className="stroke-surface-sunken"/>
@@ -118,7 +129,7 @@ export function StateRing({parts, total = parts.reduce((sum, [, count]) => sum +
                     ))}
                 </g>
                 {labels.length > 0 && (
-                    <g data-ring-labels="" className="text-[8px]">
+                    <g data-ring-labels="" style={{fontSize: `${size}px`}}>
                         {labels.map((l) => {
                             const end = l.right ? width - 2 : 2;
                             const drawn = (

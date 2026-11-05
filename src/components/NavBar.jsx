@@ -121,7 +121,8 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
                             level={menuAlert.level}
                             text={menuAlert.text}
                             testId="menu-alert"
-                            className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 text-[0.625rem]"
+                            // As large as on the menu entries, its mark read: over the corner of the button.
+                            className="absolute -top-1 -right-1"
                         />
                     )}
                 </button>

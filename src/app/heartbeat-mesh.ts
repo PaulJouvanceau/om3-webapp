@@ -282,6 +282,23 @@ function boxExit(arc: Arc, box: MeshNode, start: boolean): number {
   return at(outside);
 }
 
+/** The radius of the circle of the nodes at the least: the usual one. */
+const RADIUS = 200;
+/** The least on a phone: the lines still curved between two nodes, the relays clear. */
+const MIN_RADIUS = 90;
+
+/**
+ * The radius the circle of the nodes needs at the least, for the square to fit `room`
+ * unshrunk; RADIUS when it is not known, or as wide. Never under the room the relays
+ * take, one over the other, between two nodes facing each other.
+ */
+function fittedRadius(room: number | undefined, side: number, links: MeshLink[]): number {
+  if (room === undefined) return RADIUS;
+  const relays = meshRelays(links).length;
+  const stack = relays * NODE_HEIGHT + Math.max(0, relays - 1) * RELAY_GAP;
+  return Math.min(RADIUS, Math.max(MIN_RADIUS, room / 2 - side, stack / 2 + NODE_HEIGHT + RELAY_GAP * 2));
+}
+
 /** The name a node box shows: whole, or cut to MAX_LABEL characters, the last an ellipsis. */
 export function nodeLabel(name: string): string {
   return name.length > MAX_LABEL ? `${name.slice(0, MAX_LABEL - 1)}…` : name;
@@ -302,8 +319,12 @@ export function nodeWidth(name: string): number {
  * bulging apart around it. Each line holds all the links of its direction, and runs
  * from the edge of the box of the sender to the edge of the box of the receiver, in
  * two halves a short gap apart.
+ *
+ * `room`, the width the square is drawn in, in pixels: narrower than the drawing, a
+ * phone, the circle of the nodes as small as their boxes and the relays allow rather
+ * than of its usual size, for the drawing to be shrunk the least, its names still read.
  */
-export function meshLayout(nodes: string[], links: MeshLink[]): MeshLayout {
+export function meshLayout(nodes: string[], links: MeshLink[], room?: number): MeshLayout {
   let width: number;
   let height: number;
   const boxes: Record<string, MeshNode> = {};
@@ -322,8 +343,9 @@ export function meshLayout(nodes: string[], links: MeshLink[]): MeshLayout {
   } else {
     // The circle long enough for the boxes side by side, and room for the lines; two
     // nodes on it face each other, one over the other.
-    const radius = Math.max(200, nodes.length * 50, (nodes.length * (widest + 60)) / (2 * Math.PI));
-    width = 2 * (radius + Math.max(widest / 2 + 40, NODE_HEIGHT / 2 + 60));
+    const side = Math.max(widest / 2 + 40, NODE_HEIGHT / 2 + 60);
+    const radius = Math.max(fittedRadius(room, side, links), nodes.length * 50, (nodes.length * (widest + 60)) / (2 * Math.PI));
+    width = 2 * (radius + side);
     height = width;
     nodes.forEach((name, i) => {
       const angle = -Math.PI / 2 + (2 * Math.PI * i) / nodes.length;
@@ -349,10 +371,14 @@ export function meshLayout(nodes: string[], links: MeshLink[]): MeshLayout {
     x: Math.max(...relays.map((r) => r.width)) / 2 + RELAY_GAP * 2,
     y: stack / 2 + RELAY_GAP * 2,
   };
-  const clearAlong = (way: Point) => Math.min(
-    ringRadius * CENTRE_MAX,
-    Math.max(ringRadius * CENTRE_CLEAR, Math.abs(way.x) * relayHalf.x + Math.abs(way.y) * relayHalf.y),
-  );
+  // Never across the relays, the circle small on a phone.
+  const clearAlong = (way: Point) => {
+    const relaysAlong = Math.abs(way.x) * relayHalf.x + Math.abs(way.y) * relayHalf.y;
+    return Math.max(
+      Math.min(ringRadius * CENTRE_MAX, Math.max(ringRadius * CENTRE_CLEAR, relaysAlong)),
+      room === undefined ? 0 : relaysAlong,
+    );
+  };
 
   const byDirection = new Map<string, MeshLink[]>();
   for (const link of links) {
