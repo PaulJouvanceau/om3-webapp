@@ -144,9 +144,12 @@ const NetworkDetails = ({name, embedded = false} = {}) => {
                 </h1>
             )}
             {error && <Alert>{t("networks.details.loadError")}</Alert>}
-            <div className="flex flex-wrap items-center gap-3">
+            {/* Narrow, the filters stacked under their button, a line each: its title in a
+                column of one width, its field the rest, the fields lined up. */}
+            <div className="flex flex-wrap items-center gap-3 max-md:flex-col max-md:items-stretch max-md:gap-2" data-filters="">
                 <Button
                     size="sm"
+                    className="max-md:self-start"
                     onClick={() => setShowFilters(!showFilters)}
                     icon={<ChevronDownIcon className={showFilters ? "rotate-180" : undefined}/>}
                     aria-label={showFilters ? t("networks.details.hideFilters") : t("networks.details.showFilters")}
@@ -154,34 +157,22 @@ const NetworkDetails = ({name, embedded = false} = {}) => {
                 >
                     {showFilters ? t("networks.details.hideFilters") : t("networks.details.showFilters")}
                 </Button>
-                {showFilters && (
-                    <>
-                        <label className="flex items-center gap-1 text-ink-muted">
-                            {t("common.node")}
-                            <Input
-                                className="h-7 w-48"
-                                value={nodeFilter}
-                                onChange={(e) => debouncedSetNodeFilter(e.target.value)}
-                            />
-                        </label>
-                        <label className="flex items-center gap-1 text-ink-muted">
-                            {t("networks.details.path")}
-                            <Input
-                                className="h-7 w-48"
-                                value={pathFilter}
-                                onChange={(e) => debouncedSetPathFilter(e.target.value)}
-                            />
-                        </label>
-                        <label className="flex items-center gap-1 text-ink-muted">
-                            {t("networks.details.rid")}
-                            <Input
-                                className="h-7 w-48"
-                                value={ridFilter}
-                                onChange={(e) => debouncedSetRidFilter(e.target.value)}
-                            />
-                        </label>
-                    </>
-                )}
+                {showFilters && [
+                    ["node", t("common.node"), nodeFilter, debouncedSetNodeFilter],
+                    ["path", t("networks.details.path"), pathFilter, debouncedSetPathFilter],
+                    ["rid", t("networks.details.rid"), ridFilter, debouncedSetRidFilter],
+                ].map(([key, label, value, set]) => (
+                    <label key={key} className="flex items-center gap-1 text-ink-muted max-md:grid max-md:grid-cols-[4rem_minmax(0,1fr)] max-md:gap-2">
+                        {label}
+                        {/* Its own text, the list filtered once the typing pauses: held to the
+                            filter, a field would drop the letters typed in the meantime. */}
+                        <Input
+                            className="h-7 w-48 max-md:w-full"
+                            defaultValue={value}
+                            onChange={(e) => set(e.target.value)}
+                        />
+                    </label>
+                ))}
             </div>
             {isLoading ? (
                 <div className="flex justify-center py-8">
