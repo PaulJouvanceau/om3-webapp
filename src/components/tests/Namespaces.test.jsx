@@ -50,6 +50,8 @@ const OBJECTS = {
     'prod/sec/tls': {avail: 'n/a'},
     'prod/cfg/app': {avail: 'n/a'},
     'prod/cfg/env': {avail: 'n/a'},
+    // The configuration of prod, which holds its claims; dev and root have none.
+    'prod/': {avail: 'n/a'},
     'foo': {avail: 'warn'},
     'cluster': {avail: 'n/a'},
     'dev/svc/x': {avail: 'n/a'},
@@ -380,15 +382,21 @@ describe('Namespaces', () => {
         expect(names()).toEqual(['dev', 'prod', 'root']);
     });
 
-    test('reads the claims of each namespace, a namespace without nscfg claiming nothing', async () => {
+    test('reads the claims of the namespaces the cluster lists a configuration of, the others claiming nothing, not asked', async () => {
         renderNamespaces();
         await loaded();
         const read = global.fetch.mock.calls.map(([url]) => url).filter((url) => url.includes('/nscfg/'));
-        expect([...new Set(read)].sort()).toEqual([
-            '/api/object/path/dev/nscfg/namespace/config/file',
-            '/api/object/path/prod/nscfg/namespace/config/file',
-            '/api/object/path/root/nscfg/namespace/config/file',
-        ]);
+        // dev and root listed without one: no 404 asked for.
+        expect([...new Set(read)]).toEqual(['/api/object/path/prod/nscfg/namespace/config/file']);
+    });
+
+    test('a configuration appearing, its claims read then', async () => {
+        renderNamespaces();
+        await loaded();
+        const reads = () => global.fetch.mock.calls.filter(([url]) => url === '/api/object/path/dev/nscfg/namespace/config/file').length;
+        expect(reads()).toBe(0);
+        act(() => useEventStore.setState((state) => ({objectStatus: {...state.objectStatus, 'dev/': {avail: 'n/a'}}})));
+        await waitFor(() => expect(reads()).toBe(1));
     });
 
     test('the first 100 namespaces drawn, more on demand, the count said', async () => {
