@@ -325,6 +325,14 @@ describe("Table cards", () => {
     expect(screen.getByRole("table", { name: "Disks" })).toHaveAttribute("data-cards");
     expect(screen.getByRole("table", { name: "Board" })).not.toHaveAttribute("data-cards");
   });
+
+  test("narrow, a row's checkbox at the top left of its card, as in every list, not a line of its own; the lines after it", () => {
+    render(<List rows={["sda"]} cards />);
+    const table = screen.getByRole("table", { name: "Disks" });
+    const check = "max-md:[&>tbody>tr>td:first-child:has(>input[type=checkbox]:only-child)]";
+    expect(table).toHaveClass("max-md:[&>tbody>tr]:relative", `${check}:absolute`, `${check}:top-1.5`, `${check}:left-0`);
+    expect(table).toHaveClass("max-md:[&>tbody>tr:has(>td:first-child>input[type=checkbox]:only-child)]:pl-8");
+  });
 });
 
 describe("Table, cards always", () => {

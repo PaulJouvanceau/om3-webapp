@@ -509,7 +509,8 @@ function NodeStatusTab({node, onOrchestrationLogs}) {
 function Facts({facts}) {
     return (
         // The labels in a column of one width in every block: the values aligned from one block to the next.
-        <dl className="grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)] items-baseline gap-x-6 gap-y-1">
+        // Narrow, a narrower one: the room to the values, a version or an id on its line.
+        <dl className="grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)] items-baseline gap-x-6 gap-y-1 max-md:grid-cols-[minmax(0,8rem)_minmax(0,1fr)] max-md:gap-x-3">
             {facts.map(([key, label, value]) => (
                 <React.Fragment key={key}>
                     <dt className="break-words text-ink-muted">{label}</dt>

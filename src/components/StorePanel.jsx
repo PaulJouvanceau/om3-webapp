@@ -251,7 +251,7 @@ export function StoreOverview({name}) {
         <div className="space-y-5">
             <section aria-labelledby={`${id}-facts`} className="space-y-2">
                 <h3 id={`${id}-facts`} className="font-semibold">{t("stores.panel.store")}</h3>
-                <dl className="grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)] items-baseline gap-x-6 gap-y-1">
+                <dl className="grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)] items-baseline gap-x-6 gap-y-1 max-md:grid-cols-[minmax(0,8rem)_minmax(0,1fr)] max-md:gap-x-3">
                     {facts.map(([key, value]) => (
                         <React.Fragment key={key}>
                             <dt className="text-ink-muted">{t(`stores.facts.${key}`)}</dt>

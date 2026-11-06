@@ -934,13 +934,14 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey, keyOnly, onKe
             aria-labelledby={titleId}
             className="rounded-(--radius-panel) border border-line bg-surface-raised"
         >
-            <div className="flex items-center gap-2 border-b border-line px-3 py-2">
+            {/* Narrow, the title and its buttons on a line, the help or the removal on the next. */}
+            <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2">
                 <KeyIcon className="text-ink-muted"/>
-                <h2 id={titleId} className="font-semibold">
+                <h2 id={titleId} className="font-semibold whitespace-nowrap max-md:mr-auto">
                     {t("keys.title", {total: safeKeys.length})}
                 </h2>
                 {/* Nothing checked, the help says how; the keys checked, their removal. */}
-                <div className="ml-auto flex items-center">
+                <div className="ml-auto flex items-center max-md:order-last max-md:ml-0 max-md:basis-full">
                     {!keysLoading && !hasKeysError && safeKeys.length > 0 && (pickedKeys.length > 0 ? (
                         <Button
                             size="sm"

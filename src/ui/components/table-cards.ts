@@ -51,13 +51,17 @@ export function labelCells(table: HTMLTableElement): void {
 /**
  * A table in a narrow window, its rows as cards: the header row hidden, a row a
  * block split from the next by its line, a cell a line of its own, the title of
- * its column before its value. An empty cell takes no line.
+ * its column before its value. An empty cell takes no line. A row's checkbox alone
+ * in its first cell, no line of its own: at the top left of its card, as in every
+ * list, the lines of the card after it, aligned.
  */
 export const CARDS = [
   "max-md:block",
   "max-md:[&>thead]:hidden",
   "max-md:[&>tbody]:block",
-  "max-md:[&>tbody>tr]:block max-md:[&>tbody>tr]:h-auto max-md:[&>tbody>tr]:py-1.5",
+  "max-md:[&>tbody>tr]:relative max-md:[&>tbody>tr]:block max-md:[&>tbody>tr]:h-auto max-md:[&>tbody>tr]:py-1.5",
+  "max-md:[&>tbody>tr>td:first-child:has(>input[type=checkbox]:only-child)]:absolute max-md:[&>tbody>tr>td:first-child:has(>input[type=checkbox]:only-child)]:top-1.5 max-md:[&>tbody>tr>td:first-child:has(>input[type=checkbox]:only-child)]:left-0",
+  "max-md:[&>tbody>tr:has(>td:first-child>input[type=checkbox]:only-child)]:pl-8",
   "max-md:[&>tbody>tr>*]:flex max-md:[&>tbody>tr>*]:flex-wrap max-md:[&>tbody>tr>*]:items-center max-md:[&>tbody>tr>*]:gap-x-2 max-md:[&>tbody>tr>*]:py-0.5 max-md:[&>tbody>tr>*]:whitespace-normal max-md:[&>tbody>tr>*]:break-words",
   "max-md:[&>tbody>tr>td:empty]:hidden",
   "max-md:[&>tbody>tr>[data-label]]:before:w-28 max-md:[&>tbody>tr>[data-label]]:before:shrink-0 max-md:[&>tbody>tr>[data-label]]:before:text-ink-muted max-md:[&>tbody>tr>[data-label]]:before:content-[attr(data-label)]",
@@ -71,7 +75,9 @@ export const CARDS_ALWAYS = [
   "block",
   "[&>thead]:hidden",
   "[&>tbody]:block",
-  "[&>tbody>tr]:block [&>tbody>tr]:h-auto [&>tbody>tr]:py-1.5",
+  "[&>tbody>tr]:relative [&>tbody>tr]:block [&>tbody>tr]:h-auto [&>tbody>tr]:py-1.5",
+  "[&>tbody>tr>td:first-child:has(>input[type=checkbox]:only-child)]:absolute [&>tbody>tr>td:first-child:has(>input[type=checkbox]:only-child)]:top-1.5 [&>tbody>tr>td:first-child:has(>input[type=checkbox]:only-child)]:left-0",
+  "[&>tbody>tr:has(>td:first-child>input[type=checkbox]:only-child)]:pl-8",
   "[&>tbody>tr>*]:flex [&>tbody>tr>*]:flex-wrap [&>tbody>tr>*]:items-center [&>tbody>tr>*]:gap-x-2 [&>tbody>tr>*]:py-0.5 [&>tbody>tr>*]:whitespace-normal [&>tbody>tr>*]:break-words",
   "[&>tbody>tr>td:empty]:hidden",
   "[&>tbody>tr>[data-label]]:before:w-28 [&>tbody>tr>[data-label]]:before:shrink-0 [&>tbody>tr>[data-label]]:before:text-ink-muted [&>tbody>tr>[data-label]]:before:content-[attr(data-label)]",
