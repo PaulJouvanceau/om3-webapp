@@ -2070,6 +2070,7 @@
   "panel": {
     "resize": "Resize the panel",
     "tabs": {
+      "label": "Views of {{name}}",
       "status": "Status",
       "usage": "Usage",
       "capacity": "Capacity",

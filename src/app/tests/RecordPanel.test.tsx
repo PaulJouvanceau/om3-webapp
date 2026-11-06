@@ -91,6 +91,13 @@ describe("record panels", () => {
     expect(within(panel).getByText("content of status")).toBeInTheDocument();
   });
 
+  test("its tabs named after the record, not the words of a missing translation", () => {
+    renderView();
+    fireEvent.click(screen.getByRole("button", { name: "lo" }));
+    const panel = screen.getByRole("dialog", { name: "lo" });
+    expect(within(panel).getByRole("tablist")).toHaveAccessibleName("Views of lo");
+  });
+
   test("a badge may name the tab to open on, and a tab change goes in the URL", () => {
     renderView();
     fireEvent.click(screen.getByRole("button", { name: "web" }));

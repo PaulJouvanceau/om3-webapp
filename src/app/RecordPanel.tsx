@@ -127,7 +127,7 @@ export function RecordPanel({
             onChange={(key) => {
               onTabChange?.(key === first ? undefined : key);
             }}
-            label={t("panel.tabs", { name: title })}
+            label={t("panel.tabs.label", { name: title })}
             idPrefix={tabsId}
           />
         ) : undefined

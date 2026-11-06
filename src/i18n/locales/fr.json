@@ -2070,6 +2070,7 @@
   "panel": {
     "resize": "Redimensionner le panneau",
     "tabs": {
+      "label": "Vues de {{name}}",
       "status": "État",
       "usage": "Utilisation",
       "capacity": "Capacité",
