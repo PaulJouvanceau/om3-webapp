@@ -258,8 +258,8 @@ describe('Namespaces', () => {
         expect(within(cell('prod', 'Memory')).getByRole('img', {name: 'Memory used by prod, of its cap'})).toBeInTheDocument();
         // A single segment, in its heat rather than a series tint: 25%, cool.
         expect(within(cell('prod', 'Memory')).getByRole('img').querySelector('[data-segment]')).toHaveClass('bg-state-up');
-        // Not measured yet: a dash, not a share of nothing.
-        expect(cell('prod', 'CPU')).toHaveTextContent(/^–\s*–\s*of 8 cpu$/);
+        // Not measured yet: a dash, once, not a share of nothing.
+        expect(cell('prod', 'CPU')).toHaveTextContent(/^–\s*of 8 cpu$/);
         // The rate shows on the second reading, a couple of seconds after the first.
         await act(async () => {
             await vi.advanceTimersByTimeAsync(PG_POLL_MS);
@@ -292,6 +292,8 @@ describe('Namespaces', () => {
             expect([...claims.querySelectorAll('[data-figure]')].map((f) => f.textContent)).toEqual(['Pools', 'Networks', 'CPU', 'Memory']);
             expect(claims).toHaveTextContent(/Pools\s*11 GiB in 2 pools\s*50% of 20 GiB · default/);
             expect(claims).toHaveTextContent(/Networks\s*2 addresses in 1 network\s*20% of 10 · default/);
+            // The cpu not measured yet: a dash, once, before its cap.
+            expect(claims).toHaveTextContent(/CPU\s*–\s*of 8 cpu/);
             expect(within(claims).getByRole('img', {name: /^Pools: default/})).toBeInTheDocument();
             expect(table()).not.toHaveAttribute('data-cards');
         });
@@ -312,6 +314,24 @@ describe('Namespaces', () => {
             await loaded();
             expect(table()).toHaveAttribute('data-cards');
             expect(within(row('prod')).getAllByRole('cell').map((c) => c.dataset.label)).toEqual(['Name', 'Objects', 'Pools', 'Networks', 'CPU', 'Memory']);
+        });
+
+        test('cards: a figure beside its title, its bar line wrapped in the room left, not put under the title', async () => {
+            vi.mocked(useFitLevel).mockReturnValue(3);
+            renderNamespaces();
+            const usage = await waitFor(() => within(cell('prod', 'Pools')).getByRole('img').closest('[data-usage]'));
+            expect(usage).toHaveClass('min-w-0', 'flex-1');
+            expect(usage).not.toHaveClass('whitespace-nowrap');
+            expect(usage.lastElementChild).toHaveClass('flex-wrap');
+            // Its title beside its first line.
+            expect(cell('prod', 'Pools')).toHaveClass('!items-start');
+        });
+
+        test('wider, a figure on its lines whole', async () => {
+            renderNamespaces();
+            const usage = await waitFor(() => within(cell('prod', 'Pools')).getByRole('img').closest('[data-usage]'));
+            expect(usage).toHaveClass('whitespace-nowrap');
+            expect(usage.lastElementChild).not.toHaveClass('flex-wrap');
         });
     });
 
