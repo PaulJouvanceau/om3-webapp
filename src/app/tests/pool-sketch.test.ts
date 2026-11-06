@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { poolBandFacts, poolNodeFacts, poolSketchInput, poolSketchLayout, volumeNodes } from "../pool-sketch";
 import { POOL_RULES } from "../pool-config";
+import { CHIP_HEIGHT, TOUCH_CHIP_HEIGHT } from "../sketch-layout";
 import { type Keyword, sectionFields, sectionTypes } from "../section-config";
 // The pool keywords as the daemon declares them (GET /api/cluster/config/keywords).
 import KEYWORDS from "./pool-keywords.fixture.json";
@@ -72,6 +73,17 @@ describe("pool sketch", () => {
     // A node reporting the pool says its use; one not, nothing.
     expect(layout.nodes[2].facts).toEqual([]);
     expect(layout.route).toBeNull();
+  });
+
+  test("on a touch screen, the chips of the volumes taller, further apart: a tap each", () => {
+    const input = { pool: POOL, perNode: PER_NODE, values: {}, nodes: ["n1", "n2"], volumes: VOLUMES };
+    const mouse = poolSketchLayout(input, format);
+    const touch = poolSketchLayout({ ...input, touch: true }, format);
+    expect(mouse.chip).toBe(CHIP_HEIGHT);
+    expect(touch.chip).toBe(TOUCH_CHIP_HEIGHT);
+    const gap = ({ shared, chip }: typeof touch) => shared!.rows[1]!.y - shared!.rows[0]!.y - chip;
+    expect(gap(touch)).toBeGreaterThan(gap(mouse));
+    expect(touch.height).toBeGreaterThan(mouse.height);
   });
 });
 

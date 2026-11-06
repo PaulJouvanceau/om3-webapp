@@ -37,6 +37,8 @@ export interface PoolSketchInput {
   values: Record<string, string>;
   nodes: string[];
   volumes: SketchVolume[];
+  /** A finger as the pointer: the chips of the volumes taller, further apart. */
+  touch?: boolean;
 }
 
 /** The keys saying where a pool takes its volumes from, shown when set. */
@@ -75,7 +77,7 @@ export const volumeNodes = (volume: SketchVolume) => {
 
 /** The input of the layout of the sketch of a pool: a volume an item on each node holding it, its size its detail. */
 export function poolSketchInput(input: PoolSketchInput, format: (bytes: number) => string): SketchInput {
-  const { pool, perNode, values, nodes, volumes } = input;
+  const { pool, perNode, values, nodes, volumes, touch } = input;
   return {
     title: `${pool.name} · ${pool.type}`,
     bandFacts: poolBandFacts({ pool, values }),
@@ -87,6 +89,7 @@ export function poolSketchInput(input: PoolSketchInput, format: (bytes: number) 
     }),
     details: Object.fromEntries(volumes.filter((v) => v.size).map((v) => [v.path, format(v.size as number)])),
     route: null,
+    touch,
   };
 }
 

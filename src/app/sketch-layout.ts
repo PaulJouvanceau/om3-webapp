@@ -37,6 +37,8 @@ export interface SketchInput {
   route?: { tunnel: boolean } | null;
   /** What a chip of an object says at its right end, its count of items unless given. */
   details?: Record<string, string>;
+  /** A finger as the pointer: the chips taller, further apart, each a tap of its own. */
+  touch?: boolean;
 }
 
 export interface SketchNode {
@@ -87,6 +89,8 @@ export interface SketchShared {
 export interface SketchLayout {
   width: number;
   height: number;
+  /** The height of a chip, of a pill: taller on a touch screen. */
+  chip: number;
   band: {
     x: number;
     y: number;
@@ -118,6 +122,12 @@ export const LINE = 16;
 export const PADDING = 12;
 export const CHIP_HEIGHT = 22;
 const CHIP_GAP = 6;
+/**
+ * On a touch screen: the sketch shrunk to a phone, about a sixth, a chip still a
+ * finger's height, the next a gap apart.
+ */
+export const TOUCH_CHIP_HEIGHT = 40;
+const TOUCH_CHIP_GAP = 10;
 const MARGIN = 8;
 const GAP = 32;
 const DROP = 36;
@@ -143,6 +153,8 @@ const chipText = (path: string, right: string) => Math.round((path.length + righ
 export function layoutSketch(input: SketchInput, computedText = 120, routeText = 90): SketchLayout {
   const { nodes, items, nodeFacts: facts } = input;
   const detailOf = (path: string) => input.details?.[path];
+  const chip = input.touch === true ? TOUCH_CHIP_HEIGHT : CHIP_HEIGHT;
+  const chipGap = input.touch === true ? TOUCH_CHIP_GAP : CHIP_GAP;
 
   // An item by what it is, and the nodes reporting it; one of a node no more of the cluster left out.
   const reported = new Map<string, { path: string; nodes: Set<string> }>();
@@ -237,7 +249,7 @@ export function layoutSketch(input: SketchInput, computedText = 120, routeText =
 
   // Under the boxes, the shared items first, a pill an object across all the columns,
   // its stretch over a column changing halfway into the gap to the next.
-  let y = top + boxHeight + CHIP_GAP * 2;
+  let y = top + boxHeight + chipGap * 2;
   let sharedBlock: SketchLayout["shared"] = null;
   if (shared.length > 0 && sketchNodes.length > 0) {
     const first = sketchNodes[0];
@@ -254,7 +266,7 @@ export function layoutSketch(input: SketchInput, computedText = 120, routeText =
         width: last.x + last.width - first.x,
         segments: sketchNodes.map((n, i) => ({ node: n.name, x1: bounds[i][0], x2: bounds[i][1], present: o.nodes.includes(n.name) })),
       };
-      y += CHIP_HEIGHT + CHIP_GAP;
+      y += chip + chipGap;
       return row;
     });
     const left = shared.length - shownShared.length;
@@ -277,7 +289,7 @@ export function layoutSketch(input: SketchInput, computedText = 120, routeText =
     const own = objectsOf(n.name);
     for (const o of own.slice(0, MAX_OBJECTS)) {
       objects.push({ node: n.name, path: o.path, count: o.count, ...(o.detail !== undefined ? { detail: o.detail } : {}), x: n.x, y: yy, width: n.width });
-      yy += CHIP_HEIGHT + CHIP_GAP;
+      yy += chip + chipGap;
     }
     if (own.length > MAX_OBJECTS) {
       more.push({ node: n.name, count: own.length - MAX_OBJECTS, x: n.x + n.width / 2, y: yy + LINE / 2 });
@@ -294,5 +306,5 @@ export function layoutSketch(input: SketchInput, computedText = 120, routeText =
     route = { x1: first.x - ROUTE_STUB, x2, y: top + boxHeight / 2, tunnel: Boolean(input.route?.tunnel), labelX: x2 + ROUTE_LABEL_GAP };
   }
 
-  return { width, height: Math.round(bottom + MARGIN), band: bandBox, nodes: sketchNodes, route, objects, more, shared: sharedBlock };
+  return { width, height: Math.round(bottom + MARGIN), chip, band: bandBox, nodes: sketchNodes, route, objects, more, shared: sharedBlock };
 }

@@ -8,6 +8,7 @@ import {sectionValues} from "../app/heartbeat-config";
 import {formatBytes} from "../ui/lib/format";
 import {Alert} from "../ui/components/Alert";
 import {Spinner} from "../ui/components/Spinner";
+import {TOUCH_QUERY, useMediaQuery} from "../ui/lib/media";
 import {Table, HeaderRow, HeaderCell, Row, Cell, EmptyRow} from "../ui/components/Table";
 import {PoolWizard} from "./PoolWizard";
 import {SectionConfig, read, readNodes, useClusterSection} from "./SectionConfig";
@@ -48,8 +49,9 @@ function PoolSketch({pool, perNode, section, nodes, volumes}) {
     const {t} = useTranslation();
     const peek = usePeek();
     const bytes = useBytes();
+    const touch = useMediaQuery(TOUCH_QUERY);
     const values = useMemo(() => sectionValues(section ?? null), [section]);
-    const layout = poolSketchLayout({pool, perNode, values, nodes, volumes}, bytes);
+    const layout = poolSketchLayout({pool, perNode, values, nodes, volumes, touch}, bytes);
     return (
         <Sketch
             layout={layout}

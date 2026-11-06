@@ -47,6 +47,8 @@ export interface SketchInput {
   values: SectionValues;
   nodes: string[];
   addresses: SketchAddress[];
+  /** A finger as the pointer: the chips of the addresses taller, further apart. */
+  touch?: boolean;
 }
 
 /** The value of a key on a node: scoped to it, or set for all. */
@@ -108,6 +110,7 @@ export function sketchLayout(input: SketchInput, computedText = 120, routeText =
         .filter((a) => a.node)
         .map((a) => ({ key: `${a.path ?? ""} ${a.rid ?? ""} ${a.ip ?? ""}`, path: a.path ?? "", node: a.node })),
       route: input.type === "routed_bridge" ? { tunnel: input.values.tunnel !== "never" } : null,
+      touch: input.touch,
     },
     computedText,
     routeText,

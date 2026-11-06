@@ -1,5 +1,5 @@
 import React, {useId} from "react";
-import {CHIP_HEIGHT, LINE, PADDING} from "../app/sketch-layout";
+import {LINE, PADDING} from "../app/sketch-layout";
 
 /** A fact of a box: its keyword muted, its value; one the daemon decides said so. */
 function Fact({fact, x, y, computed}) {
@@ -25,14 +25,14 @@ const onKey = (open) => (event) => {
 const TUNNEL_HALF = 3;
 
 /** An object holding items on one node, a chip: its path, its detail or count; opening its panel. */
-function ObjectChip({o, label, onOpen}) {
+function ObjectChip({o, h, label, onOpen}) {
     return (
         <g data-object={o.path} role="button" tabIndex={0} aria-label={label} onClick={onOpen} onKeyDown={onKey(onOpen)}
            className="group cursor-pointer outline-none">
-            <rect x={o.x} y={o.y} width={o.width} height={CHIP_HEIGHT} rx={CHIP_HEIGHT / 2}
+            <rect x={o.x} y={o.y} width={o.width} height={h} rx={h / 2}
                   className="fill-surface stroke-line group-hover:fill-surface-sunken group-focus-visible:stroke-accent"/>
-            <text x={o.x + PADDING} y={o.y + CHIP_HEIGHT / 2 + 4} className="fill-ink">{o.path}</text>
-            <text x={o.x + o.width - PADDING} y={o.y + CHIP_HEIGHT / 2 + 4} textAnchor="end" className="fill-ink-muted tabular-nums">
+            <text x={o.x + PADDING} y={o.y + h / 2 + 4} className="fill-ink">{o.path}</text>
+            <text x={o.x + o.width - PADDING} y={o.y + h / 2 + 4} textAnchor="end" className="fill-ink-muted tabular-nums">
                 {o.detail ?? o.count}
             </text>
         </g>
@@ -45,8 +45,7 @@ function ObjectChip({o, label, onOpen}) {
  * where the node reports them, no more marked than it, dashed and empty where it does
  * not; its ends rounded, as its first and last stretch.
  */
-function SharedPill({o, label, onOpen}) {
-    const h = CHIP_HEIGHT;
+function SharedPill({o, h, label, onOpen}) {
     const r = h / 2;
     const {y} = o;
     const lastIndex = o.segments.length - 1;
@@ -160,7 +159,7 @@ export function Sketch({layout, title, caption, computed, route, texts, onOpen})
                 {layout.shared && (
                     <g data-shared="" aria-label={texts.group(layout.shared)} role="group">
                         {layout.shared.rows.map((o) => (
-                            <SharedPill key={o.path} o={o} label={texts.sharedObject(o)} onOpen={() => onOpen(o.path)}/>
+                            <SharedPill key={o.path} o={o} h={layout.chip} label={texts.sharedObject(o)} onOpen={() => onOpen(o.path)}/>
                         ))}
                         {layout.shared.more && (
                             <text x={layout.shared.more.x} y={layout.shared.more.y} textAnchor="middle" className="fill-ink-muted">
@@ -171,7 +170,7 @@ export function Sketch({layout, title, caption, computed, route, texts, onOpen})
                 )}
                 {/* The objects each node holds alone, under its box. */}
                 {layout.objects.map((o) => (
-                    <ObjectChip key={`${o.node}/${o.path}`} o={o} label={texts.object(o)} onOpen={() => onOpen(o.path)}/>
+                    <ObjectChip key={`${o.node}/${o.path}`} o={o} h={layout.chip} label={texts.object(o)} onOpen={() => onOpen(o.path)}/>
                 ))}
                 {layout.more.map((m) => (
                     <text key={`more-${m.node}`} x={m.x} y={m.y} textAnchor="middle" className="fill-ink-muted">
