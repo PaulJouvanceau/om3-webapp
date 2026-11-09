@@ -9,8 +9,7 @@ import {Spinner} from "../ui/components/Spinner";
 import {BoltIcon, CloseIcon} from "../ui/icons";
 import useEventStore from "../hooks/useEventStore.js";
 import {retainEventReception} from "../eventSourceManager.jsx";
-import {URL_NODE, URL_OBJECT} from "../config/apiPath.js";
-import {getResponseErrorMessage} from "../services/api.jsx";
+import {URL_OBJECT} from "../config/apiPath.js";
 import ActionDialogManager from "../components/ActionDialogManager";
 import HeaderSection from "./HeaderSection";
 import ConfigSection from "./ConfigSection";
@@ -20,8 +19,7 @@ import LogsViewer from "./LogsViewer";
 import {INSTANCE_ACTIONS, KEY_KINDS, OBJECT_ACTIONS, actionLabel} from "../constants/actions";
 import {parseObjectPath} from "../utils/objectUtils.jsx";
 import {orchestrationOf} from "./OrchestrationBadge";
-import {trackRefused, trackResponse} from "../app/action-tracker";
-import {actionSubject, refusalReason} from "./objectActions";
+import {postAction} from "./objectActions";
 import logger from "../utils/logger";
 import {explainedMenu} from "../app/action-menu";
 import {childrenDown} from "../app/statusboard";
@@ -308,55 +306,20 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
         return () => clearTimeout(timer);
     }, [snackbar, closeSnackbar]);
 
-    const postActionUrl = useCallback(({node, objectName, action}) => {
-        const {namespace, kind, name} = parseObjectPath(objectName);
-        const endpoint = INSTANCE_ACTIONS.find((a) => a.name === action)?.endpoint ?? action;
-        return `${URL_NODE}/${encodeURIComponent(node)}/instance/path/${encodeURIComponent(namespace)}/${encodeURIComponent(kind)}/${encodeURIComponent(name)}/action/${endpoint}`;
-    }, []);
-
-    // What comes of an action, accepted or refused, the actions tray says.
-    const postObjectAction = useCallback(async ({action}) => {
-        const token = localStorage.getItem("authToken");
-        if (!token) return openSnackbar(t("objectDetails.feedback.authTokenNotFound"), "error");
+    // An action with the options set in its dialog, posted as the other views post
+    // theirs (postAction): what comes of it, accepted or refused, the actions tray says.
+    const runAction = useCallback(async (target) => {
+        if (!localStorage.getItem("authToken")) return openSnackbar(t("objectDetails.feedback.authTokenNotFound"), "error");
         setActionInProgress(true);
-        const endpoint = OBJECT_ACTIONS.find((a) => a.name === action)?.endpoint ?? `action/${action}`;
-        const url = `${URL_OBJECT}/${encodeURIComponent(namespace)}/${encodeURIComponent(kind)}/${encodeURIComponent(name)}/${endpoint}`;
-        const subject = decodedObjectName;
         try {
-            const res = await fetch(url, {method: "POST", headers: {Authorization: `Bearer ${token}`}});
-            if (!res.ok) {
-                const detail = await getResponseErrorMessage(res);
-                trackRefused({action, subject, reason: refusalReason({status: res.status, detail})});
-                return;
-            }
-            await trackResponse(res, {action, subject, path: decodedObjectName});
-        } catch (err) {
-            trackRefused({action, subject, reason: err.message});
+            await postAction({path: decodedObjectName, ...target});
         } finally {
             setActionInProgress(false);
         }
-    }, [decodedObjectName, openSnackbar, namespace, kind, name, t]);
+    }, [decodedObjectName, openSnackbar, t]);
 
-    const postNodeAction = useCallback(async ({node, action}) => {
-        const token = localStorage.getItem("authToken");
-        if (!token) return openSnackbar(t("objectDetails.feedback.authTokenNotFound"), "error");
-        setActionInProgress(true);
-        const url = postActionUrl({node, objectName: decodedObjectName, action});
-        const subject = actionSubject({path: decodedObjectName, node});
-        try {
-            const res = await fetch(url, {method: "POST", headers: {Authorization: `Bearer ${token}`}});
-            if (!res.ok) {
-                const detail = await getResponseErrorMessage(res);
-                trackRefused({action, subject, reason: refusalReason({status: res.status, detail})});
-                return;
-            }
-            await trackResponse(res, {action, subject, node});
-        } catch (err) {
-            trackRefused({action, subject, reason: err.message});
-        } finally {
-            setActionInProgress(false);
-        }
-    }, [decodedObjectName, openSnackbar, postActionUrl, t]);
+    const postObjectAction = useCallback(({action, options}) => runAction({action, options}), [runAction]);
+    const postNodeAction = useCallback(({node, action, options}) => runAction({node, action, options}), [runAction]);
 
     const openActionDialog = useCallback((action, context = null) => {
         setPendingAction({action, ...(context ? context : {})});
@@ -377,7 +340,7 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
         }
     }, []);
 
-    const handleDialogConfirm = useCallback(() => {
+    const handleDialogConfirm = useCallback((_action, options) => {
         if (!pendingAction || !pendingAction.action) {
             setPendingAction(null);
             setConfirmDialogOpen(false);
@@ -390,17 +353,17 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
         if (pendingAction.batch === "nodes") {
             selectedNodes.forEach(node => {
                 if (!node) return;
-                postNodeAction({node, action: pendingAction.action}).catch((err) => {
+                postNodeAction({node, action: pendingAction.action, options}).catch((err) => {
                     logger.error("[ObjectDetail] postNodeAction failed:", err);
                 });
             });
             setSelectedNodes([]);
         } else if (pendingAction.node && !pendingAction.rid) {
-            postNodeAction({node: pendingAction.node, action: pendingAction.action}).catch((err) => {
+            postNodeAction({node: pendingAction.node, action: pendingAction.action, options}).catch((err) => {
                 logger.error("[ObjectDetail] postNodeAction failed:", err);
             });
         } else {
-            postObjectAction({action: pendingAction.action}).catch((err) => {
+            postObjectAction({action: pendingAction.action, options}).catch((err) => {
                 logger.error("[ObjectDetail] postObjectAction failed:", err);
             });
         }
@@ -582,6 +545,7 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
                             ? INSTANCE_ACTIONS.map(a => a.name)
                             : OBJECT_ACTIONS.map(a => a.name)
                     }
+                    nodes={nodesList}
                     onClose={() => {
                         setPendingAction(null);
                         setConfirmDialogOpen(false);
