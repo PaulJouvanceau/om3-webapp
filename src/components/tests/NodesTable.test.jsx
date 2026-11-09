@@ -640,6 +640,25 @@ describe('NodesTable', () => {
             expect(within(menu).getByRole('menuitem', {name: 'Restart'})).not.toHaveClass('text-state-down');
         });
 
+        test('an action on the nodes selected sent once, its dialog closed at once: a double click sends it not twice', async () => {
+            global.fetch = vi.fn().mockResolvedValue({ok: true});
+            renderWithRouter(<NodesTable/>);
+            const checkboxes = await tableCheckboxes();
+            fireEvent.click(checkboxes[1]);
+            fireEvent.click(checkboxes[2]);
+            const actionsBtn = screen.getByRole('button', {name: 'Actions'});
+            await waitFor(() => expect(actionsBtn).toBeEnabled());
+            fireEvent.click(actionsBtn);
+            fireEvent.click(await screen.findByRole('menuitem', {name: /^Drain$/i}));
+            const confirm = screen.getByRole('button', {name: 'Confirm'});
+            fireEvent.click(confirm);
+            expect(screen.queryByRole('dialog')).toBeNull();
+            fireEvent.click(confirm);
+            await waitFor(() => expect(actionPosts().filter(([url]) => /\/action\/drain$/.test(url))).toHaveLength(2));
+            await new Promise((r) => setTimeout(r, 50));
+            expect(actionPosts().filter(([url]) => /\/action\/drain$/.test(url))).toHaveLength(2);
+        });
+
         test('evict: the cluster evicts the node, asked of the api node; not offered for the api node itself', async () => {
             global.fetch = vi.fn().mockResolvedValue({ok: true});
             renderWithRouter(<NodesTable/>);

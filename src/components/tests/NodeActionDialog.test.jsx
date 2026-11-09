@@ -33,6 +33,20 @@ describe('NodeActionDialog', () => {
         expect(onConfirm).toHaveBeenCalledWith(action);
     });
 
+    test('confirmed once: a second click before it closes sends nothing more; the next action asked, confirmed again', () => {
+        const onConfirm = vi.fn();
+        const {rerender} = render(<NodeActionDialog pending={{action: 'drain'}} target="2 nodes" onConfirm={onConfirm} onClose={() => {}}/>);
+        fireEvent.click(screen.getByRole('checkbox', {name: 'I understand'}));
+        const go = screen.getByRole('button', {name: 'Drain'});
+        fireEvent.click(go);
+        fireEvent.click(go);
+        expect(onConfirm).toHaveBeenCalledTimes(1);
+        rerender(<NodeActionDialog pending={{action: 'drain'}} target="2 nodes" onConfirm={onConfirm} onClose={() => {}}/>);
+        fireEvent.click(screen.getByRole('checkbox', {name: 'I understand'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Drain'}));
+        expect(onConfirm).toHaveBeenCalledTimes(2);
+    });
+
     test('nothing pending: nothing', () => {
         const {container} = render(<NodeActionDialog pending={null} target="" onConfirm={() => {}} onClose={() => {}}/>);
         expect(container).toBeEmptyDOMElement();

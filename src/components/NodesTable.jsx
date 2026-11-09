@@ -184,6 +184,7 @@ const NodesTable = () => {
 
         const token = localStorage.getItem("authToken");
         if (!token) {
+            setPendingAction(null);
             setSnackbar({
                 open: true,
                 message: t("nodes.feedback.noToken"),
@@ -196,6 +197,10 @@ const NodesTable = () => {
         const nodesToProcess = pendingAction.node
             ? [pendingAction.node]
             : selectedNodes;
+        // Closed at once, as the panel of a node does: the action is sent once, a
+        // second click on the dialog finding none, the tray saying what comes of it.
+        setPendingAction(null);
+        setSelectedNodes([]);
         const refuse = (node, reason) => trackRefused({action, subject: node, reason});
 
         const promises = nodesToProcess.map(async (node) => {
@@ -212,8 +217,6 @@ const NodesTable = () => {
         });
 
         await Promise.all(promises);
-        setSelectedNodes([]);
-        setPendingAction(null);
     };
 
     // The nodes of the cluster configuration too: a node dropped keeps its line.
