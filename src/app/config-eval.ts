@@ -8,6 +8,8 @@
  * masks too: the keywords the redacted file masks are the ones masked here.
  */
 
+import { isContinuationLine } from "./ini";
+
 /** A keyword as the daemon answers it evaluated. */
 export interface EvaluatedKeyword {
   keyword: string;
@@ -45,7 +47,11 @@ export function evalQuery(node: string, patterns: string[]): string {
 export function maskedKeywords(redacted: string): Set<string> {
   const masked = new Set<string>();
   let section = "DEFAULT";
+  // Under a key, its indented lines continue its value, as om3 reads them: none a keyword.
+  let inValue = false;
   for (const raw of redacted.split("\n")) {
+    if (inValue && isContinuationLine(raw)) continue;
+    inValue = false;
     const line = raw.trim();
     const header = /^\[(.+)\]$/.exec(line);
     if (header?.[1] !== undefined) {
@@ -53,6 +59,7 @@ export function maskedKeywords(redacted: string): Set<string> {
       continue;
     }
     const kv = /^([^=#;\s][^=]*?)\s*=\s*(.*)$/.exec(line);
+    inValue = kv?.[1] !== undefined;
     if (kv?.[1] === undefined || kv[2] !== SECRET_MASK) continue;
     masked.add(section === "DEFAULT" ? kv[1] : `${section}.${kv[1]}`);
   }

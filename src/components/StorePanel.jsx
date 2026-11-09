@@ -18,6 +18,7 @@ import {Spinner} from "../ui/components/Spinner";
 import {Table, HeaderRow, HeaderCell, Row, Cell, EmptyRow} from "../ui/components/Table";
 import {LockIcon, TrashIcon} from "../ui/icons";
 import {SectionConfig, read, useClusterSection} from "./SectionConfig";
+import {sectionValues} from "../app/heartbeat-config";
 import {AgeTime, formatAge} from "./AgeTime";
 import {StoreWizard} from "./StoreWizard";
 
@@ -229,7 +230,9 @@ export function StoreOverview({name}) {
     const {section} = useClusterSection("store", source.name);
     const kept = useMemo(() => {
         if (source.kind !== "cluster" || !section) return {};
-        return Object.fromEntries(section.split("\n").map((line) => /^\s*(keep|schedule)\s*=\s*(.*?)\s*$/.exec(line)).filter(Boolean).map((m) => [m[1], m[2]]));
+        // Read as om3 reads them, a value continued on its lines whole.
+        const {keep, schedule} = sectionValues(section);
+        return Object.fromEntries(Object.entries({keep, schedule}).filter(([, value]) => value !== undefined));
     }, [source.kind, section]);
 
     if (store === undefined) return <Spinner label={t("stores.panel.loading")}/>;
@@ -240,8 +243,8 @@ export function StoreOverview({name}) {
         ["url", <span key="url" className="font-mono break-all">{store.url}</span>],
         ["share", shareText(t, store.share)],
         ["source", <StoreSourceText key="source" source={source}/>],
-        ...(kept.keep ? [["keep", <span key="keep" className="font-mono">{kept.keep}</span>]] : []),
-        ...(kept.schedule ? [["schedule", <span key="schedule" className="font-mono">{kept.schedule}</span>]] : []),
+        ...(kept.keep ? [["keep", <span key="keep" className="font-mono whitespace-pre-line">{kept.keep}</span>]] : []),
+        ...(kept.schedule ? [["schedule", <span key="schedule" className="font-mono whitespace-pre-line">{kept.schedule}</span>]] : []),
     ];
     const stats = store.stats;
     const nodes = Object.entries(store.node_stats ?? {}).sort(([a], [b]) => a.localeCompare(b));

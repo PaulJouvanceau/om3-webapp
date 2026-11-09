@@ -19,6 +19,11 @@ describe("the keywords a redacted file masks", () => {
     expect([...maskedKeywords(redacted)]).toEqual(["token", "cluster.secret", "data.pw"]);
   });
 
+  test("a line continuing a value, as om3 reads one, no keyword masked, an \"=\" in it or not", () => {
+    const redacted = "[DEFAULT]\nnodes = n1\n  pw = ********\n\n[data]\nscript = a\n\tb = ********\nkey = ********\n";
+    expect([...maskedKeywords(redacted)]).toEqual(["data.key"]);
+  });
+
   test("none in a file masking nothing", () => {
     expect(maskedKeywords("[DEFAULT]\nnodes = *\n").size).toBe(0);
   });

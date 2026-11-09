@@ -29,6 +29,14 @@ describe("heartbeat config", () => {
     expect(sectionValues(null)).toEqual({});
   });
 
+  test("a value continued on the lines under its key, as om3 reads one; an \"=\" in them no key of its own", () => {
+    expect(sectionValues("[hb#1]\ntype = unicast\nnodes = n1\n  n2\n\tport = 1\nport = 10011\n# end\n  not a value\n")).toEqual({
+      type: "unicast",
+      nodes: "n1\n  n2\n\tport = 1",
+      port: "10011",
+    });
+  });
+
   test("the heartbeats of a file; the name of a new one, above the highest numbered", () => {
     expect(hbSections(FILE)).toEqual(["hb#1", "hb#3", "hb#relay"]);
     expect(nextHbName(hbSections(FILE))).toBe("hb#4");
