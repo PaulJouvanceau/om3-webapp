@@ -126,8 +126,11 @@
 /* On a small screen, the rows of a list in the page rather than in a frame of their
    own under its tools: the page scrolls as one, its intro and tools out of the way
    once read (`LIST_PAGE`). Its tools stay at its top while rows are selected, the
-   page under them hidden by a band of its color. om3 addition. */
-@media (width < 48rem), (height < 32rem) {
+   page under them hidden by a band of its color. A phone on its side short, not
+   narrow: there by its height, a touch screen alone, a desktop window as short (a
+   console docked under it) keeping its frame, its sticky header and its columns
+   scrolled sideways. om3 addition. */
+@media (width < 48rem), (height < 32rem) and (pointer: coarse) {
   .list-page {
     height: auto;
   }
