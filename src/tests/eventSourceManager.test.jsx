@@ -56,6 +56,8 @@ const getHandler = (eventSource, eventType) =>
 const createES = (token = 'fake-token') => eventSourceManager.createEventSource(URL_NODE_EVENT, token);
 
 const fire = (handler, data) => handler({data: JSON.stringify(data)});
+/** The types of the events the manager dispatched on the window. */
+const dispatched = () => vi.mocked(window.dispatchEvent).mock.calls.map(([event]) => event.type);
 
 describe('eventSourceManager', () => {
     let mockStore, mockLogStore, mockEventSource, mockLoggerEventSource;
@@ -281,12 +283,32 @@ describe('eventSourceManager', () => {
             expect(mockLogStore.addEventLog).toHaveBeenCalledWith('MAX_RECONNECTIONS_REACHED', expect.any(Object));
         });
 
-        test('should handle auth error: same token, no oidcUserManager', () => {
+        test('never gives up, the session kept: a daemon restarting, the stream comes back with it', () => {
+            createES();
+            for (let i = 0; i < 20; i++) {
+                mockEventSource.onerror({status: 502});
+                vi.advanceTimersByTime(31000);
+            }
+            const reached = mockLogStore.addEventLog.mock.calls.filter(([type]) => type === 'MAX_RECONNECTIONS_REACHED');
+            expect(reached).toHaveLength(1);
+            expect(dispatched()).not.toContain('om3:auth-redirect');
+            vi.mocked(EventSourcePolyfill).mockClear();
+            mockEventSource.onerror({status: 502});
+            vi.advanceTimersByTime(30200);
+            expect(EventSourcePolyfill).toHaveBeenCalledTimes(1);
+        });
+
+        test('a 401 asks the app to renew the session, and tries again meanwhile', () => {
             localStorageMock.getItem.mockReturnValue('old-token');
             createES('old-token');
             mockEventSource.onerror({status: 401});
             expect(console.warn).toHaveBeenCalledWith('🔐 Authentication error detected');
-            expect(window.dispatchEvent).toHaveBeenCalledWith(expect.any(CustomEvent));
+            expect(dispatched()).toEqual(['om3:auth-renew']);
+            vi.mocked(EventSourcePolyfill).mockClear();
+            vi.advanceTimersByTime(2200);
+            expect(EventSourcePolyfill).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+                headers: {Authorization: 'Bearer old-token'},
+            }));
         });
 
         test('should handle auth error: new token from storage', () => {
@@ -296,21 +318,19 @@ describe('eventSourceManager', () => {
             expect(console.info).toHaveBeenCalledWith('🔄 New token available, updating EventSource');
         });
 
-        test('should handle silent renew success and failure', async () => {
-            const mockUser = {access_token: 'silent-renewed-token', expires_at: Date.now() + 3600000};
-            window.oidcUserManager = {signinSilent: vi.fn().mockResolvedValue(mockUser)};
-            localStorageMock.getItem.mockReturnValue(null);
+        test('a 401 renews nothing itself: the token the app renews reopens the stream', () => {
+            const signinSilent = vi.fn();
+            window.oidcUserManager = {signinSilent};
+            localStorageMock.getItem.mockReturnValue('old-token');
             createES('old-token');
             mockEventSource.onerror({status: 401});
-            await vi.runAllTimersAsync();
-            expect(localStorageMock.setItem).toHaveBeenCalledWith('authToken', 'silent-renewed-token');
-
-            window.oidcUserManager = {signinSilent: vi.fn().mockRejectedValue(new Error('renew fail'))};
-            createES('old-token');
-            mockEventSource.onerror({status: 401});
-            await vi.runAllTimersAsync();
-            expect(console.error).toHaveBeenCalledWith('❌ Silent renew failed:', expect.any(Error));
-            expect(window.dispatchEvent).toHaveBeenCalledWith(expect.any(CustomEvent));
+            expect(signinSilent).not.toHaveBeenCalled();
+            expect(dispatched()).not.toContain('om3:auth-redirect');
+            vi.mocked(EventSourcePolyfill).mockClear();
+            eventSourceManager.updateEventSourceToken('renewed-token');
+            expect(EventSourcePolyfill).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+                headers: {Authorization: 'Bearer renewed-token'},
+            }));
         });
 
         test('should handle onerror without status property', () => {
@@ -1272,26 +1292,22 @@ describe('eventSourceManager', () => {
             expect(mockLogStore.addEventLog).not.toHaveBeenCalledWith('CONNECTION_ERROR', expect.any(Object));
         });
 
-        test('should handle 401 in logger: new token, silent renew success and failure', async () => {
+        test('a 401 in logger: a new token reopens it, else the app asked to renew, tried again meanwhile', () => {
             localStorageMock.getItem.mockReturnValue('new-token');
             eventSourceManager.createLoggerEventSource(URL_NODE_EVENT, 'old-token', []);
             mockLoggerEventSource.onerror({status: 401});
             expect(console.info).toHaveBeenCalledWith('🔄 New token available, updating Logger EventSource');
 
-            const mockUser = {access_token: 'new-logger-token', expires_at: Date.now() + 3600000};
-            window.oidcUserManager = {signinSilent: vi.fn().mockResolvedValue(mockUser)};
-            localStorageMock.getItem.mockReturnValue(null);
+            const signinSilent = vi.fn();
+            window.oidcUserManager = {signinSilent};
+            localStorageMock.getItem.mockReturnValue('old-token');
             eventSourceManager.createLoggerEventSource(URL_NODE_EVENT, 'old-token', []);
+            vi.mocked(window.dispatchEvent).mockClear();
+            mockLoggerEventSource.readyState = 2;
             mockLoggerEventSource.onerror({status: 401});
-            await vi.runAllTimersAsync();
-            expect(localStorageMock.setItem).toHaveBeenCalledWith('authToken', 'new-logger-token');
-
-            window.oidcUserManager = {signinSilent: vi.fn().mockRejectedValue(new Error('logger renew fail'))};
-            localStorageMock.getItem.mockReturnValue(null);
-            eventSourceManager.createLoggerEventSource(URL_NODE_EVENT, 'old-token', []);
-            mockLoggerEventSource.onerror({status: 401});
-            await vi.runAllTimersAsync();
-            expect(console.error).toHaveBeenCalledWith('❌ Silent renew failed for logger:', expect.any(Error));
+            expect(signinSilent).not.toHaveBeenCalled();
+            expect(dispatched()).toEqual(['om3:auth-renew']);
+            expect(console.info).toHaveBeenCalledWith(expect.stringContaining('Logger reconnecting in'));
         });
 
         test('should handle max reconnections in logger without connection logging', () => {
@@ -1300,9 +1316,9 @@ describe('eventSourceManager', () => {
                 mockLoggerEventSource.onerror({status: 500});
                 vi.advanceTimersByTime(1000);
             }
-            expect(console.error).toHaveBeenCalledWith('❌ Max reconnection attempts reached for logger');
+            expect(console.error).toHaveBeenCalledWith('❌ Max reconnection attempts reached for logger, trying again every 30s');
             expect(mockLogStore.addEventLog).not.toHaveBeenCalledWith('MAX_RECONNECTIONS_REACHED', expect.any(Object));
-            expect(window.dispatchEvent).toHaveBeenCalledWith(expect.any(CustomEvent));
+            expect(dispatched()).not.toContain('om3:auth-redirect');
         });
 
         test('should process events and log them, handle invalid JSON', () => {

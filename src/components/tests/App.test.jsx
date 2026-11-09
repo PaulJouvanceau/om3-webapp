@@ -79,6 +79,7 @@ vi.mock('../../context/AuthProvider', () => ({
     SetAccessToken: 'SetAccessToken',
     SetAuthChoice: 'SetAuthChoice',
     Login: 'Login',
+    Logout: 'Logout',
 }));
 vi.mock('../../context/OidcAuthContext.tsx', () => ({
     OidcProvider: ({children}) => <div>{children}</div>,
@@ -1018,6 +1019,61 @@ describe('App Component', () => {
         expect(removeItemCallsForAuth).toHaveLength(0);
     });
 
+
+    // --- An event stream refused its token (om3:auth-renew) ---
+    describe('an event stream refused its token', () => {
+        const refused = async () => {
+            await act(async () => {
+                window.dispatchEvent(new CustomEvent('om3:auth-renew'));
+                await Promise.resolve();
+            });
+        };
+
+        test('a password session holding a refresh token is renewed with it, not ended', async () => {
+            setupBasicAuth();
+            hasRefreshToken.mockReturnValue(true);
+            renderApp(['/objects']);
+            await screen.findByTestId('objects');
+            mockNavigate.mockClear();
+            await refused();
+            expect(refreshToken).toHaveBeenCalledWith(mockAuthDispatch);
+            expect(mockAuthDispatch).not.toHaveBeenCalledWith({type: 'Logout'});
+            expect(mockNavigate).not.toHaveBeenCalledWith('/auth-choice', expect.anything());
+        });
+
+        test('a password session with no refresh token is ended', async () => {
+            setupBasicAuth();
+            renderApp(['/objects']);
+            await screen.findByTestId('objects');
+            await refused();
+            expect(mockAuthDispatch).toHaveBeenCalledWith({type: 'Logout'});
+            expect(mockNavigate).toHaveBeenCalledWith('/auth-choice', {replace: true});
+        });
+
+        test('an OpenID session whose renewal is not answered is kept', async () => {
+            setupOidcAuth(makeTokenWithExp(3600));
+            mockUserManager.signinSilent.mockRejectedValue(new Error('Network Error'));
+            renderApp(['/objects']);
+            await screen.findByTestId('objects');
+            mockNavigate.mockClear();
+            mockUserManager.signinSilent.mockClear();
+            await refused();
+            await waitFor(() => expect(mockUserManager.signinSilent).toHaveBeenCalled());
+            await waitFor(() => expect(logger.warn).toHaveBeenCalledWith(
+                expect.stringContaining('Silent renew not answered (event stream refused)'), expect.any(Error)));
+            expect(mockNavigate).not.toHaveBeenCalledWith('/auth-choice', expect.anything());
+        });
+
+        test('an OpenID session whose renewal the provider refuses is ended', async () => {
+            setupOidcAuth(makeTokenWithExp(3600));
+            mockUserManager.signinSilent.mockRejectedValue({error: 'invalid_grant'});
+            renderApp(['/objects']);
+            await screen.findByTestId('objects');
+            mockNavigate.mockClear();
+            await refused();
+            await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/auth-choice', {replace: true}));
+        });
+    });
 
     // --- Miscellaneous ---
     test('handles om3:auth-redirect event', async () => {
