@@ -373,6 +373,8 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey, keyOnly, onKe
     const [updateHidden, setUpdateHidden] = useState(null);
     // The last update form opened: the content read for one before it, arriving late, is dropped.
     const updateRequest = useRef(0);
+    // The last key shown: the content read for one before it, arriving late, is dropped.
+    const viewRequest = useRef(0);
     const maxKeySize = useMaxKeySize(createDialogOpen || updateDialogOpen);
     const [updateContentLoading, setUpdateContentLoading] = useState(false);
     // The key renamed (om <path> key rename): its name, the one typed, and why the daemon refused it.
@@ -608,6 +610,7 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey, keyOnly, onKe
     };
 
     const handleViewKey = async (keyName) => {
+        const request = ++viewRequest.current;
         setKeyToView(keyName);
         setKeyViewLoading(true);
         setViewDialogOpen(true);
@@ -616,6 +619,8 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey, keyOnly, onKe
         setRevealSecret(false);
 
         const result = await fetchKeyContent(keyName);
+        // Another key shown since, or the dialog closed: its content, a secret maybe, is not this one's.
+        if (request !== viewRequest.current) return;
         if (result.type !== 'error') {
             setKeyViewContent(result);
             // Asked for, the value shows at once; the timer masks it again.
@@ -632,6 +637,9 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey, keyOnly, onKe
 
     // Closed, a revealed value is masked: it is not shown again on reopening before it is read.
     const closeViewDialog = () => {
+        // A read still on its way is dropped: shown nowhere, revealed in no dialog closed.
+        viewRequest.current++;
+        setKeyViewLoading(false);
         setViewDialogOpen(false);
         setRevealSecret(false);
     };

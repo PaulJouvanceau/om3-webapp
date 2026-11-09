@@ -741,6 +741,68 @@ describe('KeysSection', () => {
         expect(within(screen.getByRole('dialog', {name: 'Update Key'})).getByRole('textbox', {name: 'Key Content'})).toHaveValue('two');
     });
 
+    test('view: the content of a key read late shows not under another', async () => {
+        let resolveFirst;
+        mockFetch({
+            keys: [{name: 'key1', node: 'n1', size: 3}, {name: 'key2', node: 'n1', size: 3}],
+            methods: {
+                // key1 read when the test says; key2 at once.
+                GET: (url) => {
+                    const name = url.match(/\/data\/key\?name=(\w+)/)?.[1];
+                    if (!name) return undefined;
+                    if (name === 'key1') return Promise.resolve({ok: true, blob: () => new Promise((r) => { resolveFirst = r; })});
+                    return Promise.resolve({ok: true, blob: () => Promise.resolve(makeMockBlob(encodeText('two')))});
+                },
+            },
+        });
+        await renderAndWait('root/cfg/cfg1', 2);
+        await act(async () => {
+            await user.click((await screen.findByRole('rowheader', {name: 'key1'})).closest('tr'));
+        });
+        const first = await screen.findByRole('dialog', {name: 'View Key: key1'});
+        await act(async () => {
+            await user.click(within(first).getAllByRole('button', {name: 'Close'}).at(-1));
+        });
+        await act(async () => {
+            await user.click((await screen.findByRole('rowheader', {name: 'key2'})).closest('tr'));
+        });
+        const second = await screen.findByRole('dialog', {name: 'View Key: key2'});
+        await waitFor(() => expect(second).toHaveTextContent('two'));
+        await act(async () => resolveFirst(makeMockBlob(encodeText('one'))));
+        const shown = screen.getByRole('dialog', {name: 'View Key: key2'});
+        expect(shown).toHaveTextContent('two');
+        expect(shown).not.toHaveTextContent('one');
+    });
+
+    test('view: a key closed while read, its read failing late closes not the key shown since', async () => {
+        let failFirst;
+        mockFetch({
+            keys: [{name: 'key1', node: 'n1', size: 3}, {name: 'key2', node: 'n1', size: 3}],
+            methods: {
+                GET: (url) => {
+                    const name = url.match(/\/data\/key\?name=(\w+)/)?.[1];
+                    if (!name) return undefined;
+                    if (name === 'key1') return new Promise((r) => { failFirst = () => r({ok: false, status: 500, text: () => Promise.resolve('')}); });
+                    return Promise.resolve({ok: true, blob: () => Promise.resolve(makeMockBlob(encodeText('two')))});
+                },
+            },
+        });
+        await renderAndWait('root/cfg/cfg1', 2);
+        await act(async () => {
+            await user.click((await screen.findByRole('rowheader', {name: 'key1'})).closest('tr'));
+        });
+        const first = await screen.findByRole('dialog', {name: 'View Key: key1'});
+        await act(async () => {
+            await user.click(within(first).getAllByRole('button', {name: 'Close'}).at(-1));
+        });
+        await act(async () => {
+            await user.click((await screen.findByRole('rowheader', {name: 'key2'})).closest('tr'));
+        });
+        await waitFor(() => expect(screen.getByRole('dialog', {name: 'View Key: key2'})).toHaveTextContent('two'));
+        await act(async () => failFirst());
+        expect(screen.getByRole('dialog', {name: 'View Key: key2'})).toHaveTextContent('two');
+    });
+
     test('fullscreen toggles', async () => {
         mockFetch({keys: []});
         await renderAndWait('root/cfg/cfg1', 0);
