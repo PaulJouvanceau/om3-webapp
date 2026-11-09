@@ -160,6 +160,12 @@ export function sectionPreview(section: string, name: string, type: string, valu
 /** A line of a section: `key = value`, the key scoped to a node or not (`subnet@n1`). */
 const BODY_LINE = /^\s*([A-Za-z0-9_]+(?:@[A-Za-z0-9_.-]+)?)\s*=\s*(.*?)\s*$/;
 const IGNORED_LINE = /^\s*([#;].*)?$/;
+/**
+ * A line continuing the value of the key above it, as om3 reads one (util/ini,
+ * AllowPythonMultilineValues): starting with a space, a tab or a form feed, kept
+ * whole in the value, its indent too. A blank line or one at the margin ends it.
+ */
+const CONTINUATION_LINE = /^[ \t\f]/;
 
 /** The body of a section as written: its lines but its header. */
 export function sectionBody(section: string | null): string {
@@ -170,12 +176,21 @@ export function sectionBody(section: string | null): string {
     .trim();
 }
 
-/** The keys of a body and their values; the lines that are none, blank and comments aside. */
+/**
+ * The keys of a body and their values; the lines that are none, blank and comments
+ * aside. A value continued on the lines under its key holds them, one a line.
+ */
 export function parseBody(body: string): { values: SectionValues; invalid: string[] } {
   const values: SectionValues = {};
   const invalid: string[] = [];
+  let continued: string | null = null;
   for (const line of body.split("\n")) {
+    if (continued !== null && CONTINUATION_LINE.test(line)) {
+      values[continued] += `\n${line}`;
+      continue;
+    }
     const match = BODY_LINE.exec(line);
+    continued = match ? match[1] : null;
     if (match) values[match[1]] = match[2];
     else if (!IGNORED_LINE.test(line)) invalid.push(line.trim());
   }
