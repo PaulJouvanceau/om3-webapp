@@ -14,7 +14,7 @@ const KEYED_KINDS = ["cfg", "sec", "usr"];
 const cache = new Map();
 const pending = new Map();
 
-/** Forgets what was read: for the tests. */
+/** Forgets what was read: at the end of a session (app/session), and for the tests. */
 export const clearKeyStats = () => {
     cache.clear();
     pending.clear();
@@ -62,11 +62,15 @@ export function useKeyStats(path) {
         // One read for every row showing the object, the same configuration.
         let read = pending.get(key);
         if (!read) {
-            read = readKeys(path).catch(() => undefined).then((value) => {
-                cache.set(key, value);
-                pending.delete(key);
+            const reading = readKeys(path).catch(() => undefined).then((value) => {
+                // Forgotten meanwhile, the session ended: kept for no one.
+                if (pending.get(key) === reading) {
+                    cache.set(key, value);
+                    pending.delete(key);
+                }
                 return value;
             });
+            read = reading;
             pending.set(key, read);
         }
         read.then((value) => {
