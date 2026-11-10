@@ -284,6 +284,8 @@ describe("GlobalSearch, the records shown recently", () => {
     const cross = screen.getByRole("button", { name: "Remove ns1/sec/tls from the history" });
     // Shown on hover, and always on a touch screen: no hover there.
     expect(cross).toHaveClass("opacity-0", "group-hover:opacity-100", "pointer-coarse:opacity-100");
+    // Beside its option, not in it: an option holds no control.
+    for (const option of screen.getAllByRole("option")) expect(option.querySelector("button")).toBeNull();
     fireEvent.click(cross);
     expect(names()).toEqual(["lo"]);
     // Still open, the focus back in the field.

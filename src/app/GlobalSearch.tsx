@@ -510,26 +510,30 @@ function RecentRow({
 }) {
   const { t } = useTranslation();
   return (
-    <div {...optionProps} aria-current={entry.current ? "true" : undefined}>
-      <ObjectIcon kind={entry.icon} className="h-4 w-4 shrink-0" />
-      <div className="min-w-0 flex-1">
-        <div className="truncate font-medium">{entry.label}</div>
-        {kindShown && <div className="truncate text-data text-ink-muted">{t(`search.recent.types.${entry.type}`)}</div>}
+    // The cross beside the option, not in it: an option holds no control of its own.
+    <div role="none" className="group relative">
+      <div {...optionProps} aria-current={entry.current ? "true" : undefined} aria-keyshortcuts="Delete">
+        <ObjectIcon kind={entry.icon} className="h-4 w-4 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-medium">{entry.label}</div>
+          {kindShown && <div className="truncate text-data text-ink-muted">{t(`search.recent.types.${entry.type}`)}</div>}
+        </div>
+        {entry.current && (
+          <span className="shrink-0 rounded-full border border-accent px-1.5 text-data text-ink">{t("search.recent.current")}</span>
+        )}
+        <span className="shrink-0 text-data text-ink-muted tabular-nums">{when}</span>
+        {/* The room of the cross, laid over it. */}
+        <span className="h-5 w-5 shrink-0" />
       </div>
-      {entry.current && (
-        <span className="shrink-0 rounded-full border border-accent px-1.5 text-data text-ink">{t("search.recent.current")}</span>
-      )}
-      <span className="shrink-0 text-data text-ink-muted tabular-nums">{when}</span>
       <button
         type="button"
         // The keyboard removes it with Delete: the cross is for the pointer, shown on
         // hover, and always on a touch screen, which has none.
         tabIndex={-1}
-        onClick={(event) => {
-          event.stopPropagation();
-          onRemove();
-        }}
-        className="shrink-0 rounded-full p-1 text-ink-muted opacity-0 group-hover:opacity-100 group-aria-selected:opacity-100 pointer-coarse:opacity-100 hover:bg-surface-sunken hover:text-ink"
+        onClick={onRemove}
+        className={`absolute top-1/2 right-3 -translate-y-1/2 rounded-full p-1 text-ink-muted group-hover:opacity-100 pointer-coarse:opacity-100 hover:bg-surface-sunken hover:text-ink ${
+          optionProps["aria-selected"] === true ? "opacity-100" : "opacity-0"
+        }`}
       >
         <CloseIcon className="h-3 w-3" />
         <span className="sr-only">{t("panelHistory.remove", { name: entry.label })}</span>
