@@ -20,11 +20,16 @@ export async function loadSearchIndex() {
     const entries = [];
     const failed = [];
 
-    if (paths.status === "fulfilled" && Array.isArray(paths.value)) {
+    // The paths, a bare array before rc61, {kind, items} since.
+    const objectPaths = paths.status !== "fulfilled" ? null
+        : Array.isArray(paths.value) ? paths.value
+        : Array.isArray(paths.value?.items) ? paths.value.items
+        : null;
+    if (objectPaths) {
         // The status the event stream knows, when a view has listened to it.
         const statuses = useEventStore.getState().objectStatus ?? {};
         const namespaces = new Set();
-        for (const path of paths.value) {
+        for (const path of objectPaths) {
             const {namespace, kind} = parseObjectPath(path);
             namespaces.add(namespace);
             entries.push({kind: "object", id: path, label: path, context: [kind], status: statuses[path]?.avail});
