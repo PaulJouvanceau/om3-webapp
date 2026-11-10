@@ -141,7 +141,7 @@ describe('NamespaceMetrics', () => {
             render(<NamespaceMetrics namespace="prod"/>);
             await screen.findByRole('row', {name: /prod\/svc\/web/});
             expect(screen.getByRole('columnheader', {name: /^Mémoire/})).toBeInTheDocument();
-            expect(screen.getByText(/Additionné sur les nœuds du cluster/)).toBeInTheDocument();
+            expect(screen.getByText(/Somme sur les nœuds du cluster/)).toBeInTheDocument();
         } finally {
             await i18n.changeLanguage('en');
         }

@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { describe, expect, test, vi } from "vitest";
-import { render, renderHook, screen } from "@testing-library/react";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { fireEvent, render, renderHook, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TabList, type TabItem } from "../components/Tabs";
 import { tabPanelProps, useTabsId } from "../components/tabs-ids";
-import { CategoryCount, CategoryTabs, type CategoryTab } from "../components/CategoryTabs";
+import { CategoryCount, CategoryTabs, fadeMask, type CategoryTab } from "../components/CategoryTabs";
 
 const TABS: TabItem[] = [
   { key: "props", label: "Properties" },
@@ -250,5 +250,70 @@ describe("CategoryTabs", () => {
     screen.getByRole("tab", { name: "A" }).focus();
     await user.keyboard("{ArrowRight}");
     expect(screen.getByRole("tab", { name: "C" })).toHaveFocus();
+  });
+});
+
+describe("CategoryTabs past the edge", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  /** The strip 200px wide, its chips 500px; a chip 100px wide, at its index. */
+  function sized() {
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(200);
+    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function (this: HTMLElement) {
+      return this.getAttribute("role") === "tablist" ? 500 : 100;
+    });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const index = [...(this.parentElement?.children ?? [])].indexOf(this);
+      const left = this.getAttribute("role") === "tab" ? index * 100 - (this.parentElement?.scrollLeft ?? 0) : 0;
+      return { left, width: this.getAttribute("role") === "tab" ? 100 : 200 } as DOMRect;
+    });
+  }
+
+  test("the fade, on the sides more chips lie past", () => {
+    expect(fadeMask({ start: false, end: false })).toBeUndefined();
+    expect(fadeMask({ start: false, end: true })?.maskImage).toBe("linear-gradient(to right, #000 0, #000 calc(100% - 28px), transparent 100%)");
+    expect(fadeMask({ start: true, end: true })?.maskImage).toBe("linear-gradient(to right, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%)");
+  });
+
+  test("chips past the end: faded there; scrolled to it, faded at the start", () => {
+    sized();
+    render(<Categories />);
+    const strip = screen.getByRole("tablist", { name: "Categories" });
+    expect(strip).toHaveAttribute("data-more-end");
+    expect(strip).not.toHaveAttribute("data-more-start");
+    expect(strip.style.maskImage).toContain("transparent 100%");
+    strip.scrollLeft = 300;
+    fireEvent.scroll(strip);
+    expect(strip).toHaveAttribute("data-more-start");
+    expect(strip).not.toHaveAttribute("data-more-end");
+  });
+
+  test("an arrow on a side more chips lie past, a tap scrolling to them; none where none lie", () => {
+    sized();
+    const { container } = render(<Categories />);
+    const strip = screen.getByRole("tablist", { name: "Categories" });
+    expect(container.querySelector('[data-more-arrow="start"]')).toBeNull();
+    const end = container.querySelector<HTMLButtonElement>('[data-more-arrow="end"]')!;
+    // For the pointer: out of the keyboard and of assistive tools.
+    expect(end).toHaveAttribute("aria-hidden", "true");
+    expect(end).toHaveAttribute("tabindex", "-1");
+    fireEvent.click(end);
+    // By the width of the strip less its fades.
+    expect(strip.scrollLeft).toBe(200 - 2 * 28);
+    fireEvent.scroll(strip);
+    expect(container.querySelector('[data-more-arrow="start"]')).not.toBeNull();
+  });
+
+  test("a chip chosen past the edge: the strip scrolled to show it whole, past the fade", async () => {
+    sized();
+    const user = userEvent.setup();
+    render(<Categories />);
+    const strip = screen.getByRole("tablist", { name: "Categories" });
+    screen.getByRole("tab", { name: "Services" }).focus();
+    await user.keyboard("{End}");
+    // The third chip, 200 to 300: its end and the fade in a strip 200 wide.
+    expect(strip.scrollLeft).toBe(300 + 28 - 200);
   });
 });

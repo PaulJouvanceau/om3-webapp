@@ -21,16 +21,16 @@
       "title": "Confirmer le gel",
       "checkboxAria": "Confirmer la suspension de la bascule",
       "checkbox": "Je comprends que l'orchestration des services sélectionnés sera suspendue.",
-      "confirmAria": "Confirmer l'action geler"
+      "confirmAria": "Confirmer le gel"
     },
     "stop": {
       "title": "Confirmer l'arrêt",
-      "confirmAria": "Confirmer l'action arrêter",
+      "confirmAria": "Confirmer l'arrêt",
       "confirm": "Arrêter"
     },
     "shutdown": {
       "title": "Confirmer l'extinction",
-      "confirmAria": "Confirmer l'action éteindre",
+      "confirmAria": "Confirmer l'extinction",
       "confirm": "Éteindre",
       "instancesDownAria": "Confirmer l'extinction des instances",
       "instancesDown": "Je comprends que toutes les instances svc et vol de ce nœud seront éteintes et que le démon sera arrêté.",
@@ -38,53 +38,53 @@
       "peerTakeover": "Je comprends que les nœuds pairs ne sont pas prévenus d'une période de maintenance et tenteront de reprendre les services dès que les instances seront arrêtées.",
       "instance": {
         "instancesDownAria": "Confirmer l'extinction des instances",
-        "instancesDown": "Je comprends que toutes les ressources de ces instances, celles en standby comprises, seront arrêtées.",
+        "instancesDown": "Je comprends que toutes les ressources de ces instances, y compris celles en standby, seront arrêtées.",
         "peerTakeoverAria": "Confirmer la reprise par les pairs",
         "peerTakeover": "Je comprends que les nœuds pairs peuvent reprendre les services dès que ces instances seront arrêtées."
       }
     },
     "restart": {
       "title": "Confirmer le redémarrage",
-      "confirmAria": "Confirmer l'action redémarrer",
+      "confirmAria": "Confirmer le redémarrage",
       "confirm": "Redémarrer"
     },
     "clear": {
       "title": "Confirmer l'effacement",
-      "checkboxAria": "Confirmer l'action effacer",
+      "checkboxAria": "Confirmer l'effacement",
       "checkbox": "Je comprends que cela effacera l'état et les journaux du nœud.",
-      "confirmAria": "Confirmer l'action effacer"
+      "confirmAria": "Confirmer l'effacement"
     },
     "drain": {
       "title": "Confirmer le drainage",
       "checkboxAria": "Confirmer la migration des services",
       "checkbox": "Je comprends que cela migrera les services hors des nœuds sélectionnés.",
-      "confirmAria": "Confirmer l'action drainer"
+      "confirmAria": "Confirmer le drainage"
     },
     "unprovision": {
       "title": "Confirmer le déprovisionnement",
-      "confirmAria": "Confirmer l'action déprovisionner"
+      "confirmAria": "Confirmer le déprovisionnement"
     },
     "purge": {
       "title": "Confirmer la purge",
-      "confirmAria": "Confirmer l'action purger"
+      "confirmAria": "Confirmer la purge"
     },
     "delete": {
       "title": "Confirmer la suppression",
-      "confirmAria": "Confirmer l'action supprimer",
+      "confirmAria": "Confirmer la suppression",
       "instance": {
         "configLossAria": "Confirmer la perte de la configuration des instances",
         "configLoss": "Je comprends que la configuration et les états de ces instances seront supprimés, quel que soit leur statut.",
-        "localOnlyAria": "Confirmer la configuration des instances seule",
+        "localOnlyAria": "Confirmer la suppression de la seule configuration",
         "localOnly": "Je comprends que rien n'est arrêté ni déprovisionné, et que le démon peut recréer la configuration à partir de la copie d'un pair."
       }
     },
     "switch": {
       "title": "Confirmer la bascule",
-      "confirmAria": "Confirmer l'action basculer"
+      "confirmAria": "Confirmer la bascule"
     },
     "giveback": {
       "title": "Confirmer la restitution",
-      "confirmAria": "Confirmer l'action restituer"
+      "confirmAria": "Confirmer la restitution"
     },
     "deleteKey": {
       "title": "Confirmer la suppression de la clé",
@@ -135,7 +135,7 @@
     "summarySet_other": "Options ({{count}} définies)",
     "destination": {
       "label": "--to",
-      "hint": "Le nœud vers lequel déplacer l'objet. Sans nœud choisi, le démon prend le nœud préféré suivant.",
+      "hint": "Le nœud vers lequel déplacer l'objet. À défaut, le démon choisit le nœud préféré suivant.",
       "none": "Nœud préféré suivant"
     },
     "live": {
@@ -152,7 +152,7 @@
     },
     "adopt": {
       "label": "--adopt",
-      "hint": "Reprendre les ressources système qui occupent déjà ce que le provisionnement prendrait (par exemple le stockage répliqué que trouve un objet restauré) au lieu de les refuser."
+      "hint": "Reprendre à son compte les ressources système qui occupent déjà ce que le provisionnement utiliserait (par exemple le stockage répliqué trouvé par un objet restauré), au lieu de les refuser."
     },
     "disable_rollback": {
       "label": "--disable-rollback",
@@ -172,7 +172,7 @@
     },
     "preflight": {
       "label": "--preflight",
-      "hint": "Vérifier seulement que rien sur le nœud n'occupe ce que le provisionnement prendrait. Rien n'est provisionné."
+      "hint": "Vérifier seulement que rien sur le nœud n'occupe ce que le provisionnement utiliserait. Rien n'est provisionné."
     },
     "confirm": {
       "label": "--confirm",
@@ -180,7 +180,7 @@
     },
     "cron": {
       "label": "--cron",
-      "hint": "Exécuter la tâche comme le démon le fait selon sa planification."
+      "hint": "Exécuter la tâche comme le démon lors de ses exécutions planifiées."
     },
     "env": {
       "label": "--env",
@@ -225,19 +225,38 @@
   },
   "configEval": {
     "open": "Évaluer les mots-clés",
-    "title": "Mots-clés de {{subject}}, évalués",
-    "as": "Évaluer comme",
+    "title": "Mots-clés évalués de {{subject}}",
+    "as": "Évaluer en tant que",
     "answering": "Le nœud qui répond",
     "keywords": "Mots-clés",
-    "keywordsHint": "Mots-clés ou motifs, comme fs#1.* ou DEFAULT.nodes. Aucun : les mots-clés que la configuration définit, sans les valeurs par défaut.",
+    "keywordsHint": "Mots-clés ou motifs, comme fs#1.* ou DEFAULT.nodes. Vide : les mots-clés définis par la configuration, hors valeurs par défaut.",
     "evaluate": "Évaluer",
-    "evaluatedAs": "Évalué comme {{node}}.",
+    "evaluatedAs": "Évalué en tant que {{node}}.",
     "loading": "Évaluation",
     "none": "Aucun mot-clé.",
     "tableAria": "Mots-clés évalués",
     "keyword": "Mot-clé",
     "value": "Valeur",
     "evaluated": "Évalué"
+  },
+  "configValidate": {
+    "title": "Validation de la configuration",
+    "run": "Valider",
+    "runHeld": "Valider la configuration",
+    "checking": "Validation de la configuration",
+    "unsupported": "Ce démon ne valide pas de configuration : il est antérieur à la validation.",
+    "failed": "La configuration n'a pas pu être validée : {{message}}",
+    "none": "La configuration est valide : aucune erreur, aucun avertissement.",
+    "errors_one": "{{count}} erreur",
+    "errors_other": "{{count}} erreurs",
+    "warnings_one": "{{count}} avertissement",
+    "warnings_other": "{{count}} avertissements",
+    "refused": "une écriture avec des erreurs est refusée",
+    "levels": {
+      "error": "Erreur",
+      "warning": "Avertissement"
+    },
+    "close": "Fermer la validation"
   },
   "actions": {
     "labels": {
@@ -263,13 +282,13 @@
       "startStandby": "Démarrer en standby",
       "prstart": "Prstart",
       "prstop": "Prstop",
-      "syncIngest": "Ingérer la synchronisation",
+      "syncIngest": "Intégrer les fichiers reçus",
       "syncUpdate": "Synchroniser les changements",
-      "syncFull": "Synchronisation complète",
+      "syncFull": "Synchroniser tout",
       "syncResync": "Resynchroniser",
       "syncSplit": "Séparer la réplication",
-      "pgReset": "Réinitialiser le groupe de placement",
-      "pgUpdate": "Mettre à jour le groupe de placement",
+      "pgReset": "Réinitialiser les pg",
+      "pgUpdate": "Mettre à jour les pg",
       "info": "Infos",
       "status": "Statut",
       "clear": "Effacer",
@@ -339,7 +358,7 @@
     "edit": "Modifier",
     "add": "Ajouter",
     "remove": "Retirer",
-    "refresh": "Rafraîchir",
+    "refresh": "Actualiser",
     "retry": "Réessayer",
     "loading": "Chargement",
     "search": "Rechercher",
@@ -386,39 +405,46 @@
       "editNotice": "Édition du fichier tel qu'il est stocké : les valeurs secrètes sont affichées en clair. L'enregistrement envoie le fichier entier.",
       "startOver": "Repartir du fichier actuel",
       "fileLabel": "Fichier de configuration",
-      "secretsMaskedIn": "Secrets masqués à nouveau dans {{time}}.",
-      "secretsHidden": "Les valeurs secrètes sont affichées comme ********.",
+      "secretsMaskedIn": "Secrets à nouveau masqués dans {{time}}.",
+      "secretsHidden": "Les valeurs secrètes sont affichées sous la forme ********.",
       "hideSecrets": "Masquer les secrets",
       "showSecrets": "Afficher les secrets",
-      "editFile": "Éditer le fichier de configuration",
+      "editFile": "Modifier le fichier de configuration",
       "uploadFile": "Envoyer un nouveau fichier de configuration",
       "manageParams": "Concevoir la configuration",
       "noInstance": "Aucune instance sélectionnée pour afficher la configuration.",
-      "loadingForEdit": "Chargement de la configuration pour l'édition",
+      "loadingForEdit": "Chargement de la configuration pour modification",
       "loading": "Chargement de la configuration",
       "empty": "Aucune configuration disponible.",
       "noSection": "Pas de section [{{section}}] dans la configuration.",
       "copy": "Copier la configuration affichée",
-      "absent": "Pas encore de configuration : elle est créée avec la première modification écrite."
+      "copyShort": "Copier",
+      "showSecretsShort": "Afficher les secrets",
+      "hideSecretsShort": "Masquer les secrets",
+      "editShort": "Modifier",
+      "uploadShort": "Envoyer",
+      "designShort": "Concevoir",
+      "evaluateShort": "Évaluer",
+      "absent": "Pas encore de configuration : elle sera créée à la première modification enregistrée."
     },
     "feedback": {
       "tokenNotFound": "Jeton d'authentification introuvable.",
-      "conflict": "La configuration a été modifiée par quelqu'un d'autre depuis le début de votre édition. Vos modifications ne sont pas enregistrées.",
+      "conflict": "La configuration a été modifiée par quelqu'un d'autre depuis que vous avez commencé à la modifier. Vos modifications ne sont pas enregistrées.",
       "updateFailed": "Échec de la mise à jour de la configuration : {{message}}",
       "fileRequired": "Le fichier de configuration est requis.",
       "paramRequired": "Un paramètre est requis.",
       "unknownParam": "inconnu",
-      "unsetErrorUnknown": "Erreur lors de la désaffectation du paramètre {{keyword}}",
+      "unsetErrorUnknown": "Erreur lors de la suppression du paramètre {{keyword}}",
       "noSelection": "Aucune sélection"
     },
     "keywordHelp": {
       "open": "Ce que fait {{keyword}}",
-      "loadError": "La documentation du mot-clé n'a pas pu être lue : {{message}}",
-      "default": "Défaut",
+      "loadError": "Impossible de lire la documentation du mot-clé : {{message}}",
+      "default": "Par défaut",
       "candidates": "Valeurs",
       "example": "Exemple",
       "converter": "Type",
-      "scopable": "Portée par nœud",
+      "scopable": "Définissable par nœud",
       "deprecated": "Obsolète",
       "replacedBy": "remplacé par {{keyword}}",
       "loading": "Lecture de la documentation…",
@@ -438,7 +464,7 @@
     "title": "Fichiers",
     "upload": "Envoyer un fichier",
     "choose": "Le fichier à envoyer",
-    "hint": "Les fichiers de ce volume sur le nœud affiché : ce qu'écrivent les services qui l'utilisent, et ce qui est téléversé ici. Un fichier téléversé peut être l'image ou l'installeur d'un invité, qu'une ressource utilisant ce volume comme volume#2 désigne par volume#2:/isos/debian.iso dans son image ou son cdrom. La taille du volume borne ce qu'il contient.",
+    "hint": "Les fichiers de ce volume sur le nœud affiché : ce qu'écrivent les services qui l'utilisent, et ce qui est téléversé ici. Un fichier téléversé peut être l'image ou l'installeur d'un invité : une ressource qui utilise ce volume comme volume#2 le désigne par volume#2:/isos/debian.iso dans son mot-clé image ou cdrom. La taille du volume limite ce qu'il peut contenir.",
     "none": "Ce volume ne contient aucun fichier.",
     "node": "Nœud",
     "name": "Nom",
@@ -479,7 +505,7 @@
     "view": {
       "loading": "Lecture du fichier",
       "partial": "les premiers {{size}} affichés",
-      "crlf": "lignes terminées par CR LF : modifiez-le par un téléversement",
+      "crlf": "lignes terminées par CR LF : modifiez-le en le téléversant à nouveau",
       "download": "Télécharger le fichier",
       "contentAria": "Contenu du fichier",
       "edit": "Modifier",
@@ -492,16 +518,16 @@
     "openKey": "Afficher la clé {{key}}",
     "installed": {
       "badge": "installé",
-      "refused": "{{name}} est installé depuis {{from}} clé {{key}} : modifiez la clé, la prochaine installation écrit le fichier.",
-      "deleteText": "Il est installé depuis {{from}} clé {{key}} : la prochaine installation l'écrit à nouveau.",
-      "notEdited": "modifiez la clé, la prochaine installation écrit le fichier"
+      "refused": "{{name}} est installé depuis {{from}} clé {{key}} : modifiez plutôt la clé, la prochaine installation réécrira le fichier.",
+      "deleteText": "Il est installé depuis {{from}} clé {{key}} : la prochaine installation le réécrira.",
+      "notEdited": "modifiez plutôt la clé, la prochaine installation réécrira le fichier"
     }
   },
   "console": {
     "display": {
-      "ended": "La session d'écran est terminée.",
+      "ended": "La session d'affichage est terminée.",
       "ctrlAltDel": "Envoyer Ctrl+Alt+Suppr",
-      "idle": "Connecter ouvre l'écran de l'invité sur {{node}}."
+      "idle": "« Connecter » ouvre l'écran de l'invité sur {{node}}."
     },
     "opening": "Ouverture de la console...",
     "ended": "Session terminée (code de sortie {{code}}).",
@@ -516,8 +542,8 @@
     "node": "Nœud de la session",
     "connect": "Connecter",
     "disconnect": "Déconnecter",
-    "idle": "Connecter ouvre un shell sur {{node}}.",
-    "notRunning": "Ne tourne pas sur {{node}}.",
+    "idle": "« Connecter » ouvre un shell sur {{node}}.",
+    "notRunning": "Non démarré sur {{node}}.",
     "open": {
       "console": "Ouvrir la console de {{rid}}",
       "display": "Ouvrir l'écran de {{rid}}"
@@ -553,7 +579,7 @@
     "subscriptions": {
       "title": "Abonnements aux événements",
       "close": "Fermer les abonnements",
-      "intro": "Choisissez les types d'événements auxquels vous ABONNER (événements futurs uniquement) :",
+      "intro": "Choisissez les types d'événements auxquels vous voulez vous ABONNER (événements futurs uniquement) :",
       "subscribeAll": "S'abonner à tout",
       "subscribePage": "S'abonner aux événements de la page",
       "unsubscribeAll": "Se désabonner de tout",
@@ -591,13 +617,13 @@
       "peer": "Pair",
       "desc": "Desc",
       "routine": "Routine",
-      "beating": "Battement",
+      "beating": "Actif",
       "since": "Depuis",
-      "lastBeat": "Dernier battement"
+      "lastBeat": "Dernière émission"
     },
     "filters": {
       "routine": "Routine",
-      "beating": "Battement",
+      "beating": "Actif",
       "id": "ID",
       "driver": "Pilote",
       "clearAll": "Effacer tous les filtres"
@@ -610,15 +636,15 @@
     "empty": "Aucun heartbeat ne correspond aux filtres actuels.",
     "mesh": {
       "title": "Maillage",
-      "groupLabel_one": "de {{from}} vers {{to}} : {{beating}} lien sur {{count}} en battement",
-      "groupLabel_other": "de {{from}} vers {{to}} : {{beating}} liens sur {{count}} en battement",
-      "beatingOf_one": "{{beating}} sur {{count}} en battement",
-      "beatingOf_other": "{{beating}} sur {{count}} en battement",
+      "groupLabel_one": "{{from}} vers {{to}} : {{beating}} lien actif sur {{count}}",
+      "groupLabel_other": "{{from}} vers {{to}} : {{beating}} liens actifs sur {{count}}",
+      "beatingOf_one": "{{beating}} actif sur {{count}}",
+      "beatingOf_other": "{{beating}} actifs sur {{count}}",
       "legend": {
-        "direction": "→ le sens des battements : depuis l'émetteur son tx, puis après l'espace vers le récepteur son rx",
-        "up": "tous battent",
-        "warn": "certains battent",
-        "down": "aucun ne bat"
+        "direction": "→ sens des émissions : du tx de l'émetteur, par-delà l'espace, au rx du récepteur",
+        "up": "tous actifs",
+        "warn": "certains actifs",
+        "down": "aucun actif"
       },
       "half": {
         "tx": "Vu de {{node}}, sortant vers {{peer}}",
@@ -635,7 +661,7 @@
         "down": "critique"
       },
       "arcs": {
-        "up": "battent",
+        "up": "actifs",
         "down": "en échec",
         "stopped": "arrêtés"
       },
@@ -644,7 +670,7 @@
       "clickHint_other": "Cliquer pour voir les {{count}} flux",
       "nodeClickHint_one": "{{node}} : cliquer pour voir la routine arrêtée",
       "nodeClickHint_other": "{{node}} : cliquer pour voir les {{count}} routines arrêtées",
-      "relayHint": "Le relais {{relay}} : les heartbeats {{hbs}} passent par lui"
+      "relayHint": "Relais {{relay}} : les heartbeats {{hbs}} y transitent"
     },
     "actions": {
       "stop": "Arrêter",
@@ -674,7 +700,7 @@
       "confirmStop": "Arrêter le flux {{id}} de {{node}} ? Le nœud cesse d'y émettre ou d'y recevoir jusqu'à ce qu'il soit redémarré.",
       "startRoutine": "Démarrer {{name}}",
       "stopRoutine": "Arrêter {{name}}",
-      "confirmStart": "Démarrer le flux {{id}} de {{node}} ? Le nœud émet ou reçoit de nouveau sur lui.",
+      "confirmStart": "Démarrer le flux {{id}} de {{node}} ? Le nœud y émet ou y reçoit de nouveau.",
       "confirmTitleStart": "Démarrer un flux de heartbeat"
     },
     "routine": {
@@ -698,8 +724,8 @@
         "rx": "↓ rx"
       },
       "routines": "Routines",
-      "toggleHint": "Cliquez une routine pour l'arrêter, ou pour la démarrer.",
-      "beatingOf": "{{beating}}/{{count}} battent"
+      "toggleHint": "Cliquez sur une routine pour l'arrêter ou la démarrer.",
+      "beatingOf": "{{beating}}/{{count}} actifs"
     },
     "tabs": {
       "label": "Vues des heartbeats",
@@ -719,7 +745,7 @@
       "readFailed": "La configuration du cluster n'a pas pu être lue : {{message}}",
       "delete": "Supprimer",
       "deleting": "Suppression…",
-      "confirmDelete": "Supprimer [{{name}}] de la configuration du cluster ? Ses flux s’arrêtent sur tous les nœuds.",
+      "confirmDelete": "Supprimer [{{name}}] de la configuration du cluster ? Ses flux s'arrêtent sur tous les nœuds.",
       "deleteFailed": "Le heartbeat n'a pas pu être supprimé : {{message}}",
       "notDeletable": "Il pourra être supprimé quand un autre heartbeat aura tous ses flux actifs."
     },
@@ -732,24 +758,24 @@
         "settings": "Réglages",
         "review": "Vérification"
       },
-      "typeQuestion": "Comment les nœuds battent-ils entre eux ?",
+      "typeQuestion": "Comment les nœuds échangent-ils leurs heartbeats ?",
       "types": {
-        "unicast": "Par le réseau, de nœud à nœud : une adresse de chaque nœud.",
+        "unicast": "Par le réseau, de nœud à nœud : une adresse par nœud.",
         "multicast": "Par le réseau, vers un groupe multicast que tous les nœuds écoutent.",
-        "disk": "Sur un disque partagé par les nœuds, un emplacement chacun.",
-        "relay": "Par un relais, un site tiers que les nœuds joignent."
+        "disk": "Sur un disque partagé par les nœuds, un emplacement par nœud.",
+        "relay": "Via un relais, sur un site tiers joignable par les nœuds."
       },
-      "perNode": "Une adresse sur chaque nœud, celle à laquelle les autres envoient : la même sur tous ne conviendrait pas.",
+      "perNode": "Une adresse propre à chaque nœud, celle à laquelle les autres lui envoient : une adresse commune à tous ne convient pas.",
       "onNode": "{{key}} sur {{node}}",
       "required": "{{key}} (requis)",
-      "written": "Écrit dans la configuration du cluster, que les démons appliquent :",
-      "rewrite": "Le pilote passe de {{from}} à {{to}} : la section est réécrite, les mots-clés de {{from}} abandonnés.",
-      "unchanged": "Rien de changé : rien à écrire.",
+      "written": "Sera écrit dans la configuration du cluster, puis appliqué par les démons :",
+      "rewrite": "Le pilote passe de {{from}} à {{to}} : la section est réécrite et les mots-clés de {{from}} sont supprimés.",
+      "unchanged": "Aucune modification : rien à écrire.",
       "back": "Retour",
       "next": "Suivant",
-      "save": "Écrire",
-      "saving": "Écriture…",
-      "saveFailed": "Le heartbeat n'a pas pu être écrit : {{message}}",
+      "save": "Enregistrer",
+      "saving": "Enregistrement…",
+      "saveFailed": "Le heartbeat n'a pas pu être enregistré : {{message}}",
       "trayLabel": "Configurer"
     },
     "relays": {
@@ -757,16 +783,16 @@
       "refresh": "Rafraîchir",
       "reading": "Lecture des relais",
       "readError": "Impossible de lire les relais : {{message}}",
-      "served": "Emplacements tenus par {{node}}",
+      "served": "Emplacements hébergés par {{node}}",
       "columns": {
         "state": "État",
         "addr": "Adresse",
         "written": "Dernière écriture",
         "cluster": "Cluster"
       },
-      "notRelay": "Ce nœud n'est pas un relais : aucun cluster n'y écrit ses heartbeats. Le cas habituel, un site ayant un cluster relais.",
-      "refused": "Les relais ne sont pas montrés à vos droits.",
-      "servedStaleHint": "Non écrit depuis plus de {{seconds}}s, le délai par défaut d’un heartbeat.",
+      "notRelay": "Ce nœud n'est pas un relais : aucun cluster n'y écrit ses heartbeats. C'est le cas habituel, un site n'ayant qu'un cluster relais.",
+      "refused": "Vos droits ne permettent pas de voir les relais.",
+      "servedStaleHint": "Non écrit depuis plus de {{seconds}}s, le délai par défaut d'un heartbeat.",
       "served_state": {
         "active": "actif",
         "stale": "périmé"
@@ -811,27 +837,27 @@
       "noEncapResources": "Aucune ressource encapsulée disponible pour {{rid}}.",
       "row": "Ressource {{rid}}",
       "notProvisioned": "La ressource {{rid}} n'est pas provisionnée",
-      "flagsLabel": "Statut de la ressource {{rid}} : {{flags}}",
+      "flagsLabel": "État de la ressource {{rid}} : {{flags}}",
       "actionsMenu": "Actions de la ressource {{rid}}",
       "logs": "Journaux de la ressource {{rid}}",
       "actionsDisabled": "info : actions désactivées"
     },
     "flags": {
-      "running": "En cours d'exécution",
-      "notRunning": "Arrêtée",
+      "running": "En cours",
+      "notRunning": "Pas en cours",
       "monitored": "Surveillée",
       "notMonitored": "Non surveillée",
       "enabled": "Activée",
       "disabled": "Désactivée",
-      "optional": "Optionnelle",
-      "notOptional": "Non optionnelle",
+      "optional": "Facultative",
+      "notOptional": "Non facultative",
       "encap": "Encapsulée",
       "notEncap": "Non encapsulée",
       "provisioned": "Provisionnée",
       "notProvisioned": "Non provisionnée",
       "standby": "Standby",
       "notStandby": "Pas en standby",
-      "noRestart": "Aucun redémarrage",
+      "noRestart": "Aucun redémarrage restant",
       "moreThan10Restarts": "Plus de 10 redémarrages",
       "restartsRemaining_one": "{{count}} redémarrage restant",
       "restartsRemaining_other": "{{count}} redémarrages restants"
@@ -874,7 +900,7 @@
     "panel": {
       "title": "{{path}} @ {{node}}",
       "avail": "Disponibilité",
-      "overall": "Global",
+      "overall": "État global",
       "provisioned": "Provisionné",
       "frozen": "Gelé",
       "monitor": "Moniteur",
@@ -886,7 +912,7 @@
       "noResource": "Aucune ressource.",
       "object": "Objet",
       "node": "Nœud",
-      "datastores": "Magasins de données",
+      "datastores": "Datastores",
       "actions": "Actions sur l'instance",
       "selectResource": "Sélectionner {{rid}}",
       "selectionHelp": "Cochez des ressources pour les sélectionner.",
@@ -900,7 +926,7 @@
     "loading": "Chargement des clés",
     "loadingContent": "Chargement du contenu de la clé",
     "empty": "Aucune clé disponible.",
-    "tableAria": "table des clés",
+    "tableAria": "tableau des clés",
     "size": "Taille",
     "bytes": "{{size}} octets",
     "editAction": "Modifier la clé {{key}}",
@@ -929,8 +955,8 @@
       "subject": "Sujet",
       "issuer": "Émetteur",
       "validity": "Validité",
-      "notBefore": "Pas avant",
-      "notAfter": "Pas après",
+      "notBefore": "Valide à partir du",
+      "notAfter": "Valide jusqu'au",
       "expired": "Expiré",
       "notYetValid": "Pas encore valide",
       "expiresIn_one": "Valide, expire dans {{count}} jour",
@@ -971,8 +997,8 @@
       "dropHere": "Déposez pour charger le fichier",
       "binary": "binaire, envoyé tel quel",
       "dropFile": "Retirer le fichier, saisir le contenu",
-      "sizeOfMax": "{{size}} sur {{max}} au plus",
-      "tooLarge": "{{size}} : trop grand, une clé contient au plus {{max}}",
+      "sizeOfMax": "{{size}} (max. {{max}})",
+      "tooLarge": "{{size}} : trop volumineux, une clé contient au plus {{max}}",
       "hiddenSecret": "Le contenu d'un secret est masqué : saisissez, collez ou déposez un nouveau contenu pour le remplacer.",
       "hiddenBinary": "Le contenu est binaire : déposez ou choisissez un fichier pour le remplacer, ou saisissez un nouveau contenu.",
       "hiddenUnread": "Le contenu n'a pas pu être lu : saisissez, collez ou déposez un nouveau contenu pour le remplacer."
@@ -995,7 +1021,7 @@
       "exists": "Une clé {{key}} existe déjà.",
       "submit": "Renommer",
       "renaming": "Renommage",
-      "fromView": "Se renomme depuis la vue de la clé (Renommer)."
+      "fromView": "Le renommage se fait depuis la vue de la clé (Renommer)."
     }
   },
   "containerLogs": {
@@ -1004,9 +1030,9 @@
     "count": "{{shown}} / {{total}} lignes",
     "empty": "Le conteneur n'a encore rien écrit.",
     "lost": "Les journaux du conteneur sur {{node}} ont été perdus (le conteneur s'est arrêté, ou le démon a redémarré) : reconnexion…",
-    "forbidden": "Lire les journaux d'un conteneur demande le rôle root.",
-    "absent": "Aucun conteneur {{rid}} sur {{node}} : il n'y tourne pas, ou a été supprimé à son arrêt. Ses journaux sont lus dès qu'il tourne.",
-    "stopped": "{{rid}} ne tourne pas sur {{node}} : voici les dernières lignes qu'il a écrites. Ses journaux sont suivis de nouveau dès qu'il tourne."
+    "forbidden": "Lire les journaux d'un conteneur nécessite le rôle root.",
+    "absent": "Aucun conteneur {{rid}} sur {{node}} : il n'y tourne pas, ou a été supprimé à son arrêt. Ses journaux seront lus dès qu'il démarrera.",
+    "stopped": "{{rid}} ne tourne pas sur {{node}} : voici les dernières lignes qu'il a écrites. Le suivi de ses journaux reprendra dès qu'il redémarrera."
   },
   "logs": {
     "subtitle": "{{instance}} sur {{node}}",
@@ -1031,9 +1057,9 @@
     "errors": {
       "instanceRequired": "Le nom de l'instance est requis pour les journaux d'instance",
       "tokenNotFound": "Jeton d'authentification introuvable",
-      "http": "Erreur HTTP ! statut : {{status}}",
+      "http": "Erreur HTTP, statut {{status}}",
       "noStream": "La réponse n'a pas de flux lisible",
-      "authFailed": "Échec de l'authentification. Veuillez rafraîchir votre jeton.",
+      "authFailed": "Échec de l'authentification. Veuillez renouveler votre jeton.",
       "instanceNotFound": "Point d'accès des journaux d'instance introuvable pour {{instance}} sur le nœud {{node}}",
       "nodeNotFound": "Point d'accès des journaux introuvable pour le nœud {{node}}",
       "fetchFailed": "Échec de la récupération des journaux : {{message}}",
@@ -1046,7 +1072,7 @@
     "newLines_other": "{{count}} nouvelles lignes",
     "loadOlder": "Charger les lignes plus anciennes",
     "loadingOlder": "Chargement des lignes plus anciennes…",
-    "noOlder": "Pas de ligne plus ancienne"
+    "noOlder": "Aucune ligne plus ancienne"
   },
   "metrics": {
     "columns": {
@@ -1065,18 +1091,18 @@
     "fetchError": "Échec de la récupération des métriques : {{error}}",
     "loading": "Chargement des métriques",
     "empty": "Aucune métrique cgroup pour les objets de {{namespace}}",
-    "footer": "Additionné sur les nœuds du cluster, rafraîchi toutes les {{seconds}} secondes. Le CPU est en pourcentage d'un CPU.",
+    "footer": "Somme sur les nœuds du cluster, actualisée toutes les {{seconds}} secondes. Le CPU est exprimé en pourcentage d'un CPU.",
     "object": {
-      "total": "Usage de l'objet",
+      "total": "Utilisation de l'objet",
       "openInstance": "Ouvrir l'instance sur {{node}}",
       "none": "Aucune instance.",
-      "footer": "Additionné sur ses instances, rafraîchi toutes les {{seconds}} secondes. Le CPU est en pourcentage d'un CPU ; les limites s'additionnent, illimitées si l'une l'est.",
+      "footer": "Somme sur ses instances, actualisée toutes les {{seconds}} secondes. Le CPU est exprimé en pourcentage d'un CPU ; les limites s'additionnent, illimitées si l'une l'est.",
       "noGroup": "Pas de cgroup pour cet objet sur ses nœuds."
     },
     "instance": {
-      "total": "Usage de l'instance",
+      "total": "Utilisation de l'instance",
       "none": "Aucun cgroup pour cette instance sur {{node}}.",
-      "footer": "Sur {{node}}, rafraîchi toutes les {{seconds}} secondes. Le CPU est en pourcentage d'un CPU."
+      "footer": "Sur {{node}}, actualisé toutes les {{seconds}} secondes. Le CPU est exprimé en pourcentage d'un CPU."
     }
   },
   "namespaces": {
@@ -1087,7 +1113,7 @@
       "nets": "Réseaux",
       "cpu": "CPU",
       "memory": "Mémoire",
-      "claims": "Réclamations"
+      "claims": "Quotas"
     },
     "empty": "Aucun namespace disponible",
     "tableLabel": "Namespaces",
@@ -1102,19 +1128,19 @@
       "cfg_other": "Afficher les {{count}} configurations de {{namespace}}"
     },
     "usage": {
-      "claimed": "{{name}} : {{used}} sur {{total}} réclamé ({{percent}})",
-      "unclaimed": "{{name}} : {{used}} sur {{total}}, sans réclamation ({{percent}})",
-      "error": "L'usage des pools et des réseaux n'a pas pu être lu : {{message}}",
+      "claimed": "{{name}} : {{used}} sur un quota de {{total}} ({{percent}})",
+      "unclaimed": "{{name}} : {{used}} sur {{total}}, sans quota ({{percent}})",
+      "error": "Impossible de lire l'utilisation des pools et des réseaux : {{message}}",
       "free": "Libre",
       "used": "Utilisé",
       "total": "Total",
       "cap": "Plafond",
-      "noClaim": "aucune réclamation",
+      "noClaim": "aucun quota",
       "share": "Part",
       "barLabel": "{{title}} : {{parts}}",
       "ofCap": "sur {{cap}}",
-      "cpuOf": "CPU utilisé par {{namespace}}, de sa limite",
-      "memoryOf": "Mémoire utilisée par {{namespace}}, de sa limite",
+      "cpuOf": "CPU utilisé par {{namespace}}, par rapport à son plafond",
+      "memoryOf": "Mémoire utilisée par {{namespace}}, par rapport à son plafond",
       "addresses_one": "{{value}} adresse",
       "addresses_other": "{{value}} adresses",
       "in": {
@@ -1123,16 +1149,16 @@
         "nets_one": "{{value}} dans {{count}} réseau",
         "nets_other": "{{value}} dans {{count}} réseaux"
       },
-      "hottest": "{{value}}, réclamation la plus chargée :"
+      "hottest": "{{value}}, quota le plus sollicité :"
     },
     "panel": {
       "tabs": {
-        "usage": "Usage",
-        "claims": "Réclamations",
+        "usage": "Utilisation",
+        "claims": "Quotas",
         "events": "Événements",
         "config": "Configuration"
       },
-      "claims": "Réclamations et usage",
+      "claims": "Quotas et utilisation",
       "resource": "Ressource",
       "limit": "Limite",
       "share": "Part",
@@ -1145,30 +1171,30 @@
       },
       "sizeOf": "{{size}} ({{of}})",
       "sizeOfType": {
-        "pool": "taille du pool, sans réclamation",
-        "network": "taille du réseau, sans réclamation"
+        "pool": "taille du pool, sans quota",
+        "network": "taille du réseau, sans quota"
       },
-      "noClaim": "Ce namespace ne réclame rien : il n'est limité que par les pools et les réseaux eux-mêmes.",
+      "noClaim": "Ce namespace n'a aucun quota : il n'est limité que par les pools et les réseaux eux-mêmes.",
       "nothing": "Aucun pool, réseau, cpu ni mémoire utilisé.",
       "pgNode": "Le CPU et la mémoire sont ceux des objets du nœud qui sert cette page.",
       "byObject": "CPU et mémoire par objet",
       "actions": "Actions sur le namespace",
       "configOf": "la configuration de {{namespace}}",
-      "deleteDescription": "Supprimer l'objet de configuration du namespace : ses réservations et réglages avec lui."
+      "deleteDescription": "Supprimer l'objet de configuration du namespace, avec ses quotas et ses réglages."
     },
     "claims": {
       "actions": "Actions",
-      "add": "Ajouter une réclamation",
+      "add": "Ajouter un quota",
       "edit": "Modifier",
-      "editOf": "Modifier la réclamation de {{name}}",
+      "editOf": "Modifier le quota de {{name}}",
       "remove": "Supprimer",
-      "removeOf": "Supprimer la réclamation de {{name}}",
-      "claim": "Réclamer",
-      "claimOf": "Réclamer {{name}}",
-      "readOnly": "Seuls root et les squatters peuvent modifier les réclamations d'un namespace.",
-      "saveFailed": "La réclamation n'a pas pu être écrite : {{message}}",
-      "removeFailed": "La réclamation n'a pas pu être supprimée : {{message}}",
-      "removeTitle": "Supprimer la réclamation de {{name}}",
+      "removeOf": "Supprimer le quota de {{name}}",
+      "claim": "Quota",
+      "claimOf": "Quota de {{name}}",
+      "readOnly": "Seuls root et les squatters peuvent modifier les quotas d'un namespace.",
+      "saveFailed": "Impossible d'enregistrer le quota : {{message}}",
+      "removeFailed": "Impossible de supprimer le quota : {{message}}",
+      "removeTitle": "Supprimer le quota de {{name}}",
       "removeText": "{{namespace}} ne sera plus limité à {{limit}} de {{name}}.",
       "removeEffect": {
         "pool": "Ses volumes ne seront alors limités que par la taille du pool.",
@@ -1189,28 +1215,28 @@
       "types": {
         "pool": {
           "label": "Stockage d'un pool",
-          "help": "Ce que ses volumes peuvent prendre d'un pool.",
-          "taken": "Tous les pools sont déjà réclamés : modifiez leur réclamation."
+          "help": "Combien ses volumes peuvent occuper dans un pool.",
+          "taken": "Tous les pools ont déjà un quota : modifiez-le plutôt."
         },
         "network": {
           "label": "Adresses d'un réseau",
-          "help": "Combien d'adresses ses objets peuvent tenir dans un réseau.",
-          "taken": "Tous les réseaux sont déjà réclamés : modifiez leur réclamation."
+          "help": "Combien d'adresses ses objets peuvent occuper dans un réseau.",
+          "taken": "Tous les réseaux ont déjà un quota : modifiez-le plutôt."
         },
         "cpu": {
           "label": "CPU",
-          "help": "Combien de cpus ses objets peuvent utiliser ensemble.",
-          "taken": "Déjà réclamé : modifiez sa réclamation."
+          "help": "Combien de CPU ses objets peuvent utiliser au total.",
+          "taken": "Quota déjà défini : modifiez-le plutôt."
         },
         "memory": {
           "label": "Mémoire",
-          "help": "Combien de mémoire ses objets peuvent utiliser ensemble.",
-          "taken": "Déjà réclamée : modifiez sa réclamation."
+          "help": "Quelle quantité de mémoire ses objets peuvent utiliser au total.",
+          "taken": "Quota déjà défini : modifiez-le plutôt."
         }
       },
       "wizard": {
-        "addTitle": "Nouvelle réclamation de {{namespace}}",
-        "editTitle": "Réclamation de {{name}} par {{namespace}}",
+        "addTitle": "Nouveau quota pour {{namespace}}",
+        "editTitle": "Quota de {{name}} pour {{namespace}}",
         "steps": "Étapes",
         "step": {
           "type": "Quoi",
@@ -1220,49 +1246,49 @@
         },
         "back": "Précédent",
         "next": "Suivant",
-        "save": "Enregistrer la réclamation",
+        "save": "Enregistrer le quota",
         "saving": "Enregistrement…",
-        "typeQuestion": "Que réclame le namespace ?",
+        "typeQuestion": "Sur quoi porte le quota du namespace ?",
         "targetQuestion": {
           "pool": "De quel pool ?",
           "network": "De quel réseau ?"
         },
         "noTarget": {
-          "pool": "Tous les pools sont déjà réclamés.",
-          "network": "Tous les réseaux sont déjà réclamés."
+          "pool": "Tous les pools ont déjà un quota.",
+          "network": "Tous les réseaux ont déjà un quota."
         },
         "targetFigures": "{{used}} utilisés sur {{size}}",
         "limitLabel": {
-          "pool": "Le plus qu'il peut prendre de {{name}}",
-          "network": "Le plus d'adresses qu'il peut tenir dans {{name}}",
-          "cpu": "Le plus de cpus qu'il peut utiliser",
-          "memory": "Le plus de mémoire qu'il peut utiliser"
+          "pool": "Maximum utilisable dans {{name}}",
+          "network": "Nombre maximal d'adresses dans {{name}}",
+          "cpu": "Nombre maximal de CPU",
+          "memory": "Mémoire maximale"
         },
         "defaultLabel": {
-          "cpu": "Cpus d'un conteneur n'en fixant pas",
-          "memory": "Mémoire d'un conteneur n'en fixant pas"
+          "cpu": "CPU par défaut d'un conteneur",
+          "memory": "Mémoire par défaut d'un conteneur"
         },
-        "defaultHint": "La limite de chaque conteneur du namespace qui n'en fixe pas lui-même.",
+        "defaultHint": "Limite appliquée à chaque conteneur du namespace qui n'en définit pas.",
         "optional": "{{label}} (facultatif)",
         "unit": "Unité",
         "unitOf": {
           "network": "adresses",
-          "cpu": "cpus"
+          "cpu": "CPU"
         },
-        "usedNow": "Utilisé maintenant : {{used}}.",
+        "usedNow": "Utilisation actuelle : {{used}}.",
         "sizeOf": {
           "pool": "Taille du pool : {{size}}.",
           "network": "Taille du réseau : {{size}}."
         },
-        "cpuHint": "0,5 est un demi cpu.",
-        "belowUsage": "En dessous des {{used}} utilisés maintenant : ce qui grandit au-delà sera refusé jusqu'à ce que l'usage repasse sous la réclamation.",
+        "cpuHint": "0,5 correspond à un demi-CPU.",
+        "belowUsage": "Inférieur aux {{used}} utilisés actuellement : toute croissance au-delà sera refusée jusqu'à ce que l'utilisation repasse sous le quota.",
         "aboveSize": {
-          "pool": "Plus que les {{size}} du pool : le pool limite d'abord.",
-          "network": "Plus que les {{size}} adresses du réseau : le réseau limite d'abord."
+          "pool": "Supérieur aux {{size}} du pool : c'est le pool qui limite en premier.",
+          "network": "Supérieur aux {{size}} adresses du réseau : c'est le réseau qui limite en premier."
         },
         "summary": {
-          "pool": "{{namespace}} pourra prendre jusqu'à {{limit}} du pool {{name}}.",
-          "network": "{{namespace}} pourra tenir jusqu'à {{limit}} adresses dans le réseau {{name}}.",
+          "pool": "{{namespace}} pourra occuper jusqu'à {{limit}} du pool {{name}}.",
+          "network": "{{namespace}} pourra utiliser jusqu'à {{limit}} adresses du réseau {{name}}.",
           "cpu": "{{namespace}} pourra utiliser jusqu'à {{limit}}.",
           "memory": "{{namespace}} pourra utiliser jusqu'à {{limit}} de mémoire."
         },
@@ -1270,7 +1296,7 @@
           "cpu": "Un conteneur sans limite propre reçoit {{value}}.",
           "memory": "Un conteneur sans limite propre reçoit {{value}}."
         },
-        "createsConfig": "{{namespace}} n'a pas encore d'objet de configuration : il est créé avec cette réclamation.",
+        "createsConfig": "{{namespace}} n'a pas encore d'objet de configuration : il sera créé avec ce quota.",
         "written": "Écrit dans la configuration du namespace :"
       }
     },
@@ -1307,11 +1333,11 @@
       "networks": "Réseaux",
       "nodes": "Nœuds",
       "objects": "Objets",
-      "kinds": "Kinds",
+      "kinds": "Types",
       "namespaces": "Namespaces",
       "pools": "Pools",
       "resources": "Ressources",
-      "stores": "Magasins",
+      "stores": "Dépôts",
       "glossary": "Glossaire",
       "about": "À propos"
     },
@@ -1331,7 +1357,7 @@
       "loading": "Chargement...",
       "segments": {
         "heartbeats": "liens",
-        "kinds": "kinds",
+        "kinds": "types",
         "namespaces": "namespaces",
         "network": "réseaux",
         "nodes": "nœuds",
@@ -1339,7 +1365,7 @@
         "pools": "pools",
         "whoami": "utilisateur",
         "resources": "ressources",
-        "stores": "magasins",
+        "stores": "dépôts",
         "cluster": "cluster",
         "glossary": "glossaire",
         "about": "À propos",
@@ -1384,14 +1410,14 @@
         "review": "Vérification"
       },
       "name": "Nom",
-      "nameHint": "Lettres, chiffres, tiret ou souligné : la section network#<nom> de la configuration du cluster.",
-      "nameInvalid": "Lettres, chiffres, tiret ou souligné uniquement.",
+      "nameHint": "Lettres, chiffres, tiret ou tiret bas : la section network#<nom> de la configuration du cluster.",
+      "nameInvalid": "Lettres, chiffres, tiret ou tiret bas uniquement.",
       "nameTaken": "Un réseau {{name}} existe déjà.",
       "typeQuestion": "Quel type de réseau ?",
       "required": "{{key}} (requis)",
       "onNode": "{{key}} sur {{node}}",
       "byDefault": "Par défaut : {{value}}",
-      "unset": "Non réglé",
+      "unset": "Non défini",
       "listHint": "Plusieurs valeurs séparées par des espaces.",
       "cidrInvalid": "Une plage d'adresses, comme 10.30.0.0/16 ou fd00::/64.",
       "overlaps": "Sa plage recouvre celle de {{networks}} : deux réseaux pourraient attribuer les mêmes adresses.",
@@ -1408,7 +1434,7 @@
       "update": "Modifier le réseau",
       "trayEdit": "Modifier le réseau {{name}}",
       "unchanged": "Rien n'a changé.",
-      "rewrite": "Son type passe de {{from}} à {{to}} : sa section est réécrite, les clés de {{from}} abandonnées."
+      "rewrite": "Son type passe de {{from}} à {{to}} : sa section est entièrement réécrite et les clés propres à {{from}} sont supprimées."
     },
     "panel": {
       "actions": "Actions sur le réseau {{name}}",
@@ -1432,12 +1458,12 @@
       "deleting": "Suppression…",
       "confirmTitle": "Supprimer le réseau {{name}} ?",
       "confirmText": "La section network#{{name}} est retirée de la configuration du cluster, que chaque nœud applique.",
-      "inUse_one": "{{count}} de ses adresses est utilisée : la ressource qui la tient perd son réseau.",
-      "inUse_other": "{{count}} de ses adresses sont utilisées : les ressources qui les tiennent perdent leur réseau.",
+      "inUse_one": "{{count}} de ses adresses est utilisée : la ressource qui l'occupe perdra son réseau.",
+      "inUse_other": "{{count}} de ses adresses sont utilisées : les ressources qui les occupent perdront leur réseau.",
       "deleteFailed": "Non supprimé : {{message}}",
       "tray": "Supprimer le réseau {{name}}",
       "edit": "Modifier la configuration du réseau {{name}}",
-      "editHint": "Une ligne clé = valeur, clé@nœud = valeur pour un nœud ; une clé retirée est supprimée. Écrit comme les clés modifiées, le reste de la configuration du cluster laissé tel quel.",
+      "editHint": "Une ligne clé = valeur par clé, clé@nœud = valeur pour un seul nœud ; une clé retirée est supprimée. Seules les clés modifiées sont écrites, le reste de la configuration du cluster est inchangé.",
       "invalidLines": "Pas une ligne clé = valeur : {{lines}}",
       "trayEdit": "Mettre à jour le réseau {{name}}",
       "modify": "Modifier le réseau {{name}} dans l'assistant",
@@ -1493,11 +1519,11 @@
       "noToken": "Jeton d'authentification introuvable"
     },
     "row": {
-      "lost": "Aucun état : le nœud est perdu ou ne répond pas",
+      "lost": "Aucun état : le nœud a disparu ou ne donne plus signe de vie",
       "label": "Ligne du nœud {{node}}",
       "select": "Sélectionner le nœud {{node}}",
       "connected": "Connecté à ce nœud",
-      "versionDiff": "Agent {{version}}, la plupart des nœuds ont {{common}}",
+      "versionDiff": "Agent {{version}}, la plupart des nœuds sont en {{common}}",
       "booted": "démarré",
       "updated": "mis à jour"
     },
@@ -1532,7 +1558,7 @@
     },
     "resources": {
       "filter": "Filtrer les ressources",
-      "none": "Aucune ressource ne remonte d’information",
+      "none": "Aucune ressource ne remonte d'information",
       "noMatch": "Aucune ressource ne correspond au filtre",
       "key": "Clé",
       "noneOf": "{{rid}} ne signale aucune information.",
@@ -1571,9 +1597,9 @@
       "discoveredUnset": "non signalé",
       "organisationTag": "défini par vous",
       "organisationUnset": "non défini",
-      "globalExpect": "Attente globale",
-      "localExpect": "Attente locale",
-      "noExpect": "aucune",
+      "globalExpect": "Objectif global",
+      "localExpect": "Objectif local",
+      "noExpect": "aucun",
       "orchestration": "Orchestration",
       "noOrchestration": "aucune",
       "orchestrationDone": "terminée",
@@ -1615,7 +1641,7 @@
       "filter": "Filtrer les pilotes et capacités",
       "drivers": "Pilotes",
       "capabilities": "Capacités",
-      "intro": "Un pilote est utilisable sur le nœud quand le nœud détient sa capacité : une configuration utilisant un pilote que le nœud ne détient pas y est refusée.",
+      "intro": "Un pilote est utilisable sur le nœud si celui-ci dispose de la capacité correspondante : une configuration qui utilise un pilote absent du nœud y est refusée.",
       "usableCount": "{{usable}} utilisables sur {{total}}",
       "views": {
         "label": "Quels pilotes",
@@ -1632,8 +1658,8 @@
       "unusable": "Non utilisable : aucune capacité",
       "tools": "Outils du nœud",
       "sections": "Ce que le nœud peut exécuter",
-      "toolsIntro": "Les commandes trouvées sur le nœud dont les pilotes dépendent, telles que le dernier scan les a vues.",
-      "capabilitiesIntro": "Toutes les capacités que le nœud liste : les pilotes qu'il peut exécuter et les outils dont il dispose, telles que le dernier scan les a vues.",
+      "toolsIntro": "Les commandes présentes sur le nœud dont dépendent les pilotes, d'après le dernier scan.",
+      "capabilitiesIntro": "Toutes les capacités déclarées par le nœud : les pilotes qu'il peut exécuter et les outils dont il dispose, d'après le dernier scan.",
       "rescan": "Rescanner",
       "scanning": "Scan en cours…",
       "rescanHint": "Scanner à nouveau ce que le nœud peut exécuter, comme om node capabilities scan"
@@ -1680,8 +1706,8 @@
     "orgEdit": {
       "edit": "Modifier les propriétés de l'organisation",
       "bar": "Modifications des propriétés de l'organisation",
-      "pending_one": "{{count}} modification, appliquée en une écriture de la configuration du nœud",
-      "pending_other": "{{count}} modifications, appliquées en une écriture de la configuration du nœud",
+      "pending_one": "{{count}} modification, appliquée en une seule écriture de la configuration du nœud",
+      "pending_other": "{{count}} modifications, appliquées en une seule écriture de la configuration du nœud",
       "discard": "Abandonner",
       "apply_one": "Appliquer {{count}} modification",
       "apply_other": "Appliquer {{count}} modifications",
@@ -1736,7 +1762,7 @@
     "creating": "Création",
     "errors": {
       "empty": "Obligatoire.",
-      "tooLong": "63 caractères au plus.",
+      "tooLong": "63 caractères maximum.",
       "firstChar": "Doit commencer par une lettre ou un chiffre.",
       "chars": "Lettres, chiffres, points et tirets seulement.",
       "uppercase": "Minuscules seulement.",
@@ -1749,7 +1775,7 @@
       "copyFailed": "La configuration de {{path}} n'a pas pu être lue : {{message}}",
       "readFailed": "Le fichier n'a pas pu être lu : {{message}}"
     },
-    "datastoreHint": "Créé vide : ses clés s’ajoutent ensuite, dans son panneau.",
+    "datastoreHint": "Créé vide : ajoutez ensuite ses clés dans son panneau.",
     "force": {
       "replace": "Le remplacer (--force)",
       "held": "Créer quand même (--force)"
@@ -1757,7 +1783,7 @@
     "myNamespaces": "Mes namespaces",
     "newNamespace": "Nouveau namespace",
     "newNamespaceName": "Nom du nouveau namespace",
-    "noNamespace": "Vous n'administrez aucun namespace : demandez le droit admin de l'un d'eux.",
+    "noNamespace": "Vous n'administrez aucun namespace : demandez le droit admin sur l'un d'eux.",
     "kinds": {
       "svc": {
         "name": "Service",
@@ -1765,37 +1791,37 @@
       },
       "vol": {
         "name": "Volume",
-        "role": "Du stockage pour les services : un système de fichiers pris dans un pool, monté par les services qui l'utilisent."
+        "role": "Stockage pour les services : un système de fichiers taillé dans un pool, monté par les services qui l'utilisent, et qui les suit."
       },
       "cfg": {
         "name": "Configuration",
-        "role": "Des réglages lus par les services : des clés installées en fichiers ou variables dans leurs conteneurs."
+        "role": "Réglages lus par les services : clés installées sous forme de fichiers ou de variables dans leurs conteneurs."
       },
       "sec": {
         "name": "Secret",
-        "role": "Des secrets utilisés par les services : des clés chiffrées, installées en fichiers ou variables."
+        "role": "Secrets utilisés par les services : clés stockées chiffrées, installées sous forme de fichiers ou de variables."
       },
       "usr": {
         "name": "Utilisateur",
-        "role": "Un compte de l'API : ses droits, pour une personne ou un outil pilotant le cluster."
+        "role": "Compte d'API et ses droits, pour une personne ou un outil qui pilote le cluster."
       },
       "nscfg": {
         "name": "Namespace",
-        "role": "Le namespace lui-même : ses réglages et ce qu'il peut prendre des pools et réseaux."
+        "role": "Le namespace lui-même : ses réglages et la part des pools et des réseaux qu'il peut utiliser."
       }
     },
     "sourceHints": {
-      "empty": "Un objet avec son seul id, configuré ensuite.",
-      "copy": "La configuration d'un objet, modifiée avant l'envoi.",
+      "empty": "Un objet réduit à son id, à configurer ensuite.",
+      "copy": "La configuration d'un objet, à modifier avant l'envoi.",
       "edit": "Une configuration écrite ici, ou un fichier déposé.",
-      "design": "Sections et mots-clés choisis, chacun documenté."
+      "design": "Sections et mots-clés à choisir, chacun documenté."
     },
     "dropHint": "Déposez un fichier de configuration ici, ou",
     "fileRead": "{{name}} lu : modifiable ici avant l'envoi.",
     "back": "Retour",
     "next": "Suivant",
     "free": "Libre",
-    "designToText": "Modifier en texte"
+    "designToText": "Modifier en mode texte"
   },
   "objects": {
     "reason": {
@@ -1804,7 +1830,7 @@
       "fix": "{{action}} {{name}}",
       "optimal": "optimal"
     },
-    "noInstanceStatus": "Aucun état de {{node}} : le nœud est perdu ou ne répond pas",
+    "noInstanceStatus": "Aucun état reçu de {{node}} : le nœud a disparu ou ne répond pas",
     "flex": {
       "title": "Flex",
       "min": "Instances min",
@@ -1830,7 +1856,7 @@
     },
     "columns": {
       "object": "Objet",
-      "orchestrate": "Orchestration",
+      "orchestrate": "Orchestrate",
       "topology": "Topologie",
       "keys": "Clés",
       "keysSize": "Taille",
@@ -1845,7 +1871,7 @@
       "hide": "Masquer les filtres",
       "globalState": "État global",
       "namespace": "Namespace",
-      "kind": "Kind",
+      "kind": "Type",
       "unprovisioned": "Non provisionné",
       "rail": "Filtres",
       "clear": "Effacer",
@@ -1871,7 +1897,7 @@
     "openInstance": "Ouvrir l'instance sur {{node}}",
     "openInstanceOf": "Ouvrir l'instance de {{name}} sur {{node}}",
     "badges": {
-      "datastore": "magasin",
+      "datastore": "datastore",
       "namespace": "namespace"
     },
     "openNamespaceConfig": "Ouvrir la configuration de {{namespace}}",
@@ -1903,28 +1929,28 @@
         "review": "Vérification"
       },
       "name": "Nom",
-      "nameHint": "Lettres, chiffres, tiret ou souligné : la section pool#<nom> de la configuration du cluster.",
+      "nameHint": "Lettres, chiffres, tiret ou tiret bas : la section pool#<nom> de la configuration du cluster.",
       "nameKept": "Un pool garde son nom.",
-      "nameInvalid": "Lettres, chiffres, tiret ou souligné uniquement.",
+      "nameInvalid": "Lettres, chiffres, tiret ou tiret bas uniquement.",
       "nameTaken": "Un pool {{name}} existe déjà.",
       "typeQuestion": "Quel type de pool ?",
       "required": "{{key}} (requis)",
       "onNode": "{{key}} sur {{node}}",
       "byDefault": "Par défaut : {{value}}",
-      "unset": "Non réglé",
+      "unset": "Non défini",
       "listHint": "Plusieurs valeurs séparées par des espaces.",
       "written": "Écrit dans la configuration du cluster, que chaque nœud applique :",
       "back": "Retour",
       "next": "Suivant",
       "save": "Ajouter le pool",
       "update": "Modifier le pool",
-      "saving": "Écriture…",
+      "saving": "Enregistrement…",
       "readFailed": "Impossible de lire les mots-clés d'un pool : {{message}}",
-      "saveFailed": "Non écrit : {{message}}",
+      "saveFailed": "Non enregistré : {{message}}",
       "tray": "Ajouter le pool {{name}}",
       "trayEdit": "Modifier le pool {{name}}",
       "unchanged": "Rien n'a changé.",
-      "rewrite": "Son type passe de {{from}} à {{to}} : sa section est réécrite, les clés de {{from}} abandonnées."
+      "rewrite": "Son type passe de {{from}} à {{to}} : sa section est entièrement réécrite et les clés propres à {{from}} sont supprimées."
     },
     "panel": {
       "tabs": {
@@ -1942,15 +1968,15 @@
       "configOf": "Configuration du pool {{name}}",
       "edit": "Modifier la configuration du pool {{name}}",
       "modify": "Modifier le pool {{name}} dans l'assistant",
-      "editHint": "Une ligne clé = valeur, clé@nœud = valeur pour un nœud ; une clé retirée est supprimée. Écrit comme les clés modifiées, le reste de la configuration du cluster laissé tel quel.",
+      "editHint": "Une ligne clé = valeur par clé, clé@nœud = valeur pour un seul nœud ; une clé retirée est supprimée. Seules les clés modifiées sont écrites, le reste de la configuration du cluster est inchangé.",
       "invalidLines": "Pas une ligne clé = valeur : {{lines}}",
       "trayEdit": "Mettre à jour le pool {{name}}",
       "delete": "Supprimer le pool",
       "deleting": "Suppression…",
       "confirmTitle": "Supprimer le pool {{name}} ?",
       "confirmText": "La section pool#{{name}} est retirée de la configuration du cluster, que chaque nœud applique.",
-      "inUse_one": "{{count}} de ses volumes demeure : aucun pool ne le fait plus.",
-      "inUse_other": "{{count}} de ses volumes demeurent : aucun pool ne les fait plus.",
+      "inUse_one": "{{count}} de ses volumes subsiste : plus aucun pool ne le gère.",
+      "inUse_other": "{{count}} de ses volumes subsistent : plus aucun pool ne les gère.",
       "deleteFailed": "Non supprimé : {{message}}",
       "tray": "Supprimer le pool {{name}}"
     },
@@ -1961,7 +1987,7 @@
       "volumes_other": "{{count}} volumes",
       "sharedOn_one": "{{count}} partagé",
       "sharedOn_other": "{{count}} partagés",
-      "shared": "Volumes sur plusieurs nœuds : {{count}} ; utilisés par aucun : {{unused}}",
+      "shared": "Volumes sur plusieurs nœuds : {{count}} ; inutilisés : {{unused}}",
       "object": "{{path}}, {{size}}, sur {{node}}",
       "sharedObject": "{{path}}, {{size}}, sur {{nodes}}",
       "unusedObject": "{{path}}, {{size}}, utilisé par aucun service",
@@ -1992,7 +2018,7 @@
       "up": "up",
       "warn": "warn",
       "down": "down",
-      "na": "n/d",
+      "na": "n/a",
       "unknown": "inconnu"
     },
     "stateMarks": {
@@ -2002,7 +2028,7 @@
       "stoppedAt": "arrêté le {{date}}",
       "rpoBreached": "RPO dépassé"
     },
-    "frozen": "gelé",
+    "frozen": "frozen",
     "seconds_one": "{{count}} seconde",
     "seconds_other": "{{count}} secondes"
   },
@@ -2015,7 +2041,7 @@
     "permissions": "Détail des permissions",
     "server": "Informations du serveur",
     "connectedNode": "Nœud connecté",
-    "nodeLoading": "Chargement...",
+    "nodeLoading": "Chargement…",
     "nodeUnknown": "Inconnu",
     "webappVersion": "Version de la WebApp",
     "versionLoading": "Chargement...",
@@ -2027,15 +2053,15 @@
     "versionNotChecked": "Non vérifiée.",
     "versionOptIn": "Autoriser la vérification",
     "apiAccess": "Accès à l'API",
-    "apiAccessHint": "Pour un script ou un essai rapide avec curl, un jeton à part, de courte durée et des rôles que vous choisissez, plutôt que celui de votre session.",
-    "createToken": "Créer un jeton d’API",
+    "apiAccessHint": "Pour un script ou un test rapide avec curl : un jeton dédié, de courte durée et limité aux rôles choisis, plutôt que celui de votre session.",
+    "createToken": "Créer un jeton d'API",
     "apiDocs": "Documentation de l'API (Swagger)",
     "preferences": "Préférences",
     "theme": "Thème",
     "hints": "Aides",
-    "showIntros": "Montrer l'introduction de chaque page",
-    "resetIntros_one": "Montrer de nouveau l'introduction masquée",
-    "resetIntros_other": "Montrer de nouveau les {{count}} introductions masquées",
+    "showIntros": "Afficher l'introduction de chaque page",
+    "resetIntros_one": "Réafficher l'introduction masquée",
+    "resetIntros_other": "Réafficher les {{count}} introductions masquées",
     "resetIntros_zero": "Aucune introduction masquée",
     "grants": "Droits",
     "latestRelease": "Dernière version publiée",
@@ -2044,8 +2070,9 @@
   "panel": {
     "resize": "Redimensionner le panneau",
     "tabs": {
+      "label": "Vues de {{name}}",
       "status": "État",
-      "usage": "Usage",
+      "usage": "Utilisation",
       "capacity": "Capacité",
       "files": "Fichiers",
       "events": "Événements",
@@ -2066,15 +2093,15 @@
     "kinds": {
       "object": "objet",
       "network": "réseau",
-      "namespace": "espace de noms",
+      "namespace": "namespace",
       "node": "nœud",
       "instance": "instance",
       "resource": "ressource",
       "pool": "pool",
-      "store": "magasin"
+      "store": "dépôt"
     },
     "logs": {
-      "noNode": "Aucune instance dont lire les journaux."
+      "noNode": "Aucune instance pour lire les journaux."
     }
   },
   "panelHistory": {
@@ -2115,7 +2142,7 @@
     "loading": "Lecture de l'état",
     "loadError": "L'état n'a pas pu être lu : {{message}}",
     "avail": "Disponibilité",
-    "overall": "Global",
+    "overall": "État global",
     "instancesUp": "Instances actives",
     "item": "Élément",
     "description": "Description",
@@ -2125,7 +2152,7 @@
     "seeNote": "Voir la note {{marker}}",
     "rows": {
       "monitor": "Moniteur",
-      "expect": "Attendu",
+      "expect": "Objectif",
       "provisioned": "Provisionné",
       "orchestration": "Orchestration",
       "resources_one": "Ressources ({{count}})",
@@ -2143,7 +2170,7 @@
       "incompatible-versions": "versions d'agent incompatibles"
     },
     "marks": {
-      "overallWarn": "des ressources en alerte",
+      "overallWarn": "des ressources en warn",
       "running": "une exécution en cours",
       "drp": "nœud de PRA",
       "leader": "leader HA",
@@ -2197,7 +2224,7 @@
     "details": {
       "status": "État : {{status}}"
     },
-    "datastores": "Magasins de données",
+    "datastores": "Datastores",
     "refresh": "Rafraîchir l'état",
     "refreshAll": "Rafraîchir l'état de toutes les instances",
     "refreshFailed": "Rafraîchissement refusé : {{detail}}",
@@ -2208,7 +2235,7 @@
   "shortcuts": {
     "title": "Raccourcis clavier",
     "or": "ou",
-    "search": "Chercher dans le cluster",
+    "search": "Rechercher dans le cluster",
     "panel": "Ouvrir le panneau de détail sur la dernière fiche affichée, ou le fermer",
     "menu": "Aller au menu de gauche",
     "menuMove": "Dans le menu : passer d'une entrée à l'autre, Entrée ouvre",
@@ -2218,16 +2245,16 @@
   },
   "search": {
     "title": "Rechercher dans le cluster",
-    "placeholder": "Objets, espaces de noms, nœuds, réseaux…",
+    "placeholder": "Objets, namespaces, nœuds, réseaux…",
     "close": "Fermer la recherche",
     "scopes": "Rechercher dans",
     "all": "Tout",
     "results": "Résultats",
-    "hint": "Saisissez un nom : la recherche porte sur les objets, les espaces de noms, les nœuds et les réseaux.",
+    "hint": "Saisissez un nom : la recherche porte sur les objets, les namespaces, les nœuds et les réseaux.",
     "searching": "Lecture…",
     "none": "Rien ne correspond à « {{query}} ».",
     "more": "Voir plus",
-    "refine": "D'autres correspondent : précisez la recherche.",
+    "refine": "D'autres résultats existent : affinez la recherche.",
     "kindError": "Ce type n'a pas pu être lu.",
     "keys": {
       "move": "pour se déplacer",
@@ -2237,7 +2264,7 @@
     },
     "kinds": {
       "object": "Objets",
-      "namespace": "Espaces de noms",
+      "namespace": "Namespaces",
       "node": "Nœuds",
       "network": "Réseaux"
     },
@@ -2299,7 +2326,7 @@
       "stream": "Flux",
       "peers": "Pairs",
       "object": "Objet",
-      "expect": "État attendu",
+      "expect": "Objectif",
       "started": "Démarré",
       "ended": "Terminé",
       "id": "ID",
@@ -2320,15 +2347,15 @@
     "listener": {
       "confirm": {
         "start": "Démarrer le listener {{listener}} de {{node}} ?",
-        "stop": "Arrêter le listener {{listener}} de {{node}} ? Son API ne répond plus par le réseau, cette page comprise si elle passe par {{node}}.",
-        "restart": "Redémarrer le listener {{listener}} de {{node}} ? Son API ne répond plus un instant."
+        "stop": "Arrêter le listener {{listener}} de {{node}} ? Son API cessera de répondre sur le réseau, y compris pour cette page si elle passe par {{node}}.",
+        "restart": "Redémarrer le listener {{listener}} de {{node}} ? Son API sera indisponible un instant."
       },
       "actionsOf": "Actions sur le listener {{listener}}",
-      "target": "l'écouteur {{listener}} de {{node}}",
+      "target": "le listener {{listener}} de {{node}}",
       "describe": {
         "start": "Démarrer le listener {{listener}} : l'API répond à nouveau sur le réseau.",
-        "stop": "Arrêter le listener {{listener}} : l'API ne répond plus sur le réseau, cette page comprise si elle passe par ce nœud.",
-        "restart": "Redémarrer le listener {{listener}} : l'API ne répond plus un instant."
+        "stop": "Arrêter le listener {{listener}} : l'API cesse de répondre sur le réseau, y compris pour cette page si elle passe par ce nœud.",
+        "restart": "Redémarrer le listener {{listener}} : l'API est indisponible un instant."
       }
     },
     "heartbeats": {
@@ -2338,14 +2365,14 @@
       "diskTarget": "le heartbeat disque hb#{{hb}} de {{node}}",
       "confirm": {
         "start": "Démarrer {{target}} ?",
-        "stop": "Arrêter {{target}} ? Le nœud cesse d'y émettre ou d'y recevoir.",
+        "stop": "Arrêter {{target}} ? Le nœud n'y émettra ni n'y recevra plus.",
         "restart": "Redémarrer {{target}} ?",
         "sign": "Signer {{target}} ?",
-        "wipe": "Effacer {{target}} ? Sa signature et les emplacements de ses pairs sont effacés."
+        "wipe": "Effacer {{target}} ? Sa signature et les emplacements de ses pairs seront effacés."
       },
       "describe": {
-        "start": "Démarrer le flux : le nœud émet ou reçoit à nouveau dessus.",
-        "stop": "Arrêter le flux : le nœud n'émet ni ne reçoit plus dessus.",
+        "start": "Démarrer le flux : le nœud y émet ou y reçoit de nouveau.",
+        "stop": "Arrêter le flux : le nœud n'y émet ni n'y reçoit plus.",
         "restart": "Redémarrer le flux.",
         "sign": "Écrire la signature avec laquelle les nœuds du heartbeat disque réclament leur emplacement.",
         "wipe": "Retirer cette signature : les emplacements de tous les nœuds du heartbeat disque sont effacés."
@@ -2374,10 +2401,10 @@
       "dns": "DNS"
     },
     "summary": {
-      "overview": "{{up}} composants sur {{components}} actifs, {{beating}} flux de heartbeat sur {{streams}} battent",
+      "overview": "{{up}} composants sur {{components}} en marche, {{beating}} flux de heartbeat sur {{streams}} actifs",
       "executions": "{{count}} exécutions, {{running}} en cours",
       "orchestrations": "{{count}} orchestrations, {{running}} en cours",
-      "dns": "{{count}} enregistrements de {{names}} noms",
+      "dns": "{{count}} enregistrements pour {{names}} noms",
       "running_one": "{{count}} en cours",
       "running_other": "{{count}} en cours"
     },
@@ -2396,7 +2423,7 @@
       "titleOnNode": "{{rid}} de {{path}} sur {{node}}",
       "instance": "Instance",
       "nodes": "La ressource sur chaque nœud",
-      "flags": "Options",
+      "flags": "Indicateurs",
       "none": "Aucun nœud ne signale cette ressource.",
       "flag": {
         "disable": "désactivée",
@@ -2429,8 +2456,8 @@
       "unknownObject": "l'objet est inconnu",
       "alreadyFrozen": "déjà gelé",
       "alreadyUnfrozen": "pas gelé",
-      "clusterInSelection": "écarté : le cluster ne se manipule que seul",
-      "notForKind": "écarté : un {{kind}} ne prend pas cette action"
+      "clusterInSelection": "écarté : le cluster ne peut être traité que seul",
+      "notForKind": "écarté : cette action ne s'applique pas à un {{kind}}"
     },
     "monitor": "{{node}} : le moniteur est {{state}}",
     "subjects": {
@@ -2454,8 +2481,8 @@
       "keyCreate": "Ajouter la clé {{key}}",
       "keyUpdate": "Mettre à jour la clé {{key}}",
       "keyDelete": "Supprimer la clé {{key}}",
-      "claimsUpdate": "Mettre à jour les réclamations",
-      "claimDelete": "Retirer la réclamation {{section}}",
+      "claimsUpdate": "Mettre à jour les quotas",
+      "claimDelete": "Retirer le quota {{section}}",
       "objectCreate": "Créer",
       "configCreate": "Créer la configuration",
       "keyRename": "Renommer la clé {{key}} en {{to}}"
@@ -2466,7 +2493,7 @@
   "paramActions": {
     "resize": {
       "heading": "Taille",
-      "intro": "Le volume grandit jusqu’à la taille demandée, ou de la quantité demandée, comme le fait om <path> resize : la taille est écrite dans sa configuration, puis chaque nœud y converge. Un redimensionnement ne fait que grandir.",
+      "intro": "Le volume est agrandi jusqu'à la taille demandée, ou de la quantité demandée, comme avec om <path> resize : la taille est écrite dans sa configuration, puis chaque nœud s'y aligne. Un redimensionnement ne peut qu'agrandir.",
       "current": "Taille configurée :",
       "none": "aucune",
       "size": "Nouvelle taille",
@@ -2476,7 +2503,7 @@
     },
     "cap": {
       "heading": "Plafonds du groupe de processus",
-      "intro": "Les plafonds du groupe de processus sont écrits dans la configuration, puis appliqués à chaque instance en cours d’exécution, comme le fait om <path> cap. Une instance arrêtée les applique à son démarrage.",
+      "intro": "Les plafonds du groupe de processus sont écrits dans la configuration, puis appliqués à chaque instance démarrée, comme avec om <path> cap. Une instance arrêtée les appliquera à son démarrage.",
       "section": "Section",
       "sectionHint": "DEFAULT si vide ; un subset#<nom> ou un identifiant de ressource.",
       "node": "Nœud",
@@ -2488,7 +2515,7 @@
       "configured": "Configuré",
       "value": "Nouvelle valeur",
       "valueOf": "Nouvelle valeur de {{keyword}}",
-      "liftHint": "La valeur default lève un plafond : là où le laisse un nœud qui n’a jamais rien plafonné.",
+      "liftHint": "La valeur default lève un plafond : on revient à l'état d'un nœud qui n'a jamais rien plafonné.",
       "nothingSet": "Rien de changé : les plafonds configurés sont appliqués à nouveau.",
       "apply": "Appliquer les plafonds configurés",
       "submit_one": "Régler {{count}} plafond",
@@ -2505,19 +2532,19 @@
     "understood": "J'ai compris",
     "freeze": {
       "label": "Geler",
-      "description": "Le démon cesse d'orchestrer les instances du nœud."
+      "description": "Empêcher le démon d'orchestrer les instances du nœud."
     },
     "unfreeze": {
       "label": "Dégeler",
-      "description": "Le démon orchestre de nouveau les instances du nœud."
+      "description": "Laisser de nouveau le démon orchestrer les instances du nœud."
     },
     "networkSetup": {
       "label": "Configurer les réseaux",
       "description": "Configurer à nouveau les réseaux du nœud : ses ponts, ses routes et ses règles, comme le cluster les définit. Jusqu'à deux minutes."
     },
     "abort": {
-      "label": "Annuler",
-      "description": "Annuler l'orchestration du nœud en cours."
+      "label": "Interrompre",
+      "description": "Abandonner l'orchestration en cours du nœud."
     },
     "asset": {
       "label": "Matériel",
@@ -2525,11 +2552,11 @@
     },
     "capabilities": {
       "label": "Capacités",
-      "description": "Recenser ce que le nœud peut exécuter : les pilotes qu’il prend en charge."
+      "description": "Recenser ce que le nœud peut exécuter : les pilotes qu'il prend en charge."
     },
     "disk": {
       "label": "Disques",
-      "description": "Envoyer les disques et leur usage au collecteur."
+      "description": "Envoyer au collecteur les disques et leur utilisation."
     },
     "pkg": {
       "label": "Paquets",
@@ -2541,11 +2568,11 @@
     },
     "sysreport": {
       "label": "Sysreport",
-      "description": "Envoyer le rapport système, les changements des fichiers suivis, au collecteur."
+      "description": "Envoyer au collecteur le rapport système (modifications des fichiers suivis)."
     },
     "clear": {
       "label": "Effacer le moniteur",
-      "description": "Effacer l'état en échec du moniteur du nœud."
+      "description": "Réinitialiser l'état d'échec du moniteur du nœud."
     },
     "restartDaemon": {
       "label": "Redémarrer",
@@ -2554,23 +2581,23 @@
     "shutdown": {
       "label": "Éteindre",
       "description": "Éteindre toutes les instances hébergées, puis arrêter le démon.",
-      "warning": "Toutes les instances hébergées sur le nœud s’arrêtent. Redémarrer le démon demande un accès console au nœud."
+      "warning": "Toutes les instances hébergées sur le nœud s'arrêtent. Redémarrer le démon nécessitera un accès console au nœud."
     },
     "stop": {
       "label": "Arrêter",
       "description": "Arrêter le démon ; les instances continuent de tourner, sans surveillance.",
-      "warning": "Redémarrer le démon demande un accès console au nœud."
+      "warning": "Redémarrer le démon nécessitera un accès console au nœud."
     },
     "drain": {
-      "label": "Vider",
-      "description": "Geler le nœud et éteindre toutes les instances qu’il héberge.",
-      "warning": "Toutes les instances hébergées sur le nœud s’arrêtent."
+      "label": "Drainer",
+      "description": "Geler le nœud et arrêter toutes les instances qu'il héberge.",
+      "warning": "Toutes les instances hébergées sur le nœud s'arrêtent."
     },
     "evict": {
       "label": "Évincer",
-      "description": "Faire sortir le nœud du cluster, par un pair, une fois vidé.",
-      "warning": "Toutes les instances hébergées sur le nœud s’arrêtent et en sont supprimées : le nœud quitte le cluster et redémarre seul dans son propre cluster, sans identifiant pour joindre son api.",
-      "fromHere": "Demandez-le depuis la webapp d’un autre nœud : celui-ci sert la webapp."
+      "description": "Exclure le nœud du cluster via un pair, une fois drainé.",
+      "warning": "Toutes les instances hébergées sur le nœud s'arrêtent et en sont supprimées : le nœud quitte le cluster et redémarre seul dans son propre cluster, sans identifiant pour joindre son API.",
+      "fromHere": "Demandez-le depuis la webapp d'un autre nœud : c'est celui-ci qui sert cette webapp."
     }
   },
   "secCertificate": {
@@ -2586,7 +2613,7 @@
     "renew": {
       "label": "Renouveler",
       "busy": "Renouvellement du certificat…",
-      "description": "Renouveler le certificat quand il est à échéance : auprès de l'annuaire ACME que nomme le sec, ou généré."
+      "description": "Renouveler le certificat à échéance : auprès de l'annuaire ACME indiqué par le sec, ou en le générant."
     },
     "force": {
       "label": "Forcer le renouvellement",
@@ -2596,7 +2623,7 @@
     },
     "renewed": "Certificat renouvelé : {{reason}}",
     "notRenewed": "Certificat non renouvelé : {{reason}}",
-    "timeout": "Pas de réponse en {{seconds}} s : les clés du sec disent si un certificat a été émis.",
+    "timeout": "Pas de réponse en {{seconds}} s : les clés du sec indiquent si un certificat a été émis.",
     "ca": {
       "legend": "Signé par",
       "cluster": "Signer avec le <a>ca du cluster</a>",
@@ -2606,30 +2633,30 @@
       "signedBy": "Signé par {{ca}}, écrit comme ca du sec.",
       "selfSigned": "Pas de ca : auto-signé.",
       "reading": "Lecture du ca du sec…",
-      "unread": "Le ca du sec n'a pas pu être lu : le certificat n'est pas créé tant qu'on ne sait pas ce qui le signe."
+      "unread": "Le ca du sec n'a pas pu être lu : le certificat ne sera pas créé tant que son signataire n'est pas connu."
     }
   },
   "actionMenus": {
     "groups": {
       "operator": "Opérateur",
-      "admin": "Administrateur",
+      "admin": "Admin",
       "operatorInstance": "Opérateur · instance",
       "operatorDisk": "Opérateur · disque",
       "operatorTask": "Opérateur · tâche",
       "operatorSync": "Opérateur · sync",
-      "adminPg": "Administrateur · pg"
+      "adminPg": "Admin · pg"
     },
     "object": {
-      "start": "Demander au daemon de le démarrer, sur les nœuds que son placement élit.",
-      "stop": "Demander au daemon d'arrêter toutes ses instances ; il reste arrêté.",
-      "restart": "Demander au daemon de redémarrer ses instances.",
-      "freeze": "Bloquer les démarrages automatiques et les actions du moniteur du daemon, sur tous ses nœuds.",
-      "unfreeze": "Laisser le daemon le démarrer et agir sur lui à nouveau.",
+      "start": "Demander au démon de le démarrer sur les nœuds élus par son placement.",
+      "stop": "Demander au démon d'arrêter toutes ses instances ; il reste arrêté.",
+      "restart": "Demander au démon de redémarrer ses instances.",
+      "freeze": "Bloquer les démarrages automatiques et les actions du moniteur du démon, sur tous ses nœuds.",
+      "unfreeze": "Permettre de nouveau au démon de le démarrer et d'agir dessus.",
       "switch": "Arrêter l'instance en cours et la démarrer sur le nœud préféré suivant.",
       "giveback": "Arrêter les instances mal placées et les démarrer sur les nœuds préférés.",
       "abort": "Interrompre l'orchestration en cours.",
-      "enable": "Agir à nouveau sur lui : les actions ne l'ignorent plus.",
-      "disable": "L'ignorer dans les actions ; ce qui tourne reste en l'état.",
+      "enable": "Le réintégrer aux actions : elles ne l'ignorent plus.",
+      "disable": "L'exclure des actions ; ce qui tourne reste en l'état.",
       "provision": "Allouer les ressources système dont ses ressources ont besoin sur ses nœuds : formater un système de fichiers, créer un volume…",
       "unprovision": "Libérer les ressources système de ses ressources sur tous ses nœuds : leurs données sont perdues.",
       "delete": "Supprimer sa configuration du cluster ; ses ressources système restent en place.",
@@ -2640,15 +2667,15 @@
       "stop": "Arrêter les ressources de l'instance sur ce nœud.",
       "restart": "Redémarrer l'instance sur ce nœud.",
       "run": "Exécuter ses tâches maintenant, hors de leur planification.",
-      "boot": "Exécuter les actions de nettoyage faites seulement au démarrage du nœud.",
-      "shutdown": "Arrêter l'instance, ses ressources de secours aussi, comme à l'arrêt du nœud.",
+      "boot": "Exécuter les actions de nettoyage normalement réservées au démarrage du nœud.",
+      "shutdown": "Arrêter l'instance, y compris ses ressources standby, comme à l'arrêt du nœud.",
       "startStandby": "Activer les ressources destinées à rester actives sur un nœud de secours.",
       "freeze": "Bloquer les démarrages automatiques et les actions du moniteur sur ce nœud.",
       "unfreeze": "Débloquer les démarrages automatiques et les actions du moniteur sur ce nœud.",
-      "clear": "Effacer l'état en échec de son moniteur, pour que le daemon agisse à nouveau dessus.",
+      "clear": "Effacer l'état en échec de son moniteur, pour que le démon agisse à nouveau dessus.",
       "provision": "Allouer les ressources système de ses ressources sur ce nœud.",
       "unprovision": "Libérer les ressources système de ses ressources sur ce nœud : leurs données sont perdues.",
-      "install": "Installer à nouveau ce que déclarent ses volumes et systèmes de fichiers, sans rien démarrer.",
+      "install": "Réinstaller ce que déclarent ses volumes et systèmes de fichiers, sans rien démarrer.",
       "prstart": "Préempter la réservation d'écriture exclusive de ses périphériques.",
       "prstop": "Libérer la réservation d'écriture exclusive de ses périphériques.",
       "syncUpdate": "Copier les changements du jeu de données local vers les pairs.",
@@ -2661,18 +2688,18 @@
       "info": "Collecter et afficher les informations de l'instance.",
       "status": "Évaluer à nouveau l'état de ses ressources.",
       "delete": "Supprimer la configuration de l'instance sur ce nœud.",
-      "syncUpdateStore": "Sauvegarder les changements de ses jeux de données dans leurs magasins.",
-      "syncUpdateEither": "Copier les changements de ses jeux de données vers les pairs, ou les sauvegarder dans leurs magasins.",
-      "syncFullStore": "Sauvegarder tous ses jeux de données dans leurs magasins.",
-      "syncFullEither": "Copier tous ses jeux de données vers les pairs, ou les sauvegarder dans leurs magasins.",
-      "unstop": "Lever les marques posées par un arrêt sur l'instance, sans rien démarrer : le démon peut la redémarrer de lui-même."
+      "syncUpdateStore": "Sauvegarder les changements de ses jeux de données dans leurs dépôts.",
+      "syncUpdateEither": "Copier les changements de ses jeux de données vers les pairs, ou les sauvegarder dans leurs dépôts.",
+      "syncFullStore": "Sauvegarder tous ses jeux de données dans leurs dépôts.",
+      "syncFullEither": "Copier tous ses jeux de données vers les pairs, ou les sauvegarder dans leurs dépôts.",
+      "unstop": "Retirer les marques posées par un arrêt sur l'instance, sans rien démarrer : le démon peut la redémarrer de lui-même."
     },
     "resource": {
       "start": "Démarrer les ressources choisies.",
       "stop": "Arrêter les ressources choisies.",
       "restart": "Redémarrer les ressources choisies.",
       "run": "Exécuter les tâches choisies maintenant, hors de leur planification.",
-      "startStandby": "Démarrer les ressources choisies destinées à rester actives sur un nœud de secours.",
+      "startStandby": "Démarrer, parmi les ressources choisies, celles destinées à rester actives sur un nœud de secours.",
       "prstart": "Préempter la réservation d'écriture exclusive des périphériques des ressources choisies.",
       "prstop": "Libérer la réservation d'écriture des périphériques des ressources choisies.",
       "syncUpdate": "Copier les changements des ressources choisies vers les pairs.",
@@ -2680,14 +2707,14 @@
       "syncResync": "Rétablir la synchronisation optimale des paires répliquées choisies.",
       "syncSplit": "Rendre les deux extrémités des paires répliquées choisies accessibles en écriture.",
       "syncIngest": "Intégrer les fichiers que les ressources choisies ont reçus de l'instance active.",
-      "boot": "Exécuter les actions de nettoyage des ressources choisies faites seulement au démarrage du nœud.",
+      "boot": "Exécuter les actions de nettoyage des ressources choisies normalement réservées au démarrage du nœud.",
       "provision": "Allouer les ressources système des ressources choisies sur ce nœud.",
       "unprovision": "Libérer les ressources système des ressources choisies sur ce nœud : leurs données sont perdues.",
-      "syncUpdateStore": "Sauvegarder les changements des ressources choisies dans leur magasin.",
-      "syncUpdateEither": "Copier les changements des ressources choisies vers les pairs, ou les sauvegarder dans leur magasin.",
-      "syncFullStore": "Sauvegarder tout le jeu de données des ressources choisies dans leur magasin.",
-      "syncFullEither": "Copier tout le jeu de données des ressources choisies vers les pairs, ou le sauvegarder dans leur magasin.",
-      "unstop": "Lever les marques posées par un arrêt sur les ressources choisies, sans rien démarrer : le démon peut les redémarrer de lui-même."
+      "syncUpdateStore": "Sauvegarder les changements des ressources choisies dans leur dépôt.",
+      "syncUpdateEither": "Copier les changements des ressources choisies vers les pairs, ou les sauvegarder dans leur dépôt.",
+      "syncFullStore": "Sauvegarder tout le jeu de données des ressources choisies dans leur dépôt.",
+      "syncFullEither": "Copier tout le jeu de données des ressources choisies vers les pairs, ou le sauvegarder dans leur dépôt.",
+      "unstop": "Retirer les marques posées par un arrêt sur les ressources choisies, sans rien démarrer : le démon peut les redémarrer de lui-même."
     },
     "impacts": {
       "dataLoss": "perte de données",
@@ -2704,15 +2731,15 @@
     "tokenHow": "Ou, sur ce nœud, créez un jeton avec le rôle join :",
     "copyCommand": "Copier la commande",
     "node": "Adresse du nœud",
-    "nodeHint": "[schéma://]adresse[:port] : https et le port du listener du daemon par défaut.",
+    "nodeHint": "[schéma://]adresse[:port] : https et le port d'écoute du démon par défaut.",
     "token": "Jeton join",
     "tokenHint": "Le jeton qu'affiche la commande ci-dessus. Sa claim ca permet à ce cluster de faire confiance au nœud.",
     "more": "Plus d'options",
     "joinAddr": "Adresse de ce cluster pour le nœud",
-    "joinAddrHint": "[schéma://]adresse[:port] où le nœud joint ce cluster ; par défaut, un nom pour lequel le certificat du cluster est valide.",
+    "joinAddrHint": "[schéma://]adresse[:port] par laquelle le nœud joint ce cluster ; par défaut, un nom pour lequel le certificat du cluster est valide.",
     "timeout": "Durée de vie du jeton",
-    "timeoutHint": "Le temps qu'a le nœud pour rejoindre, son drain compris : 1h par défaut.",
-    "warning": "Le nœud est vidé avant de quitter son cluster. Seul, il n'a nulle part où déplacer ses instances : elles sont arrêtées, restent arrêtées et sont retirées de sa configuration.",
+    "timeoutHint": "Délai accordé au nœud pour rejoindre le cluster, drainage compris : 1h par défaut.",
+    "warning": "Le nœud est drainé avant de quitter son cluster. Seul, il n'a nulle part où déplacer ses instances : elles sont arrêtées, restent arrêtées et sont retirées de sa configuration.",
     "submit": "Enrôler",
     "submitting": "Enrôlement…",
     "tray": "Enrôler {{node}}",
@@ -2724,13 +2751,13 @@
   },
   "tokenPage": {
     "title": "Jeton de {{host}}",
-    "intro": "Créer un jeton de ce nœud, pour un script ou un autre hôte.",
-    "joinIntro": "Créer un jeton join de ce nœud, à coller dans la boîte Enrôler du cluster qu'il rejoint. Il faut le grant root sur ce nœud.",
+    "intro": "Créez un jeton de ce nœud, pour un script ou un autre hôte.",
+    "joinIntro": "Créez un jeton join de ce nœud, à coller dans la boîte de dialogue Enrôler du cluster qu'il rejoint. Le droit root sur ce nœud est requis.",
     "role": "Rôle",
-    "allRoles": "vos grants",
+    "allRoles": "vos droits",
     "duration": "Durée de vie",
-    "durationHint": "Comme 10m, 1h ; 24h au plus. Un jeton join doit survivre au drain du nœud.",
-    "credentialsWhy": "Le nom et le mot de passe d'un utilisateur de ce nœud : ils ne vont qu'à ce nœud.",
+    "durationHint": "Par ex. 10m, 1h ; 24h au plus. Un jeton join doit durer plus longtemps que le drainage du nœud.",
+    "credentialsWhy": "Identifiant et mot de passe d'un utilisateur de ce nœud : ils ne sont envoyés qu'à ce nœud.",
     "fromSession": "Créé depuis votre session sur ce nœud.",
     "username": "Utilisateur",
     "password": "Mot de passe",
@@ -2748,47 +2775,47 @@
     "scope": "Namespace",
     "scopeHint": "Les rôles d'un namespace restreints à celui-ci.",
     "scopeAll": "tous les vôtres",
-    "tryIt": "L'essayer",
+    "tryIt": "Essayer",
     "copyTry": "Copier les commandes",
-    "tryItHint": "read -s garde le jeton hors de l'écran et de l'historique du shell. Un certificat que votre système ne reconnaît pas : ajoutez -k à curl, sur un cluster de test seulement.",
-    "apiDurationHint": "Comme 10m, 1h ; 24h au plus. Aussi court que l'essai le demande : le jeton vaut le vôtre jusqu'à son expiration."
+    "tryItHint": "read -s garde le jeton hors de l'écran et de l'historique du shell. Si votre système ne reconnaît pas le certificat, ajoutez -k à curl, sur un cluster de test uniquement.",
+    "apiDurationHint": "Par ex. 10m, 1h ; 24h au plus. Le plus court possible : le jeton a vos droits jusqu'à son expiration."
   },
   "nodeHealth": {
     "minimum": "Minimum libre",
     "minimumIs": "· minimum {{value}}",
     "minimumOff": "· pas de minimum",
-    "default": "défaut, {{value}}",
+    "default": "par défaut, {{value}}",
     "off": "désactivé (0)",
     "choices": "Valeurs usuelles",
-    "now": "Libre maintenant : {{pct}} %.",
+    "now": "Libre actuellement : {{pct}} %.",
     "invalid": "Un pourcentage, comme 10%, ou une taille, comme 2Gi.",
     "previewOverloaded": "Avec un minimum de {{pct}} %, le nœud serait surchargé maintenant.",
     "previewFine": "Avec un minimum de {{pct}} %, le nœud ne serait pas surchargé maintenant.",
-    "previewOff": "Pas de minimum : le nœud n'est jamais surchargé par celui-ci.",
+    "previewOff": "Pas de minimum : ce critère ne rend jamais le nœud surchargé.",
     "refused": "Non enregistré : {{message}}",
     "mem": {
       "title": "Mémoire libre minimale de {{node}}",
       "edit": "Régler la mémoire libre minimale",
-      "why": "En dessous, le nœud est surchargé, et le daemon n'y démarre rien.",
-      "hint": "Un pourcentage, 10%, ou une taille, 2Gi, lue comme sa part de la mémoire, 50 % au plus. 0 désactive le contrôle. Vide : le défaut, {{value}}."
+      "why": "En dessous, le nœud est surchargé, et le démon n'y démarre rien.",
+      "hint": "Un pourcentage, 10%, ou une taille, 2Gi, convertie en part de la mémoire, 50 % au plus. 0 désactive le contrôle. Vide : la valeur par défaut, {{value}}."
     },
     "swap": {
       "title": "Swap libre minimal de {{node}}",
       "edit": "Régler le swap libre minimal",
-      "why": "En dessous, le nœud est surchargé, et le daemon n'y démarre rien. Un nœud sans swap n'est jamais surchargé par celui-ci.",
-      "hint": "Un pourcentage, 10%, ou une taille, 2Gi, lue comme sa part du swap. 0 désactive le contrôle. Vide : le défaut, {{value}}."
+      "why": "En dessous, le nœud est surchargé, et le démon n'y démarre rien. Un nœud sans swap n'est jamais surchargé pour cette raison.",
+      "hint": "Un pourcentage, 10%, ou une taille, 2Gi, convertie en part du swap. 0 désactive le contrôle. Vide : la valeur par défaut, {{value}}."
     }
   },
   "nodeLabels": {
     "title": "Étiquettes",
     "none": "Aucune étiquette.",
     "edit": "Modifier les étiquettes",
-    "fromCluster": "De la configuration du cluster : réglée ici, le nœud prend une valeur propre.",
+    "fromCluster": "Défini dans la configuration du cluster : en le réglant ici, le nœud aura sa propre valeur.",
     "valueOf": "Valeur de {{key}}",
     "revert": "Rétablir {{key}}",
     "remove": "Retirer {{key}}",
     "add": "Ajouter une étiquette",
-    "keyInvalid": "Une clé de lettres, chiffres, point, tiret ou souligné, puis sa valeur : clé=valeur ou clé valeur.",
+    "keyInvalid": "Une clé faite de lettres, chiffres, points, tirets ou tirets bas, puis sa valeur : clé=valeur ou clé valeur.",
     "bar": "Modifications des étiquettes",
     "pending_one": "{{count}} modification, appliquée en une écriture de la configuration du nœud",
     "pending_other": "{{count}} modifications, appliquées en une écriture de la configuration du nœud",
@@ -2846,7 +2873,7 @@
     "copy": "Copier le JSON"
   },
   "clusterLocks": {
-    "intro": "Les verrous accordés par le nœud qui parle pour le cluster, que leur détenteur n’a ni relâchés ni vu expirer, tels que om cluster lock list les montre. Un verrou sérialise ce qui lit l’état du cluster et le change sur la foi de cette lecture.",
+    "intro": "Les verrous accordés par le nœud qui représente le cluster et toujours valides (ni relâchés par leur détenteur, ni expirés), tels que les liste om cluster lock list. Un verrou sérialise les opérations qui lisent l'état du cluster puis le modifient en fonction de cette lecture.",
     "refresh": "Rafraîchir",
     "loading": "Lecture des verrous",
     "table": "Verrous du cluster",
@@ -2855,9 +2882,9 @@
     "lease": "Bail restant",
     "id": "Id",
     "actions": "Actions",
-    "none": "Aucun verrou n’est tenu.",
+    "none": "Aucun verrou n'est détenu.",
     "forbidden": "Lire les verrous du cluster demande le rôle root.",
-    "footer": "Relus {{seconds}} s après chaque lecture, tant que cette page est affichée : aucun événement ne dit un verrou pris ou rendu.",
+    "footer": "Relus {{seconds}} s après chaque lecture tant que cette page est affichée : aucun événement ne signale la prise ou la libération d'un verrou.",
     "leftSeconds": "{{seconds}} s",
     "leftMinutes": "{{minutes}} min {{seconds}} s",
     "release": "Relâcher",
@@ -2865,46 +2892,46 @@
     "subject": "le verrou {{name}}",
     "confirmTitle": "Relâcher le verrou {{name}} ?",
     "confirm": "Le verrou {{name}} est repris à {{holder}}, comme le fait om cluster lock release.",
-    "warning": "Son détenteur n’est pas prévenu : il continue comme s’il tenait le verrou. Ne le relâchez que pour un détenteur bloqué, ou parti avant la fin de son bail.",
-    "byId": "Relâché seulement s’il est encore tenu sous {{id}} : accordé à un autre entre-temps, il lui est laissé.",
-    "stale": "Non relus ({{message}}) : les verrous ci-dessous sont ceux de la dernière lecture, aucun n’est rendu avant qu’ils ne soient relus.",
-    "unanswered": "pas de réponse ({{message}}), et le verrou toujours tenu : rendu ou non, relisez les verrous",
+    "warning": "Son détenteur n'est pas prévenu : il continue comme s'il tenait le verrou. Ne le relâchez que si son détenteur est bloqué, ou a disparu avant la fin de son bail.",
+    "byId": "Relâché seulement s'il est encore détenu sous l'id {{id}} : s'il a été accordé à un autre entre-temps, il lui est laissé.",
+    "stale": "Non relus ({{message}}) : les verrous ci-dessous sont ceux de la dernière lecture ; aucun n'apparaîtra relâché avant une nouvelle lecture.",
+    "unanswered": "pas de réponse ({{message}}) et le verrou semble encore tenu : relisez les verrous pour savoir s'il a été relâché",
     "acquire": {
       "open": "Acquérir",
       "title": "Acquérir un verrou du cluster",
-      "intro": "Accordé par le nœud qui parle pour le cluster, comme à un client du démon, jusqu'à sa libération ou la fin de son bail. Ce qui prend ce verrou l'attend, ou est refusé, tant qu'il est tenu.",
+      "intro": "Accordé par le nœud qui représente le cluster, comme à tout client du démon, jusqu'à sa libération ou la fin de son bail. Tant qu'il est tenu, ce qui demande ce verrou attend ou est refusé.",
       "label": "Acquérir",
       "submit": "Acquérir",
       "acquiring": "Acquisition du verrou",
-      "holderHint": "Qui le tient, tel que la liste le montre.",
+      "holderHint": "Le détenteur, tel qu'affiché dans la liste.",
       "holderOf": "{{user}}, depuis la webapp",
       "holderWebapp": "la webapp",
       "lease": "Bail",
-      "leaseHint": "Tenu aussi longtemps sauf libération : 30s par défaut, 10m au plus.",
+      "leaseHint": "Durée de détention, sauf libération : 30s par défaut, 10m au plus.",
       "wait": "Attente",
-      "waitHint": "Combien de temps attendre qu'un autre le libère : pas du tout si vide.",
-      "nameRequired": "Un verrou a besoin d'un nom.",
-      "badDuration": "Une durée, comme 30s, 1m30s ou 10m.",
+      "waitHint": "Durée d'attente s'il est tenu par un autre : aucune si vide.",
+      "nameRequired": "Le nom du verrou est requis.",
+      "badDuration": "Durée attendue, par ex. 30s, 1m30s ou 10m.",
       "leaseTooLong": "10m au plus.",
-      "warning": "Un verrou tenu ici bloque tout client du cluster qui le demande : libérez-le une fois fini, ou gardez son bail court.",
-      "held": "Non accordé : {{message}}. Fixez une attente pour le guetter, ou réessayez plus tard."
+      "warning": "Un verrou tenu ici bloque tout client du cluster qui le demande : libérez-le dès que vous avez fini, ou gardez un bail court.",
+      "held": "Non accordé : {{message}}. Indiquez une attente pour patienter dans la file, ou réessayez plus tard."
     }
   },
   "resources": {
     "caption": "Les ressources du cluster",
     "loading": "Lecture des ressources",
-    "loadError": "Les ressources n’ont pas pu être lues : {{message}}",
+    "loadError": "Les ressources n'ont pas pu être lues : {{message}}",
     "filter": "Filtrer les ressources",
     "group": "Pilote",
     "count": "{{shown}} / {{total}}",
-    "refresh": "Rafraîchir",
+    "refresh": "Actualiser",
     "empty": "Aucune ressource signalée.",
     "noMatch": "Aucune ressource ne correspond.",
     "notProvisioned": "non provisionnée",
     "passive": "passif",
     "passiveHint": "Son objet tourne sur un autre nœud : celui-ci attend, comme prévu. Pas de problème.",
     "problemsOnly": "Problèmes seulement",
-    "problemsOnlyHint": "Garder les ressources arrêtées, hors nœud passif, et celles en avertissement",
+    "problemsOnlyHint": "Ne garder que les ressources down (hors nœuds passifs) et celles en warn",
     "restarts_one": "{{count}} redémarrage restant",
     "restarts_other": "{{count}} redémarrages restants",
     "columns": {
@@ -2934,14 +2961,14 @@
     }
   },
   "stores": {
-    "caption": "Magasins",
-    "loading": "Lecture des magasins",
-    "loadError": "Impossible de lire les magasins : {{message}}",
-    "empty": "Aucun magasin.",
-    "add": "Ajouter un magasin",
+    "caption": "Dépôts",
+    "loading": "Lecture des dépôts",
+    "loadError": "Impossible de lire les dépôts : {{message}}",
+    "empty": "Aucun dépôt.",
+    "add": "Ajouter un dépôt",
     "none": "aucun",
-    "everyNamespace": "tous les espaces de noms",
-    "serves": "Sert {{namespaces}}",
+    "everyNamespace": "tous les namespaces",
+    "serves": "Dessert {{namespaces}}",
     "source": {
       "cluster": "De la configuration du cluster",
       "sec": "Déclaré par le secret",
@@ -2950,10 +2977,10 @@
     "facts": {
       "type": "Type",
       "url": "Emplacement",
-      "share": "Sert",
+      "share": "Dessert",
       "source": "Déclaré",
-      "keep": "Conserve",
-      "schedule": "Poussé"
+      "keep": "Rétention",
+      "schedule": "Envoi"
     },
     "figures": {
       "snapshots_one": "instantané",
@@ -2971,8 +2998,8 @@
       "freeOn": "libres sur {{node}}"
     },
     "wizard": {
-      "title": "Nouveau magasin {{name}}",
-      "editTitle": "Modifier le magasin {{name}}",
+      "title": "Nouveau dépôt {{name}}",
+      "editTitle": "Modifier le dépôt {{name}}",
       "steps": "Étapes de l'assistant",
       "step": {
         "type": "Nom et type",
@@ -2980,28 +3007,28 @@
         "review": "Vérification"
       },
       "name": "Nom",
-      "nameHint": "Lettres, chiffres, tiret ou souligné : la section store#<nom> de la configuration du cluster.",
-      "nameKept": "Un magasin garde son nom.",
-      "nameInvalid": "Lettres, chiffres, tiret ou souligné uniquement.",
-      "nameTaken": "Un magasin {{name}} existe déjà.",
-      "typeQuestion": "Quel type de magasin ?",
+      "nameHint": "Lettres, chiffres, tiret ou tiret bas : la section store#<nom> de la configuration du cluster.",
+      "nameKept": "Un dépôt garde son nom.",
+      "nameInvalid": "Lettres, chiffres, tiret ou tiret bas uniquement.",
+      "nameTaken": "Un dépôt {{name}} existe déjà.",
+      "typeQuestion": "Quel type de dépôt ?",
       "required": "{{key}} (requis)",
       "onNode": "{{key}} sur {{node}}",
       "byDefault": "Par défaut : {{value}}",
-      "unset": "Non réglé",
+      "unset": "Non défini",
       "listHint": "Plusieurs valeurs séparées par des espaces.",
       "written": "Écrit dans la configuration du cluster, que chaque nœud applique :",
       "back": "Retour",
       "next": "Suivant",
-      "save": "Ajouter le magasin",
-      "update": "Modifier le magasin",
+      "save": "Ajouter le dépôt",
+      "update": "Modifier le dépôt",
       "saving": "Écriture…",
-      "readFailed": "Impossible de lire les mots-clés d'un magasin : {{message}}",
+      "readFailed": "Impossible de lire les mots-clés d'un dépôt : {{message}}",
       "saveFailed": "Non écrit : {{message}}",
-      "tray": "Ajouter le magasin {{name}}",
-      "trayEdit": "Modifier le magasin {{name}}",
+      "tray": "Ajouter le dépôt {{name}}",
+      "trayEdit": "Modifier le dépôt {{name}}",
       "unchanged": "Rien n'a changé.",
-      "rewrite": "Son type passe de {{from}} à {{to}} : sa section est réécrite, les clés de {{from}} abandonnées."
+      "rewrite": "Son type passe de {{from}} à {{to}} : sa section est réécrite et les clés de {{from}} supprimées."
     },
     "panel": {
       "tabs": {
@@ -3009,31 +3036,31 @@
         "snapshots": "Instantanés",
         "config": "Configuration"
       },
-      "store": "Magasin",
+      "store": "Dépôt",
       "snapshots": "Instantanés",
       "byObject": "Instantanés par objet",
       "latest": "dernier",
       "noSnapshot": "Aucun instantané.",
-      "loading": "Lecture du magasin",
-      "none": "Aucun magasin {{name}}.",
-      "readFailed": "Impossible de lire le magasin : {{message}}",
+      "loading": "Lecture du dépôt",
+      "none": "Aucun dépôt {{name}}.",
+      "readFailed": "Impossible de lire le dépôt : {{message}}",
       "snapshotsFailed": "Impossible de lire les instantanés : {{message}}",
-      "ofSec": "Le magasin {{name}} est déclaré, et configuré, dans le secret",
+      "ofSec": "Le dépôt {{name}} est déclaré, et configuré, dans le secret",
       "builtIn": "Aucune section de la configuration du cluster ne définit {{name}}.",
-      "configOf": "Configuration du magasin {{name}}",
-      "edit": "Modifier la configuration du magasin {{name}}",
-      "modify": "Modifier le magasin {{name}} dans l'assistant",
-      "editHint": "Une ligne clé = valeur, clé@nœud = valeur pour un nœud ; une clé retirée est supprimée. Écrit comme les clés modifiées, le reste de la configuration du cluster laissé tel quel.",
+      "configOf": "Configuration du dépôt {{name}}",
+      "edit": "Modifier la configuration du dépôt {{name}}",
+      "modify": "Modifier le dépôt {{name}} dans l'assistant",
+      "editHint": "Une ligne clé = valeur par clé, clé@nœud = valeur pour un seul nœud ; retirer une ligne supprime la clé. Seules les clés modifiées sont écrites, le reste de la configuration du cluster est inchangé.",
       "invalidLines": "Pas une ligne clé = valeur : {{lines}}",
-      "trayEdit": "Mettre à jour le magasin {{name}}",
-      "delete": "Supprimer le magasin",
+      "trayEdit": "Mettre à jour le dépôt {{name}}",
+      "delete": "Supprimer le dépôt",
       "deleting": "Suppression…",
-      "confirmTitle": "Supprimer le magasin {{name}} ?",
+      "confirmTitle": "Supprimer le dépôt {{name}} ?",
       "confirmText": "La section store#{{name}} est retirée de la configuration du cluster, que chaque nœud applique. Les instantanés restent où ils sont.",
-      "inUse_one": "Il tient {{count}} instantané : aucun magasin du cluster ne le lit plus.",
-      "inUse_other": "Il tient {{count}} instantanés : aucun magasin du cluster ne les lit plus.",
+      "inUse_one": "Il contient {{count}} instantané, qu'aucun dépôt du cluster ne lira plus.",
+      "inUse_other": "Il contient {{count}} instantanés, qu'aucun dépôt du cluster ne lira plus.",
       "deleteFailed": "Non supprimé : {{message}}",
-      "tray": "Supprimer le magasin {{name}}",
+      "tray": "Supprimer le dépôt {{name}}",
       "noStats": "Ses chiffres sont en cours de calcul.",
       "byNode": "Par nœud",
       "byCluster": "Par cluster",
@@ -3042,22 +3069,22 @@
       "figuresComputed": "Chiffres calculés {{age}}"
     },
     "snapshots": {
-      "caption": "Instantanés du magasin {{name}}",
+      "caption": "Instantanés du dépôt {{name}}",
       "filter": "Filtrer les instantanés",
       "object": "Objet",
-      "taken": "Pris",
+      "taken": "Date",
       "holds": "Contient",
       "note": "Note",
-      "protected": "Protégé : la rétention le garde",
+      "protected": "Protégé : conservé par la rétention",
       "on": "{{node}} de {{cluster}}",
       "deleting": "Suppression…",
       "took": "Durée",
       "size": "Taille",
-      "readSome_one": "Le dernier {{count}} lu",
-      "readSome_other": "Les {{count}} derniers lus",
+      "readSome_one": "{{count}} lu (le plus récent)",
+      "readSome_other": "{{count}} lus (les plus récents)",
       "readAll_one": "{{count}} instantané",
       "readAll_other": "{{count}} instantanés",
-      "older": "Lire {{count}} plus anciens",
+      "older": "Lire les {{count}} précédents",
       "reading": "Lecture…",
       "id": "ID",
       "copyId": "Copier l'identifiant {{id}}",
@@ -3071,15 +3098,15 @@
       "deleteSelected_other": "Supprimer {{count}} instantanés",
       "confirmManyTitle_one": "Supprimer {{count}} instantané ?",
       "confirmManyTitle_other": "Supprimer {{count}} instantanés ?",
-      "confirmMany_one": "Cet instantané est retiré du magasin, définitivement :",
-      "confirmMany_other": "Ces {{count}} instantanés sont retirés du magasin, définitivement :",
-      "protectedMany_one": "{{count}} est protégé : la rétention ne l'aurait jamais retiré.",
-      "protectedMany_other": "{{count}} sont protégés : la rétention ne les aurait jamais retirés.",
+      "confirmMany_one": "Cet instantané est retiré du dépôt, définitivement :",
+      "confirmMany_other": "Ces {{count}} instantanés sont retirés du dépôt, définitivement :",
+      "protectedMany_one": "{{count}} d'entre eux est protégé : la rétention ne l'aurait jamais supprimé.",
+      "protectedMany_other": "{{count}} d'entre eux sont protégés : la rétention ne les aurait jamais supprimés.",
       "failedMany_one": "{{count}} non supprimé, toujours sélectionné :",
       "failedMany_other": "{{count}} non supprimés, toujours sélectionnés :",
       "trayMany_one": "Supprimer {{count}} instantané",
       "trayMany_other": "Supprimer {{count}} instantanés",
-      "store": "Magasin",
+      "store": "Dépôt",
       "captionOf": "Instantanés de {{path}}"
     },
     "counts": {
@@ -3087,18 +3114,18 @@
       "snapshots_other": "{{count}} instantanés",
       "protected_one": "{{count}} protégé",
       "protected_other": "{{count}} protégés",
-      "incomplete_one": "{{count}} passage incomplet",
-      "incomplete_other": "{{count}} passages incomplets"
+      "incomplete_one": "{{count}} sauvegarde incomplète",
+      "incomplete_other": "{{count}} sauvegardes incomplètes"
     },
-    "open": "Ouvrir le magasin {{name}}",
+    "open": "Ouvrir le dépôt {{name}}",
     "card": {
       "cluster": "configuration du cluster",
       "sec": "secret {{sec}}"
     },
     "check": {
-      "failed": "Injoignable à sa dernière tentative : {{message}}",
-      "unreached": "Injoignable à sa dernière tentative",
-      "reachedAgo": "joint pour la dernière fois {{age}}"
+      "failed": "Injoignable lors de la dernière tentative : {{message}}",
+      "unreached": "Injoignable lors de la dernière tentative",
+      "reachedAgo": "dernier contact {{age}}"
     },
     "columns": {
       "snapshots": "Instantanés",
@@ -3113,7 +3140,7 @@
     "timeline": {
       "when": "Quand",
       "object": "Objet",
-      "allObjects": "Tous les objets (les derniers)",
+      "allObjects": "Tous les objets (dernier instantané)",
       "presets": "Périodes",
       "preset": {
         "latest": "Dernier",
@@ -3138,10 +3165,10 @@
     "filtered": "Ouvrir la page filtrée sur {{state}}",
     "config": {
       "title": "Cluster",
-      "frozen": "Le cluster est gelé : rien ne démarre ni ne bascule de lui-même.",
+      "frozen": "Le cluster est gelé : rien ne démarre ni ne se déplace de lui-même.",
       "collector": "Collecteur",
       "noCollector": "aucun configuré",
-      "noSpeaker": "{{url}}, alimenté par aucun nœud.",
+      "noSpeaker": "{{url}}, aucun nœud ne l'alimente.",
       "collectorErrors": "Avec des erreurs.",
       "unlinked": "Pas de lien sur {{nodes}}.",
       "agent": "Agent",
@@ -3201,7 +3228,7 @@
     "reading": "Lecture…",
     "links": {
       "heartbeats": "Heartbeats",
-      "beating": "{{beating}} liens sur {{total}} battent"
+      "beating": "{{beating}} liens actifs sur {{total}}"
     },
     "arbitrators": {
       "title": "Arbitres",
@@ -3211,17 +3238,17 @@
       "down": "injoignable",
       "seen": "{{up}} nœuds sur {{total}} le joignent",
       "none": "Aucun arbitre.",
-      "tieRisk": "Aucun arbitre, et un nombre pair de nœuds ({{count}}) : coupé en deux moitiés, aucune n'a la majorité des votes du quorum. Ajoutez un arbitre, ou un nœud."
+      "tieRisk": "Aucun arbitre, et un nombre pair de nœuds ({{count}}) : en cas de coupure en deux moitiés, aucune n'a la majorité des votes du quorum. Ajoutez un arbitre, ou un nœud."
     },
     "opensvc": {
-      "title": "Usage d'OpenSVC",
+      "title": "Consommation d'OpenSVC",
       "cpu": "CPU",
       "memory": "Mémoire",
       "over_one": "Tous les cgroups opensvc, démon compris, sur {{count}} nœud sur {{total}}",
       "over_other": "Tous les cgroups opensvc, démon compris, sur {{count}} nœuds sur {{total}}",
       "byNode": "Par nœud",
-      "notShown": "L'usage des nœuds entiers n'est pas montré à vos droits.",
-      "unread": "L'usage des nœuds n'a pas pu être lu.",
+      "notShown": "Vos droits ne permettent pas de voir la consommation des nœuds entiers.",
+      "unread": "La consommation des nœuds n'a pas pu être lue.",
       "failed": "Non lus : {{nodes}}",
       "cpuShare_one": "{{share}} des {{used}} utilisés par les hôtes, sur {{count}} CPU",
       "cpuShare_other": "{{share}} des {{used}} utilisés par les hôtes, sur {{count}} CPU",
@@ -3234,43 +3261,43 @@
         "write": "Écr."
       },
       "cell": "{{node}} · {{metric}} : {{value}}, {{share}} % du nœud le plus chargé",
-      "cellPending": "{{node}} · {{metric}} : en attente d’une seconde lecture"
+      "cellPending": "{{node}} · {{metric}} : en attente d'une seconde lecture"
     },
     "relay": {
       "none": "Pas un relais : le cas habituel.",
-      "unread": "Non montré à vos droits.",
+      "unread": "Non visible avec vos droits.",
       "active": "Emplacements actifs",
       "stale": "Emplacements périmés"
     }
   },
   "snapshots": {
-    "intro": "Les instantanés que les ressources de synchronisation de l'objet ont gardés dans leur magasin, comme om sync snapshot list les montre, le plus récent d'abord. Chacun se restaure à part, dans un répertoire, ou en place, dans ses têtes.",
-    "noStore": "Aucune ressource de synchronisation de l'objet ne garde d'instantanés : seule une sync.store le fait.",
+    "intro": "Les instantanés que les ressources de synchronisation de l'objet ont conservés dans leur dépôt, tels que les liste om sync snapshot list, du plus récent au plus ancien. Chacun se restaure à part, dans un répertoire, ou en place, dans ses têtes.",
+    "noStore": "Aucune ressource de synchronisation de l'objet ne conserve d'instantanés : seule une ressource sync.store le fait.",
     "askedNode": "Lu depuis",
     "refresh": "Rafraîchir",
     "loading": "Lecture des instantanés",
     "loadError": "Les instantanés n'ont pas pu être lus : {{message}}",
-    "unsupported": "Le démon de {{node}} ne liste aucun instantané : il est plus ancien que les instantanés des ressources de synchronisation. Mettez om3 à jour pour restaurer d'ici.",
+    "unsupported": "Le démon de {{node}} ne liste aucun instantané : sa version est antérieure aux instantanés des ressources de synchronisation. Mettez om3 à jour pour restaurer depuis cette page.",
     "table": "Instantanés",
     "id": "Instantané",
     "resource": "Ressource",
     "taken": "Pris",
     "takenBy": "Par",
     "holds": "Contient",
-    "store": "Magasin",
+    "store": "Dépôt",
     "actions": "Actions",
-    "none": "Aucun instantané gardé.",
+    "none": "Aucun instantané conservé.",
     "restore": "Restaurer",
     "restoreOne": "Restaurer {{id}} de {{rid}}",
     "dialog": {
       "title": "Restaurer {{id}} de {{rid}}",
-      "taken": "Instantané {{id}}, pris par {{node}}, gardé dans {{location}}.",
+      "taken": "Instantané {{id}}, pris par {{node}}, conservé dans {{location}}.",
       "node": "Sur l'instance de",
-      "nodeHint": "Ses têtes sont celles écrites en place ; à part, le répertoire est sur ce nœud.",
+      "nodeHint": "En place, ce sont ses têtes qui sont écrites ; à part, le répertoire est sur ce nœud.",
       "nodeUp": "{{node}} (up)",
       "where": "Où",
-      "aside": "À part, dans un répertoire par tête : l'instance intacte, pour comparer ou recopier à la main.",
-      "inPlace": "En place, dans les têtes : chacune vidée, sauf ses chemins exclus, puis remplie de ce que l'instantané a sauvé.",
+      "aside": "À part, dans un répertoire par tête : l'instance reste intacte, pour comparer ou recopier à la main.",
+      "inPlace": "En place, dans les têtes : chacune est vidée (hors chemins exclus), puis remplie avec le contenu de l'instantané.",
       "heads": "Têtes",
       "headsRequired": "Choisissez au moins une tête.",
       "into": "Répertoire",
@@ -3286,15 +3313,15 @@
         "overwrite": "Toutes, écrasées"
       },
       "refsHint": {
-        "missing": "Les clés absentes des sec et cfg que l'objet référence sont créées ; les autres laissées telles quelles.",
+        "missing": "Les clés absentes des sec et cfg que l'objet référence sont créées ; les autres restent telles quelles.",
         "skip": "Aucune clé des sec et cfg que l'objet référence n'est écrite.",
-        "overwrite": "Chaque clé des sec et cfg que l'objet référence est réécrite, les valeurs actuelles perdues."
+        "overwrite": "Chaque clé des sec et cfg que l'objet référence est réécrite ; les valeurs actuelles sont perdues."
       },
-      "inPlaceWarning": "Ce que les têtes contiennent est perdu : elles sont vidées, puis remplies de ce que l'instantané a sauvé. Les apps, conteneurs et partages qui utilisent les données doivent être arrêtés (om instance stop --rid), sinon le démon refuse la restauration.",
+      "inPlaceWarning": "Le contenu actuel des têtes est perdu : elles sont vidées, puis remplies avec le contenu de l'instantané. Les apps, conteneurs et partages qui utilisent les données doivent être arrêtés (om instance stop --rid), sinon le démon refuse la restauration.",
       "understood": "Je comprends que le contenu des têtes est remplacé par l'instantané.",
       "submitAside": "Restaurer à part",
       "submitInPlace": "Restaurer en place",
-      "restoring": "Demande de la restauration"
+      "restoring": "Demande de restauration"
     }
   },
   "rowsOnDemand": {
@@ -3304,7 +3331,7 @@
   },
   "clusterUsage": {
     "allNodes": "Tous les nœuds",
-    "order": "Ordre",
+    "order": "Tri",
     "orders": {
       "cpu": "CPU",
       "memory": "Mémoire",
@@ -3320,8 +3347,8 @@
     "other": "opensvc-server.service et le reste",
     "fold": "Plier ou déplier {{name}}",
     "tasks": "Tâches",
-    "read": "Lus/s",
-    "write": "Écrits/s",
+    "read": "Lecture/s",
+    "write": "Écriture/s",
     "limit": "Limite",
     "unlimited": "illimitée",
     "host": "l'hôte",
@@ -3336,10 +3363,10 @@
     "readDoc": "Ce que fait {{keyword}}",
     "addKeyword": "Ajouter {{keyword}}",
     "moreKeyword": "Plus",
-    "reading": "Lecture des drivers",
+    "reading": "Lecture des pilotes",
     "unknownDriver": "{{driver}} n'a pas pu être lu : {{message}}",
     "types": "Types",
-    "driver": "Driver, en groupe.type",
+    "driver": "Pilote, en groupe.type",
     "addResource": "Ajouter une ressource",
     "readFailed": "Les mots-clés n'ont pas pu être lus : {{message}}",
     "showRoot": "Afficher les mots-clés réservés à root",
@@ -3347,7 +3374,7 @@
     "incomplete": "Un mot-clé requis sans valeur",
     "removeSection": "Retirer {{section}}",
     "envHint": "Variables libres de l'objet, lues par ses ressources en {env.<nom>}.",
-    "noEntry": "Rien de réglé : les valeurs par défaut s'appliquent.",
+    "noEntry": "Rien de défini : les valeurs par défaut s'appliquent.",
     "entries": "Les mots-clés de {{section}}",
     "variable": "Variable",
     "required": "requis",
@@ -3357,22 +3384,22 @@
     "missing": "Requis sans valeur : {{keys}}.",
     "showFile": "Voir le fichier",
     "hideFile": "Masquer le fichier",
-    "emptyFile": "(vide : l'objet n'a que son id)",
+    "emptyFile": "(vide : l'objet n'a que son identifiant)",
     "use": "Utiliser",
     "useExample": "Utiliser l'exemple {{value}}",
     "useExampleHint": "Prendre l'exemple comme valeur (→)",
     "grantSome": "{{grant}} pour certaines valeurs",
-    "groups": "Groupes de drivers",
+    "groups": "Groupes de pilotes",
     "groupRoles": {
       "app": "Lance les processus de l'application : ses commandes start, stop et check.",
-      "container": "Exécute un conteneur à partir d'une image, l'application ou une partie.",
-      "disk": "Active les périphériques bloc où vivent les données : loop, LVM, ZFS, DRBD…",
+      "container": "Exécute un conteneur à partir d'une image : l'application ou une partie de celle-ci.",
+      "disk": "Active les périphériques bloc qui portent les données : loop, LVM, ZFS, DRBD…",
       "fs": "Monte un système de fichiers où l'application lit et écrit.",
-      "ip": "Donne au service une adresse où ses clients le joignent.",
+      "ip": "Donne au service l'adresse par laquelle ses clients le joignent.",
       "share": "Exporte des données vers d'autres hôtes, en NFS.",
       "sync": "Réplique les données vers les autres nœuds ou sites.",
       "task": "Une commande lancée à la demande ou planifiée, sans rester active.",
-      "volume": "Un stockage tiré d'un pool selon ses besoins, sa taille d'abord ; le pool est choisi pour y répondre.",
+      "volume": "Un stockage pris dans un pool selon ses besoins, à commencer par sa taille ; le pool est choisi en conséquence.",
       "claim": "La part d'un pool ou d'un réseau que le namespace peut prendre."
     },
     "unmanaged": "Provisionnement non géré",
@@ -3389,8 +3416,8 @@
     "addSection": {
       "open": "Ajouter une section",
       "single": "Sections",
-      "several": "Sections multiples, par un nom",
-      "name": "Nom du {{section}}",
+      "several": "Sections multiples, nommées",
+      "name": "Nom de la section {{section}}",
       "type": "Type",
       "add": "Ajouter [{{section}}]",
       "badName": "Un mot : lettres, chiffres, point, tiret ou souligné.",
@@ -3398,54 +3425,54 @@
     }
   },
   "driverSupport": {
-    "lacking_one": "Non utilisable sur {{nodes}} : son pilote n'est pas parmi les capacités du nœud.",
-    "lacking_other": "Non utilisable sur {{nodes}} : son pilote n'est pas parmi les capacités de ces nœuds.",
-    "nowhere": "Utilisable sur aucun nœud du cluster : son pilote n'est pas parmi leurs capacités."
+    "lacking_one": "Non utilisable sur {{nodes}} : son pilote ne figure pas parmi les capacités du nœud.",
+    "lacking_other": "Non utilisable sur {{nodes}} : son pilote ne figure pas parmi les capacités de ces nœuds.",
+    "nowhere": "Inutilisable sur tous les nœuds du cluster : son pilote ne figure pas parmi leurs capacités."
   },
   "pageIntro": {
     "label": "À propos de cette page",
     "hide": "Masquer cette introduction",
-    "glossary": "Ce que veulent dire les mots",
+    "glossary": "Lexique",
     "pages": {
-      "cluster": "Voici votre cluster d'un coup d'œil. Un cluster est un groupe de serveurs (nœuds) qui se surveillent entre eux et maintiennent vos applications en marche : si un nœud tombe, ses applications redémarrent sur un autre. Chaque carte ci-dessous résume une page du menu ; cliquez dessus pour l'ouvrir.",
-      "heartbeats": "Les nœuds s'envoient de petits messages, appelés heartbeats, pour montrer qu'ils sont vivants. Chaque nœud envoie (tx) et reçoit (rx), par plusieurs chemins au cas où l'un casse. Si un nœud se tait sur tous les chemins, les autres le considèrent en panne et peuvent redémarrer ses applications.",
-      "nodes": "Voici les serveurs de votre cluster. Chacun exécute l'agent OpenSVC. Leur charge et leur mémoire libre aident à décider où tournent les applications. Un nœud gelé est laissé tranquille : le cluster n'y démarre ni n'y déplace rien automatiquement.",
-      "namespaces": "Les namespaces regroupent les objets, comme des dossiers. Le nom complet d'un objet est namespace/type/nom, par exemple prod/svc/web. Vous pouvez donner des accès par namespace, et limiter le stockage, le CPU, la mémoire et les adresses IP qu'il peut utiliser.",
+      "cluster": "Voici une vue d'ensemble de votre cluster. Un cluster est un groupe de serveurs (nœuds) qui se surveillent mutuellement et maintiennent vos applications en marche : si un nœud tombe, ses applications redémarrent sur un autre. Chaque carte ci-dessous résume une page du menu ; cliquez dessus pour l'ouvrir.",
+      "heartbeats": "Les nœuds s'envoient de petits messages, appelés heartbeats, pour signaler qu'ils sont en vie. Chaque nœud émet (tx) et reçoit (rx), par plusieurs chemins au cas où l'un d'eux tomberait. Si un nœud se tait sur tous les chemins, les autres le considèrent comme en panne et peuvent redémarrer ses applications.",
+      "nodes": "Voici les serveurs de votre cluster. Chacun exécute l'agent OpenSVC. Leur charge et leur mémoire libre aident à décider où tournent les applications. Un nœud gelé n'est plus orchestré : le cluster n'y démarre ni n'y déplace rien automatiquement.",
+      "namespaces": "Les namespaces regroupent les objets, comme des dossiers. Le nom complet d'un objet est namespace/type/nom, par exemple prod/svc/web. Vous pouvez accorder des droits par namespace, et limiter le stockage, le CPU, la mémoire et les adresses IP qu'il peut utiliser.",
       "networks": "Voici les réseaux que le cluster utilise pour donner automatiquement des adresses IP aux conteneurs et aux services.",
-      "pools": "Les pools de stockage sont là où les volumes prennent leur espace disque : un répertoire, un groupe de volumes LVM, un pool ZFS ou une baie de stockage, par exemple.",
-      "stores": "Les magasins de sauvegarde gardent des copies (instantanés) des données et de la configuration de vos services, pour les restaurer plus tard, même sur un autre nœud.",
-      "resources": "Cette page liste chaque ressource de chaque service et volume, sur chaque nœud : systèmes de fichiers, adresses IP, disques, conteneurs, applications. Problèmes seulement garde ce qui est arrêté ou en avertissement, sans les nœuds passifs d'un service en bascule, arrêtés comme prévu.",
-      "objects-services": "Les services (svc) sont les applications que le cluster maintient en marche. Chacun est fait de ressources, comme une adresse IP, un système de fichiers et un conteneur. Un service a une instance sur chaque nœud où il a le droit de tourner.",
-      "objects-volumes": "Les volumes (vol) sont du stockage qu'un service demande. Le cluster crée chaque volume dans un pool de stockage quand le service est provisionné.",
+      "pools": "Les pools de stockage fournissent aux volumes leur espace disque : un répertoire, un groupe de volumes LVM, un pool ZFS ou une baie de stockage, par exemple.",
+      "stores": "Les dépôts de sauvegarde conservent des copies (instantanés) des données et de la configuration de vos services, pour les restaurer plus tard, même sur un autre nœud.",
+      "resources": "Cette page liste chaque ressource de chaque service et volume, sur chaque nœud : systèmes de fichiers, adresses IP, disques, conteneurs, applications. « Problèmes seulement » ne garde que ce qui est down ou en warn, hors nœuds passifs d'un service failover, down comme prévu.",
+      "objects-services": "Les services (svc) sont les applications que le cluster maintient en marche. Chacun est composé de ressources, comme une adresse IP, un système de fichiers et un conteneur. Un service a une instance sur chaque nœud où il est autorisé à tourner.",
+      "objects-volumes": "Les volumes (vol) sont l'espace de stockage demandé par un service. Le cluster crée chaque volume dans un pool de stockage quand le service est provisionné.",
       "objects-configs": "Les configurations (cfg) contiennent des réglages et des fichiers qui ne sont pas secrets. Les services les utilisent comme fichiers ou variables d'environnement. La configuration du cluster lui-même est listée ici aussi.",
-      "objects-secrets": "Les secrets (sec) sont comme les configurations, mais stockés chiffrés. Utilisez-les pour les mots de passe, certificats et clés privées.",
+      "objects-secrets": "Les secrets (sec) fonctionnent comme les configurations, mais sont stockés chiffrés. Utilisez-les pour les mots de passe, certificats et clés privées.",
       "objects-users": "Les utilisateurs (usr) sont des comptes qui peuvent se connecter à cette webapp et à l'API, chacun avec ses propres droits (grants).",
       "objects-any": "Tous les objets du cluster, de tous les types : services, volumes, configurations, secrets et utilisateurs."
     }
   },
   "glossary": {
     "title": "Glossaire",
-    "intro": "Les mots d'OpenSVC utilisés dans cette webapp, dits simplement. Un libellé qui montre le curseur d'aide donne sa définition : restez dessus un instant, ou cliquez.",
+    "intro": "Le vocabulaire d'OpenSVC employé dans cette interface, expliqué simplement. Un libellé qui affiche le curseur d'aide a une définition : survolez-le un instant, ou cliquez dessus.",
     "search": "Chercher dans le glossaire",
     "noMatch": "Aucun terme ne correspond.",
-    "more": "Plus dans le Glossaire du menu.",
+    "more": "Suite dans le Glossaire du menu.",
     "showIntros_one": "Afficher à nouveau l'introduction de page masquée",
     "showIntros_other": "Afficher à nouveau les {{count}} introductions de page masquées",
     "groups": {
-      "concepts": "De quoi est fait un cluster",
+      "concepts": "Composants d'un cluster",
       "kinds": "Types d'objets",
       "states": "États et indicateurs",
-      "policies": "Comment les objets sont exécutés",
+      "policies": "Gestion des objets par le cluster",
       "actions": "Actions"
     },
     "terms": {
       "cluster": {
         "term": "Cluster",
-        "definition": "Un groupe de serveurs (nœuds) qui partagent une configuration et se surveillent entre eux. Si un nœud tombe, les applications qu'il faisait tourner peuvent redémarrer sur un autre."
+        "definition": "Un groupe de serveurs (nœuds) qui partagent une même configuration et se surveillent mutuellement. Si un nœud tombe, les applications qu'il hébergeait peuvent redémarrer sur un autre nœud."
       },
       "node": {
         "term": "Nœud",
-        "definition": "Un serveur du cluster. Il exécute l'agent OpenSVC, et les applications (instances) que le cluster y place."
+        "definition": "Un serveur du cluster. Il fait tourner l'agent OpenSVC, ainsi que les applications (instances) que le cluster y place."
       },
       "object": {
         "term": "Objet",
@@ -3453,15 +3480,15 @@
       },
       "instance": {
         "term": "Instance",
-        "definition": "Une copie d'un objet sur un nœud. Un service permis sur deux nœuds a deux instances ; en général une seule tourne. Chaque instance a son propre état."
+        "definition": "Une copie d'un objet sur un nœud. Un service autorisé sur deux nœuds a deux instances ; en général, une seule est démarrée. Chaque instance a son propre état."
       },
       "resource": {
         "term": "Ressource",
-        "definition": "Une brique d'un objet : une adresse IP, un système de fichiers, un disque, un conteneur, une application, une sauvegarde… Son nom dit son type et son numéro, par exemple fs#1 est le premier système de fichiers."
+        "definition": "Un composant d'un objet : une adresse IP, un système de fichiers, un disque, un conteneur, une application, une tâche de sauvegarde… Son nom indique son type et son numéro : fs#1, par exemple, est le premier système de fichiers."
       },
       "namespace": {
         "term": "Namespace",
-        "definition": "Un dossier d'objets. Les droits et les limites se règlent par namespace. Celui par défaut est root ; system contient les objets du cluster lui-même."
+        "definition": "Un regroupement d'objets, à la manière d'un dossier. Les droits et les quotas se définissent par namespace. Le namespace par défaut est root ; system contient les objets propres au cluster."
       },
       "kinds": {
         "term": "Type",
@@ -3469,43 +3496,43 @@
       },
       "heartbeat": {
         "term": "Heartbeat",
-        "definition": "Un flux de petits messages « je suis vivant » entre les nœuds. Chaque nœud envoie (tx) et reçoit (rx). Si un nœud reste silencieux plus longtemps que le délai, les autres le considèrent en panne."
+        "definition": "Un flux de petits messages « je suis vivant » échangés entre les nœuds. Chaque nœud émet (tx) et reçoit (rx). Si un nœud reste silencieux au-delà du délai d'expiration, les autres le considèrent comme en panne."
       },
       "relay": {
         "term": "Relais",
-        "definition": "Un heartbeat qui passe par un troisième serveur servant de boîte aux lettres. Utile quand les nœuds ne se joignent pas directement, ou comme chemin de secours."
+        "definition": "Un heartbeat qui transite par un serveur tiers faisant office de boîte aux lettres. Utile quand les nœuds ne peuvent pas se joindre directement, ou comme chemin de secours supplémentaire."
       },
       "network": {
         "term": "Réseau",
-        "definition": "Un réseau dans lequel le cluster donne automatiquement des adresses IP aux services et conteneurs qui en demandent."
+        "definition": "Un réseau dans lequel le cluster attribue automatiquement des adresses IP aux services et conteneurs qui en demandent une."
       },
       "pool": {
         "term": "Pool",
-        "definition": "Un endroit où les volumes prennent leur espace disque : un répertoire, un groupe de volumes LVM, ZFS, DRBD ou une baie de stockage."
+        "definition": "L'espace où les volumes puisent leur capacité disque : un répertoire, un groupe de volumes LVM, ZFS, DRBD ou une baie de stockage."
       },
       "store": {
-        "term": "Magasin",
-        "definition": "Un endroit où sont gardées les sauvegardes. Chaque nœud l'atteint : une sauvegarde prise sur un nœud se restaure sur un autre."
+        "term": "Dépôt",
+        "definition": "Un emplacement où sont conservées les sauvegardes. Tous les nœuds y accèdent : une sauvegarde faite sur un nœud peut être restaurée sur un autre."
       },
       "snapshot": {
         "term": "Instantané",
-        "definition": "Une sauvegarde : une copie des données et de la configuration d'un service à un instant donné, avec le nœud qui l'a prise. Le magasin en garde un nombre limité."
+        "definition": "Une sauvegarde : une copie des données et de la configuration d'un service à un instant donné, avec le nœud qui l'a faite. Le dépôt en conserve un nombre limité."
       },
       "label": {
-        "term": "Label",
-        "definition": "Une étiquette sur un nœud, comme az=fr2. Les services peuvent s'en servir pour choisir sur quels nœuds tourner."
+        "term": "Étiquette",
+        "definition": "Une étiquette (label) posée sur un nœud, comme az=fr2. Les services peuvent s'en servir pour choisir les nœuds où ils tournent."
       },
       "kindSvc": {
         "term": "svc · Service",
-        "definition": "Un service : une application que le cluster maintient en marche, faite de ressources comme une adresse IP, des systèmes de fichiers et des conteneurs."
+        "definition": "Un service : une application que le cluster maintient démarrée, composée de ressources telles qu'une adresse IP, des systèmes de fichiers et des conteneurs."
       },
       "kindVol": {
         "term": "vol · Volume",
-        "definition": "Un volume : du stockage pour un service, créé dans un pool de stockage et rattaché au service qui l'a demandé."
+        "definition": "Un volume : un espace de stockage pour un service, créé dans un pool et rattaché au service qui l'a demandé."
       },
       "kindCfg": {
         "term": "cfg · Configuration",
-        "definition": "Une configuration : des réglages et fichiers non secrets, donnés aux services en fichiers ou en variables d'environnement."
+        "definition": "Une configuration : des réglages et des fichiers non secrets, fournis aux services sous forme de fichiers ou de variables d'environnement."
       },
       "kindSec": {
         "term": "sec · Secret",
@@ -3513,7 +3540,7 @@
       },
       "kindUsr": {
         "term": "usr · Utilisateur",
-        "definition": "Un utilisateur : un compte pour l'API et cette webapp, avec ses droits. Inutile pour ceux qui se connectent par OpenID."
+        "definition": "Un utilisateur : un compte pour l'API et cette webapp, avec ses droits. Inutile pour les personnes qui se connectent via OpenID."
       },
       "kindNscfg": {
         "term": "nscfg · Configuration de namespace",
@@ -3521,55 +3548,55 @@
       },
       "kindCcfg": {
         "term": "ccfg · Configuration du cluster",
-        "definition": "Les réglages du cluster lui-même, partagés par tous les nœuds. Il n'y en a qu'un."
+        "definition": "Les réglages propres au cluster, partagés par tous les nœuds. Il n'y en a qu'une."
       },
       "avail": {
-        "term": "Avail",
-        "definition": "Est-ce que ça tourne ? Seules les ressources nécessaires comptent. up : tourne. down : ne tourne pas. warn : tourne en partie, ou à trop d'endroits. stdby up : seules les ressources standby tournent. n/a : rien à faire tourner."
+        "term": "Disponibilité",
+        "definition": "L'objet tourne-t-il (avail) ? Seules les ressources indispensables comptent. up : démarré. down : arrêté. warn : partiellement démarré, ou démarré à trop d'endroits. stdby up : seules les ressources standby tournent. n/a : rien à démarrer."
       },
       "overall": {
-        "term": "Overall",
-        "definition": "Le bilan complet : comme Avail, mais chaque ressource et chaque avertissement compte. Overall peut être warn alors qu'Avail est up : ça marche, mais quelque chose demande un coup d'œil."
+        "term": "État global",
+        "definition": "Le bilan de santé complet (overall) : comme la disponibilité, mais toutes les ressources et tous les avertissements comptent. L'état global peut être warn alors que la disponibilité est up : ça fonctionne, mais quelque chose mérite un coup d'œil."
       },
       "provisioned": {
         "term": "Provisionné",
-        "definition": "Si les éléments système nécessaires (systèmes de fichiers, disques, volumes) ont été créés sur le nœud. mixed veut dire seulement une partie."
+        "definition": "Indique si les éléments système nécessaires (systèmes de fichiers, disques, volumes) ont été créés sur le nœud. mixed : une partie seulement."
       },
       "frozen": {
         "term": "Gelé",
-        "definition": "Le cluster le laisse tranquille : aucun démarrage, arrêt ou déplacement automatique. Vous pouvez toujours lancer des actions vous-même."
+        "definition": "Le cluster n'y touche pas : aucun démarrage, arrêt ou déplacement automatique. Vous pouvez toujours lancer des actions vous-même."
       },
       "monitor": {
         "term": "Moniteur",
-        "definition": "Ce que le cluster en fait en ce moment. idle : rien ; starting, stopping ou provisioning : une action est en cours ; une valeur comme start failed signale qu'une action a échoué."
+        "definition": "Ce que le cluster est en train d'en faire. idle : rien ; starting, stopping ou provisioning : une action est en cours ; une valeur comme start failed signale l'échec d'une action."
       },
       "expect": {
-        "term": "Attendu",
-        "definition": "L'état vers lequel le cluster travaille. Avec un > devant, il a été demandé pour tout le cluster (par exemple >started) ; sans, c'est ce nœud qui garde l'instance en marche."
+        "term": "Objectif",
+        "definition": "L'état que le cluster cherche à atteindre (expect). Précédé d'un >, il a été demandé pour tout le cluster (par exemple >started) ; sinon, c'est ce nœud qui maintient l'instance démarrée."
       },
       "globalExpect": {
-        "term": "Attendu global",
-        "definition": "Le but d'une action sur tout le cluster demandée par quelqu'un, comme started, stopped ou placed. Chaque instance y travaille jusqu'à l'atteindre."
+        "term": "Objectif global",
+        "definition": "Le but d'une action demandée sur tout le cluster (global expect), comme started, stopped ou placed. Chaque instance y tend jusqu'à ce qu'il soit atteint."
       },
       "localExpect": {
-        "term": "Attendu local",
-        "definition": "Ce que ce nœud maintient pour l'instance. started veut dire que le nœud la redémarre si elle tombe."
+        "term": "Objectif local",
+        "definition": "L'état dans lequel ce nœud maintient l'instance (local expect). started : le nœud la redémarre si elle tombe."
       },
       "orchestration": {
         "term": "Orchestration",
-        "definition": "Une action en cours sur tout le cluster, comme démarrer un service sur son nœud préféré. Toutes les instances concernées partagent son id jusqu'à la fin."
+        "definition": "Une action en cours à l'échelle du cluster, par exemple le démarrage d'un service sur son nœud préféré. Toutes les instances impliquées portent son identifiant jusqu'à ce qu'elle soit terminée."
       },
       "standby": {
         "term": "Standby",
-        "definition": "Une ressource gardée en marche même sur les nœuds où le service ne tourne pas, pour être prête à prendre le relais (par exemple, recevoir des données répliquées)."
+        "definition": "Une ressource maintenue démarrée même sur les nœuds où le service ne tourne pas, afin d'être prête à prendre le relais (par exemple pour recevoir des données répliquées)."
       },
       "encap": {
         "term": "Encap",
-        "definition": "Une ressource gérée depuis l'intérieur d'un conteneur, par un agent qui y tourne, au lieu du nœud."
+        "definition": "Une ressource gérée depuis l'intérieur d'un conteneur, par un agent qui y tourne, plutôt que par le nœud."
       },
       "optional": {
         "term": "Optionnelle",
-        "definition": "Une ressource dont l'échec n'est pas grave : les actions continuent et le service est toujours compté up. Ses problèmes apparaissent dans Overall."
+        "definition": "Une ressource dont l'échec n'est pas bloquant : les actions se poursuivent et le service reste compté up. Ses problèmes apparaissent dans l'état global."
       },
       "monitored": {
         "term": "Surveillée",
@@ -3577,31 +3604,31 @@
       },
       "leader": {
         "term": "Leader",
-        "definition": "Le nœud qui parle pour le cluster : le premier vivant de la liste des nœuds. Il s'occupe des tâches du cluster. Il n'a rien à voir avec l'endroit où tournent les services."
+        "definition": "Le nœud qui parle au nom du cluster : le premier nœud vivant de la liste des nœuds. Il prend en charge les tâches à l'échelle du cluster. Il n'a aucun rapport avec l'emplacement des services."
       },
       "score": {
         "term": "Score",
-        "definition": "La capacité libre d'un nœud, d'après sa charge et sa mémoire libre. Plus c'est haut, plus il est libre. Les services peuvent être placés sur le nœud au plus haut score."
+        "definition": "La capacité disponible d'un nœud, calculée d'après sa charge et sa mémoire libre. Plus il est élevé, plus le nœud est libre. Les services peuvent être placés sur le nœud au score le plus élevé."
       },
       "overloaded": {
         "term": "Surchargé",
-        "definition": "La mémoire ou le swap libre du nœud est sous le minimum fixé dans sa configuration."
+        "definition": "La mémoire ou le swap libre du nœud est passé en dessous du minimum fixé dans sa configuration."
       },
       "topology": {
         "term": "Topologie",
-        "definition": "Combien de copies d'un service peuvent tourner en même temps. failover : une seule, sur un nœud. flex : plusieurs à la fois, entre un minimum et un maximum."
+        "definition": "Le nombre de copies d'un service qui peuvent tourner simultanément. failover : une seule, sur un seul nœud. flex : plusieurs à la fois, entre un minimum et un maximum."
       },
       "orchestrate": {
-        "term": "Orchestration auto",
-        "definition": "Combien le cluster agit de lui-même. no : ne démarre ni ne déplace jamais le service. start : le démarre une fois après le démarrage d'un nœud. ha : haute disponibilité, le redémarre sur un autre nœud quand le sien tombe."
+        "term": "Orchestrate",
+        "definition": "Le degré d'autonomie du cluster. no : ne démarre ni ne déplace jamais le service. start : le démarre une fois, après le démarrage d'un nœud. ha : haute disponibilité, le redémarre sur un autre nœud quand le sien tombe."
       },
       "placement": {
         "term": "Placement",
-        "definition": "Comment le cluster choisit le nœud où tourne un service : le premier listé (nodes order), le moins chargé, le meilleur score, réparti sur les nœuds, etc."
+        "definition": "Comment le cluster choisit le nœud où tourne un service : le premier de la liste (nodes order), le moins chargé, le meilleur score, une répartition sur les nœuds, etc."
       },
       "flex": {
         "term": "Flex",
-        "definition": "Pour un service flex : le nombre minimum et maximum de copies qui peuvent tourner, et le nombre visé par le cluster."
+        "definition": "Pour un service flex : le nombre minimum et maximum de copies autorisées à tourner, et le nombre visé par le cluster."
       },
       "actionProvision": {
         "term": "Provisionner",
@@ -3609,30 +3636,30 @@
       },
       "actionUnprovision": {
         "term": "Déprovisionner",
-        "definition": "Supprimer ce que le provisionnement a créé : les systèmes de fichiers sont effacés et les disques libérés. Les données sont perdues ; la configuration est gardée."
+        "definition": "Supprimer ce que le provisionnement a créé : les systèmes de fichiers sont effacés et les disques libérés. Les données sont perdues ; la configuration est conservée."
       },
       "actionFreeze": {
         "term": "Geler",
-        "definition": "Dire au cluster de laisser quelque chose tranquille : aucun démarrage, arrêt ou déplacement automatique. Marche sur un service, un nœud ou tout le cluster."
+        "definition": "Demander au cluster de ne plus toucher à quelque chose : aucun démarrage, arrêt ou déplacement automatique. S'applique à un service, un nœud ou tout le cluster."
       },
       "actionUnfreeze": {
         "term": "Dégeler",
-        "definition": "Annuler un gel : le cluster agit de nouveau automatiquement."
+        "definition": "Lever le gel : le cluster reprend ses actions automatiques."
       },
       "actionSwitch": {
         "term": "Basculer",
-        "definition": "Déplacer un service en marche sur un autre nœud : il s'arrête ici et démarre sur le nœud préféré suivant, ou sur celui que vous choisissez."
+        "definition": "Déplacer un service démarré vers un autre nœud : il s'arrête ici et démarre sur le nœud préféré suivant, ou sur celui que vous choisissez."
       },
       "actionTakeover": {
         "term": "Reprendre",
-        "definition": "Amener un service en marche sur ce nœud : il s'arrête là où il tourne et démarre ici."
+        "definition": "Rapatrier un service démarré sur ce nœud : il s'arrête là où il tourne et démarre ici."
       },
       "actionGiveback": {
-        "term": "Rendre",
-        "definition": "Ramener les services sur leurs nœuds préférés, par exemple une fois une panne réparée."
+        "term": "Restituer",
+        "definition": "Ramener les services sur leurs nœuds préférés, par exemple une fois une panne corrigée."
       },
       "actionDrain": {
-        "term": "Vider",
+        "term": "Drainer",
         "definition": "Vider un nœud avant une maintenance : le geler, puis arrêter tout ce qui y tourne. Les services en haute disponibilité (ha) peuvent alors démarrer sur d'autres nœuds."
       },
       "actionPurge": {
@@ -3645,14 +3672,14 @@
       },
       "actionClear": {
         "term": "Effacer",
-        "definition": "Remettre à zéro un état d'échec (comme start failed) pour que le cluster agisse à nouveau."
+        "definition": "Réinitialiser un état d'échec (comme start failed) pour que le cluster agisse de nouveau dessus."
       }
     }
   },
   "legend": {
     "hide": "Masquer cette aide",
     "title": "Symboles",
-    "toggle": "Ce que veulent dire les symboles",
+    "toggle": "Signification des symboles",
     "groups": {
       "states": "État",
       "marks": "Marques sur une instance",
@@ -3672,7 +3699,7 @@
       "rpoBreached": "Sa dernière sauvegarde ou réplication est plus ancienne que permis (RPO dépassé).",
       "drp": "Nœud de reprise après sinistre : utilisé seulement si le site principal est perdu.",
       "leader": "Nœud préféré : là où le service tourne quand tout va bien.",
-      "leaderNonOptimal": "Nœud préféré, mais le service ne tourne pas là où le placement le veut. Un « rendre » (giveback) l'y ramène.",
+      "leaderNonOptimal": "Nœud préféré, mais le service ne tourne pas là où le placement le veut. Un giveback l'y ramène.",
       "frozen": "Gelé : le cluster ne le démarrera, ne l'arrêtera ni ne le déplacera automatiquement.",
       "stopped": "Arrêté volontairement par un opérateur : le cluster ne le redémarrera pas.",
       "notProvisioned": "Non provisionné : ses systèmes de fichiers, disques ou volumes ne sont pas créés sur ce nœud."
@@ -3681,12 +3708,12 @@
       "R": "R, en cours : une tâche ou une synchronisation de cette ressource tourne en ce moment.",
       "M": "M, surveillée : si elle tombe, le cluster réagit (bascule le service, ou redémarre le nœud).",
       "D": "D, désactivée : toutes les actions l'ignorent.",
-      "O": "O, optionnelle : si elle tombe, le service est toujours compté up.",
+      "O": "O, facultative : si elle tombe, le service reste considéré up.",
       "E": "E, encapsulée : gérée depuis l'intérieur d'un conteneur.",
       "S": "S, standby : gardée en marche même sur les nœuds où le service ne tourne pas.",
       "P": "P, non provisionnée sur ce nœud.",
       "X": "X, arrêtée volontairement par un opérateur.",
-      "restarts": "Un nombre : combien de redémarrages automatiques restent avant que le cluster abandonne.",
+      "restarts": "Un nombre : les redémarrages automatiques restants avant que le cluster abandonne.",
       "noRestart": "0 : plus aucun redémarrage automatique.",
       "manyRestarts": "+ : plus de 10 redémarrages automatiques restants."
     }
@@ -3707,10 +3734,10 @@
     "privacy": {
       "title": "Données personnelles (RGPD)",
       "none": "Cette webapp ne collecte rien pour OpenSVC SAS : ni mesure d'audience, ni pistage, ni publicité. Elle ne parle qu'à l'API de ce cluster.",
-      "controller": "Le cluster est exploité par votre organisation, responsable des données qu'il enregistre, comme les connexions et les actions effectuées.",
+      "controller": "Le cluster est exploité par votre organisation, responsable du traitement des données qu'il enregistre, comme les connexions et les actions effectuées.",
       "browser": "Votre navigateur conserve sur cet appareil, dans son stockage local : vos jetons de connexion, supprimés à la déconnexion ; un résumé du cluster en cache ; vos préférences d'affichage. Effacer les données du site dans votre navigateur les supprime toutes.",
       "github": "Seulement si vous l'acceptez, votre page utilisateur demande à GitHub, au plus une fois par heure, la dernière version de cette webapp : cette requête parvient à GitHub avec votre adresse. Désactivé par défaut.",
-      "oidc": "Connecté par un fournisseur OpenID, sa propre politique s'applique à ce qu'il traite.",
+      "oidc": "Si vous vous connectez via un fournisseur OpenID, sa propre politique s'applique aux données qu'il traite.",
       "rights": "Pour vos droits sur les données qu'enregistre le cluster, adressez-vous à son exploitant ; pour ce logiciel, écrivez à <mail/>.",
       "releaseCheck": "Vérifier sur GitHub la dernière version de cette webapp"
     },
@@ -3731,8 +3758,8 @@
   "ai": {
     "title": "Assistant IA",
     "cluster": "Cluster",
-    "notConfigured": "Aucun agent IA n'est configuré sur ce cluster : un administrateur règle ai.agent_url dans la configuration du cluster.",
-    "openidRequired": "L'assistant demande une session d'authentification unique : connectez-vous avec le fournisseur d'identité.",
+    "notConfigured": "Aucun agent IA n'est configuré sur ce cluster : un administrateur doit définir ai.agent_url dans la configuration du cluster.",
+    "openidRequired": "L'assistant nécessite une session d'authentification unique : connectez-vous avec le fournisseur d'identité.",
     "authRequired": "Une session authentifiée est nécessaire pour utiliser l'assistant IA.",
     "loadingCluster": "Chargement des informations du cluster…",
     "conversations": {
@@ -3752,11 +3779,11 @@
         "today": "Aujourd'hui",
         "yesterday": "Hier",
         "week": "7 derniers jours",
-        "older": "Plus ancien"
+        "older": "Plus anciennes"
       }
     },
     "transcript": {
-      "start": "Interrogez votre cluster",
+      "start": "Posez une question sur votre cluster",
       "rename": "Renommer la conversation",
       "renameHint": "Entrée enregistre le titre, Échap garde l'ancien. Jusqu'à 80 caractères Unicode.",
       "log": "Messages de la conversation",
@@ -3764,12 +3791,12 @@
       "loadingEarlier": "Chargement des messages précédents…",
       "loadingSaved": "Chargement des messages enregistrés…",
       "reselect": "Sélectionnez à nouveau une conversation, ou créez-en une, pour continuer.",
-      "empty": "Envoyez un message pour démarrer une conversation ou poursuivre celle sélectionnée."
+      "empty": "Envoyez un message pour démarrer une conversation ou poursuivre la conversation sélectionnée."
     },
     "tools": {
       "open": "Ce que l'assistant sait faire",
       "title": "Ce que l'assistant sait faire",
-      "intro": "Les outils que ce déploiement offre à l'assistant. Ce qu'un outil peut faire pour vous dépend de vos droits, vérifiés à l'appel. Leurs descriptions viennent du serveur, en anglais.",
+      "intro": "Les outils que ce déploiement met à disposition de l'assistant. Ce qu'un outil peut faire pour vous dépend de vos droits, vérifiés à l'appel. Leurs descriptions viennent du serveur, en anglais.",
       "loading": "Lecture des outils…",
       "unavailable": "L'agent n'a pas pu lire ses outils. Réessayez plus tard.",
       "failed": "Les outils n'ont pas pu être lus.",
@@ -3788,11 +3815,11 @@
       "open": "Conseils pour formuler une demande",
       "target": {
         "lead": "Nommez la cible :",
-        "text": "le chemin complet de l'objet, comme prod/svc/web, et le nœud quand il compte, comme node2."
+        "text": "le chemin complet de l'objet, comme prod/svc/web, et le nœud si besoin, comme node2."
       },
       "goal": {
         "lead": "Dites le but, pas seulement l'action :",
-        "text": "« arrête proprement prod/svc/web sur node2 avant un reboot, ressources de secours comprises » plutôt que « arrête web »."
+        "text": "« arrête proprement prod/svc/web sur node2 avant un redémarrage, ressources standby comprises » plutôt que « arrête web »."
       },
       "scope": {
         "lead": "Précisez la portée :",
@@ -3808,15 +3835,15 @@
       },
       "limits": {
         "lead": "L'assistant ne voit que ce que vos droits permettent,",
-        "text": "et il peut se tromper : les étapes montrent ce qu'il a lu."
+        "text": "et il peut se tromper : ses étapes montrent ce qu'il a lu."
       }
     },
     "starters": {
       "label": "Questions suggérées",
-      "object": "Pourquoi {{path}} est en {{state}} ?",
-      "frozen": "Pourquoi {{node}} est gelé ?",
+      "object": "Pourquoi {{path}} est-il {{state}} ?",
+      "frozen": "Pourquoi {{node}} est-il gelé ?",
       "stopped": "Quels services sont arrêtés ?",
-      "heartbeats": "Les heartbeats sont-ils tous en vie ?"
+      "heartbeats": "Les heartbeats sont-ils tous actifs ?"
     },
     "message": {
       "you": "Vous",
@@ -3841,11 +3868,11 @@
         "missing_information": "Informations manquantes",
         "incorrect_or_outdated": "Informations fausses ou périmées",
         "hard_to_understand": "Difficile à comprendre",
-        "action_not_done": "Action attendue non faite"
+        "action_not_done": "Action attendue non effectuée"
       },
       "expected": "Qu'attendiez-vous ? (facultatif)",
       "length": "{{length}}/{{max}} caractères",
-      "tooLong": "{{max}} caractères au plus.",
+      "tooLong": "{{max}} caractères maximum.",
       "privacy": "Votre avis et l'échange qu'il évalue sont conservés pour améliorer l'assistant, sans votre identité.",
       "cancel": "Annuler",
       "send": "Envoyer"
@@ -3857,8 +3884,8 @@
       "stop": "Arrêter",
       "send": "Envoyer",
       "queue": "Mettre en file",
-      "queuedHint": "La réponse est en cours : votre message partira à la fin.",
-      "queuedDuringConfirmation": "Ce message partira après votre décision ; il ne répond pas à la confirmation."
+      "queuedHint": "La réponse est en cours : votre message sera envoyé une fois celle-ci terminée.",
+      "queuedDuringConfirmation": "Votre message sera envoyé après votre décision ; il ne répond pas à la confirmation."
     },
     "dialog": {
       "deleteTitle": "Supprimer la conversation",
@@ -3897,17 +3924,17 @@
         "delete_object_data_key": "Supprimer la clé {{name}} de {{path}}",
         "dequeue_node_actions": "Exécuter les actions que le collecteur a mises en file pour {{node}}",
         "disable_object": "Désactiver {{path}}",
-        "drain_node": "Vider {{node}}",
+        "drain_node": "Drainer {{node}}",
         "giveback_object": "Rendre {{path}} à ses nœuds préférés",
         "purge_object": "Purger {{path}} : déprovisionner ses ressources sur tous les nœuds, puis le supprimer",
-        "restart_daemon": "Redémarrer le daemon de {{node}}",
-        "restart_daemon_listener": "Redémarrer l'écoute du daemon de {{node}}",
+        "restart_daemon": "Redémarrer le démon de {{node}}",
+        "restart_daemon_listener": "Redémarrer le listener du démon de {{node}}",
         "restart_heartbeat": "Redémarrer le heartbeat {{name}} sur {{node}}",
         "restart_instance": "Redémarrer {{path}} sur {{node}}",
         "restart_object": "Redémarrer {{path}}",
         "run_task": "Lancer la tâche {{rids}} de {{path}} sur {{node}}",
         "set_object_data_key": "Définir la clé {{name}} de {{path}}",
-        "shutdown_instance": "Arrêter complètement {{path}} sur {{node}}, ressources de secours comprises",
+        "shutdown_instance": "Arrêter complètement {{path}} sur {{node}}, ressources standby comprises",
         "stop_instance": "Arrêter {{path}} sur {{node}}",
         "stop_object": "Arrêter {{path}}",
         "switch_object": "Basculer {{path}}",
@@ -3920,7 +3947,7 @@
         "update_instance_caps": "Appliquer les plafonds de {{path}} sur {{node}}",
         "config_update": "Modifier la configuration de {{path}} : {{sets}} affectations, {{unsets}} clés retirées, {{deletes}} sections supprimées",
         "node_config_update": "Modifier la configuration du nœud {{node}} : {{sets}} affectations, {{unsets}} clés retirées, {{deletes}} sections supprimées",
-        "object_create": "Créer {{path}}, un {{kind}} de {{sections}} sections"
+        "object_create": "Créer {{path}}, un {{kind}} à {{sections}} sections"
       },
       "suffix": {
         "rids": " ({{rids}})",
@@ -3931,7 +3958,7 @@
       "current": "Valeur actuelle",
       "operation": "Opération",
       "proposed": "Valeur proposée",
-      "computed": "Les valeurs proposées sont calculées par le MCP ; le daemon applique les opérations et fait foi.",
+      "computed": "Les valeurs proposées sont calculées par le MCP ; le démon applique les opérations et fait foi.",
       "notComputed": "non calculée",
       "hidden": "masquée",
       "empty": "vide",
@@ -3955,29 +3982,29 @@
         "not_in_list": "la valeur n'est pas dans la liste : rien ne change",
         "already_in_list": "la valeur est déjà dans la liste : rien ne change",
         "empty_index": "une valeur vide à un index ne retire rien",
-        "index_past_words": "l'index dépasse les mots de la valeur : le daemon refuse ou échoue"
+        "index_past_words": "l'index dépasse le nombre de mots de la valeur : le démon refuse ou échoue"
       },
-      "deleted_one": "Supprime la section {{section}} et sa clé :",
+      "deleted_one": "Supprime la section {{section}} et {{count}} clé :",
       "deleted_other": "Supprime la section {{section}} et ses {{count}} clés :",
       "deletedEmpty": "Supprime la section {{section}}, qui ne contient aucune clé lue.",
       "content": "Fichier de configuration",
-      "contentTruncated": "Le fichier est tronqué pour garder l'aperçu borné.",
+      "contentTruncated": "Le fichier est tronqué pour limiter la taille de l'aperçu.",
       "readAt": "Valeurs actuelles lues à {{time}} : les valeurs configurées, non évaluées ; elles peuvent changer avant l'exécution.",
       "secrets_one": "{{count}} changement sur une clé secrète : ses valeurs ne sont pas affichées.",
       "secrets_other": "{{count}} changements sur des clés secrètes : leurs valeurs ne sont pas affichées.",
-      "daemonMayRefuse": "Le daemon peut encore refuser l'appel : validation, ressource démarrée, conflit.",
+      "daemonMayRefuse": "Le démon peut encore refuser l'appel : validation, ressource up, conflit.",
       "region": "Action en attente de confirmation",
       "form": "Arguments de l'action",
       "deletedSecrets_one": "et {{count}} clé secrète, non nommée.",
       "deletedSecrets_other": "et {{count}} clés secrètes, non nommées.",
-      "queuedNote": "Un message est en file : il partira après votre décision."
+      "queuedNote": "Un message est en file : il sera envoyé après votre décision."
     },
     "step": {
-      "search_tools": "Recherche d'outils : « {{query}} »",
-      "search_docs": "Recherche dans la documentation : « {{query}} »",
-      "search_code": "Recherche dans le code : « {{query}} »",
-      "read_resource": "Lecture de la référence {{uri}}",
-      "load_skill": "Chargement de la procédure « {{skill}} »",
+      "search_tools": "Rechercher les outils : « {{query}} »",
+      "search_docs": "Rechercher dans la documentation : « {{query}} »",
+      "search_code": "Rechercher dans le code : « {{query}} »",
+      "read_resource": "Lire la référence {{uri}}",
+      "load_skill": "Charger la procédure « {{skill}} »",
       "get_caller_identity": "Lire votre identité et vos droits",
       "get_cluster_config": "Lire la configuration du cluster",
       "get_cluster_status": "Lire l'état du cluster",
@@ -3996,7 +4023,7 @@
       "get_object_data_key": "Lire la clé {{name}} de {{path}}",
       "get_instance_status": "Lire l'état de {{path}} sur {{node}}",
       "get_instance_logs": "Lire les journaux de {{path}} sur {{node}}",
-      "refresh_instance_status": "Rafraîchir l'état de {{path}} sur {{node}}",
+      "refresh_instance_status": "Actualiser l'état de {{path}} sur {{node}}",
       "list_instance_sync_snapshots": "Lister les instantanés de {{path}} sur {{node}}",
       "get_node_status": "Lire l'état de {{node}}",
       "get_node_config": "Lire la configuration de {{node}}",
@@ -4020,7 +4047,7 @@
       "arguments": "Arguments",
       "refusal": "Refusé par l'outil :",
       "excerpt": "Résultat :",
-      "excerptTruncated": "Résultat, ses 4 premiers Ko :",
+      "excerptTruncated": "Résultat (4 premiers Ko) :",
       "argumentsOmitted": "Arguments trop volumineux pour être conservés dans l'historique.",
       "count_one": "{{count}} étape",
       "count_other": "{{count}} étapes",

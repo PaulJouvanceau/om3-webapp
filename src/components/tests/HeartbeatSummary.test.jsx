@@ -113,15 +113,15 @@ describe('HeartbeatSummary', () => {
         const onToggle = vi.fn();
         const {rerender} = render(<HeartbeatSummary heartbeatStatus={STATUS} onToggle={onToggle}/>);
         const routines = screen.getByRole('region', {name: 'Routines'});
-        // A hint, light, on the line of the title, at its right; an icon saying it in its place
-        // when the box is too narrow.
+        // A hint, light, on the line of the title, at its right; under it, wrapped, when the box
+        // is too narrow: always its words, no icon a tap would not open.
         const hint = routines.querySelector('[data-hint]');
         expect(hint).toHaveTextContent('Click a routine to stop it, or to start it.');
-        expect(hint).toHaveClass('text-ink-muted', 'hidden', '@md:block');
+        expect(hint).toHaveClass('text-ink-muted', '@md:truncate');
+        expect(hint).not.toHaveClass('hidden');
         expect(hint.previousElementSibling).toHaveTextContent('Routines');
-        expect(hint.parentElement).toHaveClass('@container', 'justify-between');
-        const icon = within(routines).getByRole('img', {name: 'Click a routine to stop it, or to start it.'});
-        expect(icon).toHaveClass('@md:hidden');
+        expect(hint.parentElement).toHaveClass('@container', 'flex-wrap', 'justify-between');
+        expect(within(routines).queryByRole('img', {name: 'Click a routine to stop it, or to start it.'})).toBeNull();
         // The card itself, its action as its routine runs or not: no button of its own, no selection.
         const stop = within(routines.querySelector('[data-card="n1 hb#1.tx"]')).getByRole('button', {name: 'Stop n1 hb#1 tx'});
         const start = within(routines.querySelector('[data-card="n2 hb#2.tx"]')).getByRole('button', {name: 'Start n2 hb#2 tx'});

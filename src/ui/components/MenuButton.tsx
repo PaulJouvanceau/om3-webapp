@@ -58,7 +58,7 @@ const ITEM =
  * `prominent` draws a menu the page is used for, the actions: of the accent fill, as
  * every button changing a state (`Button`), brighter when hovered or open, its label
  * and chevron in a wide window, its `icon` alone in a narrow one, the label then its
- * accessible name.
+ * accessible name; `worded`, its icon and a word after it in a narrow one too.
  *
  * om3 additions: `icon` without `prominent` makes the trigger an icon alone, `label`
  * staying its accessible name; with `solid`, of the accent fill as the
@@ -76,6 +76,7 @@ export function MenuButton({
   className = "",
   prominent = false,
   solid = false,
+  worded = false,
   text,
   icon,
   compact = false,
@@ -99,7 +100,13 @@ export function MenuButton({
   prominent?: boolean;
   /** Of the accent fill, as the actions: its text in a wide window, its icon alone in a narrow one. */
   solid?: boolean;
-  /** With `solid`, the word shown in a wide window, shorter than the label naming it. */
+  /**
+   * With `prominent` and `icon`, in a narrow window its icon, its `text` (or label)
+   * and its chevron rather than its icon alone: the actions of a toolbar, which an
+   * icon alone did not say, apart at the end of its line.
+   */
+  worded?: boolean;
+  /** With `solid`, the word shown in a wide window, shorter than the label naming it; with `worded`, in a narrow one. */
   text?: string;
   /**
    * Icon alone in the trigger, instead of the label and the chevron; with
@@ -348,12 +355,12 @@ export function MenuButton({
           setOpen((previous) => !previous);
         }}
         onKeyDown={onButtonKeyDown}
-        aria-label={iconOnly || trigger !== undefined ? label : undefined}
+        aria-label={iconOnly || trigger !== undefined || (prominent && worded) ? label : undefined}
         className={
           // The actions change states: the accent fill, as every such button (`Button`).
           prominent
             ? `flex h-7 items-center gap-1.5 rounded-(--radius-control) bg-accent px-2.5 font-medium text-accent-ink hover:brightness-110 disabled:opacity-60 disabled:hover:brightness-100 aria-expanded:brightness-110 ${
-                icon !== undefined ? "max-md:w-7 max-md:justify-center max-md:px-0" : ""
+                icon !== undefined && !worded ? "max-md:w-7 max-md:justify-center max-md:px-0" : ""
               }`
             : trigger !== undefined
             ? // Drawn as the other menu triggers, lighter: a border and a chevron say it opens.
@@ -387,6 +394,20 @@ export function MenuButton({
           </>
         ) : iconOnly ? (
           icon
+        ) : prominent && icon !== undefined && worded ? (
+          // The label and chevron in a wide window, the icon, a word and the chevron in a narrow one.
+          <>
+            <span aria-hidden="true" className="hidden max-md:inline-flex">
+              {icon}
+            </span>
+            <span aria-hidden="true" className="max-md:hidden">
+              {label}
+            </span>
+            <span aria-hidden="true" className="hidden whitespace-nowrap max-md:inline">
+              {text ?? label}
+            </span>
+            <ChevronDownIcon aria-hidden="true" className="h-3.5 w-3.5" />
+          </>
         ) : prominent && icon !== undefined ? (
           // The label and chevron in a wide window, the icon alone in a narrow one.
           <>

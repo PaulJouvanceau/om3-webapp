@@ -1563,6 +1563,11 @@ describe('EventLog', () => {
             expect([...first.querySelector('[data-meta]').children].map((b) => b.textContent)).toEqual(['ns1/svc/a']);
             expect(first.querySelector('[data-text]')).toHaveTextContent('"path":"ns1/svc/a"');
             expect(first).toHaveClass('border-line/40');
+            // Narrow, the time, the type and the node on a line; the badge and the data across
+            // the next two, not cut to a few characters in a column.
+            expect(within(first).getByRole('button')).toHaveClass('max-md:flex', 'max-md:flex-wrap');
+            expect(first.querySelector('[data-text]').parentElement).toHaveClass('max-md:basis-full', 'max-md:line-clamp-2');
+            expect(first.querySelector('[data-text]')).toHaveClass('max-md:whitespace-normal');
             // A caret before the time says it opens; opened by a click, its data in full, the caret turned.
             const toggle = within(first).getByRole('button');
             const caret = first.querySelector('[data-caret]');

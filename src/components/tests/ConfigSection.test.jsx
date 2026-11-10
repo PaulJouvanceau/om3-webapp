@@ -350,6 +350,49 @@ describe('ConfigSection Component', () => {
         await waitFor(() => expect(configFileGets()).toHaveLength(1));
     });
 
+    test('each button its word beside its icon: what it does read before a click', async () => {
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, 'clipboard', {value: {writeText}, configurable: true});
+        try {
+            global.fetch.mockImplementation((url, options) => (url.includes('/config/file')
+                ? Promise.resolve({ok: true, status: 200, text: () => Promise.resolve('[DEFAULT]\nnodes = *\n')})
+                : defaultFetchMock(url, options)));
+            renderConfig({inline: true});
+            const copy = await screen.findByRole('button', {name: 'Copy the configuration shown'});
+            expect(copy).toHaveTextContent(/^Copy$/);
+            expect(screen.getByRole('button', {name: 'Show secrets'})).toHaveTextContent(/^Show secrets$/);
+            expect(screen.getByRole('button', {name: 'Edit configuration file'})).toHaveTextContent(/^Edit$/);
+            expect(screen.getByRole('button', {name: 'Upload new configuration file'})).toHaveTextContent(/^Upload$/);
+            expect(screen.getByRole('button', {name: 'Design the configuration'})).toHaveTextContent(/^Design$/);
+            expect(screen.getByRole('button', {name: 'Evaluate the keywords'})).toHaveTextContent(/^Evaluate$/);
+        } finally {
+            Object.defineProperty(navigator, 'clipboard', {value: undefined, configurable: true});
+        }
+    });
+
+    test('validated as loaded on the node read, as om config validate: none found, said so', async () => {
+        const validated = [];
+        global.fetch.mockImplementation((url, options) => {
+            if (url.endsWith('/config/validate')) {
+                validated.push(url);
+                return Promise.resolve(new Response(JSON.stringify({kind: 'ConfigAlertList', items: []}), {status: 200}));
+            }
+            return defaultFetchMock(url, options);
+        });
+        renderConfig({inline: true});
+        const run = await screen.findByRole('button', {name: 'Validate the configuration'});
+        expect(run).toHaveTextContent(/^Validate$/);
+        await act(() => user.click(run));
+        expect(await screen.findByText('The configuration is valid: no error, no warning.')).toBeInTheDocument();
+        expect(validated).toEqual(['/api/node/name/node1/instance/path/root/cfg/cfg1/config/validate']);
+    });
+
+    test('a configuration not yet created: nothing to validate', async () => {
+        renderConfig({inline: true, absent: true});
+        await screen.findByRole('button', {name: 'Edit configuration file'});
+        expect(screen.queryByRole('button', {name: 'Validate the configuration'})).toBeNull();
+    });
+
     test('the configuration shown copied, its secrets as shown', async () => {
         const writeText = vi.fn().mockResolvedValue(undefined);
         Object.defineProperty(navigator, 'clipboard', {value: {writeText}, configurable: true});

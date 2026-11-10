@@ -1,7 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {URL_AUTH_WHOAMI} from '../config/apiPath';
-import {Button} from '../ui/components/Button';
+import {Button, buttonClass} from '../ui/components/Button';
 import {Checkbox, Select} from '../ui/components/Field';
 import {Alert} from '../ui/components/Alert';
 import {Spinner} from '../ui/components/Spinner';
@@ -134,6 +134,8 @@ const WhoAmI = () => {
     );
 
     const PANEL = "rounded-(--radius-panel) border border-line bg-surface-raised p-3";
+    // The actions of a panel at its foot, on the right: the same place in each, level across a row of panels.
+    const FOOTER = "mt-auto flex flex-wrap items-center justify-end gap-3 pt-3";
 
     // Every control in the card of what it acts on: the session in the account, the
     // language, the theme and the hints in the preferences.
@@ -150,17 +152,17 @@ const WhoAmI = () => {
                         <Value label={t('user.authMethod')}>{userInfo?.auth || t('common.notAvailable')}</Value>
                         <Value label={t('user.grants')}>{userInfo?.raw_grant || t('common.none')}</Value>
                     </dl>
-                    <div className="mt-auto flex justify-end pt-3">
+                    <div className={FOOTER}>
                         <Button icon={<SignOutIcon/>} onClick={handleLogout}>{t('user.logout')}</Button>
                     </div>
                 </section>
 
-                <section aria-labelledby="whoami-preferences" className={PANEL}>
+                <section aria-labelledby="whoami-preferences" className={`${PANEL} flex flex-col`}>
                     <h2 id="whoami-preferences" className="mb-2 flex items-center gap-2 font-semibold">
                         <GearIcon className="text-accent"/>
                         {t('user.preferences')}
                     </h2>
-                    {/* A row each: its pictogram, its name, its control; the hints two lines, their reset under the switch. */}
+                    {/* A row each: its pictogram, its name, its control; the reset of the hints at the foot. */}
                     <div className="grid grid-cols-[1rem_6rem_minmax(0,1fr)] items-center gap-x-2 gap-y-3">
                         <GlobeIcon className="h-4 w-4 text-ink-muted"/>
                         {/* Each language named in itself: found whatever the language shown. */}
@@ -192,30 +194,30 @@ const WhoAmI = () => {
                         <span className="text-ink-muted">{t('user.hints')}</span>
                         {/* The intros of the pages: all off for whom knows OpenSVC, or those hidden one by one shown again. */}
                         <Checkbox label={t('user.showIntros')} checked={introsEnabled} onChange={(e) => setIntrosEnabled(e.target.checked)}/>
-                        <span className="col-start-3">
-                            {/* Its words on two lines rather than out of the panel, in a narrow window. */}
-                            <Button size="sm" onClick={showAllIntros} disabled={!introsEnabled || hiddenIntros.length === 0} className="h-auto min-h-7 py-1 text-left whitespace-normal">
-                                {t('user.resetIntros', {count: hiddenIntros.length})}
-                            </Button>
-                        </span>
+                    </div>
+                    <div className={FOOTER}>
+                        {/* Its words on two lines rather than out of the panel, in a narrow window. */}
+                        <Button onClick={showAllIntros} disabled={!introsEnabled || hiddenIntros.length === 0} className="h-auto min-h-8 py-1 text-left whitespace-normal">
+                            {t('user.resetIntros', {count: hiddenIntros.length})}
+                        </Button>
                     </div>
                 </section>
 
                 {/* A token of its own for a script or a quick test, never the one of the session. */}
-                <section aria-labelledby="whoami-api" className={PANEL}>
+                <section aria-labelledby="whoami-api" className={`${PANEL} flex flex-col`}>
                     <h2 id="whoami-api" className="mb-2 flex items-center gap-2 font-semibold">
                         <KeyIcon className="text-accent"/>
                         {t('user.apiAccess')}
                     </h2>
                     <p className="mb-2 text-ink-muted">{t('user.apiAccessHint')}</p>
-                    <div className="flex flex-wrap items-center gap-3">
-                        <Link to="/token" className="inline-flex h-8 items-center rounded-(--radius-control) border border-line px-3 font-medium hover:bg-surface-sunken">
-                            {t('user.createToken')}
-                        </Link>
+                    <div className={FOOTER}>
                         {/* The api of the node, documented by its own Swagger UI (om3 /api/docs/), out of the webapp. */}
-                        <a href="/api/docs/" target="_blank" rel="noopener noreferrer" className="text-accent underline-offset-2 hover:underline">
+                        <a href="/api/docs/" target="_blank" rel="noopener noreferrer" className="mr-auto text-accent underline-offset-2 hover:underline">
                             {t('user.apiDocs')}
                         </a>
+                        <Link to="/token" className={buttonClass()}>
+                            {t('user.createToken')}
+                        </Link>
                     </div>
                 </section>
 

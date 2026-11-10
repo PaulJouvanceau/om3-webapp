@@ -844,8 +844,10 @@ describe('LogsViewer', () => {
             expect([...meta.children].map((badge) => badge.textContent)).toEqual(['daemon', 'imon', 'kvm/svc/vm1']);
             expect(meta.firstElementChild).toHaveClass('rounded-full', 'text-ink-muted');
             expect(meta.nextElementSibling).toBe(text);
-            expect(text.closest('.log-line')).toHaveClass('grid-cols-subgrid', 'col-span-full', 'max-md:grid-cols-1');
-            expect(cell).toHaveClass('max-md:border-l-0', 'max-md:pl-0');
+            // Narrow, the time, the level and the node on a line, the badges and the text across the next.
+            expect(text.closest('.log-line')).toHaveClass('grid-cols-subgrid', 'col-span-full', 'max-md:flex', 'max-md:flex-wrap');
+            expect(cell).toHaveClass('max-md:basis-full', 'max-md:border-l-0', 'max-md:pl-0');
+            expect(meta).toHaveClass('max-md:inline-flex');
             expect(text.closest('.log-line').querySelectorAll('button')).toHaveLength(0);
         });
 

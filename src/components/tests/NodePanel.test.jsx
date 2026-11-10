@@ -215,6 +215,14 @@ describe('NodeDetailPanel', () => {
         expect(useActionTracker.getState().tracked.some((e) => e.label === 'Update 2 organisation properties' && e.state === 'succeeded')).toBe(true);
     });
 
+    test('the agent version the one the node runs, not the one cached at the last asset push', async () => {
+        api['system/property'].items.push({data: {name: 'version', source: 'probe', title: 'agent version', value: '.0.0-rc40-0-g791130387', error: ''}});
+        renderPanel();
+        const node = await within(panel()).findByRole('region', {name: 'Node'});
+        expect(node).toHaveTextContent('Agent versionv3.0.0-rc46');
+        expect(node).not.toHaveTextContent('rc40');
+    });
+
     test('the last boot an age, its date hovered', async () => {
         renderPanel();
         const node = await within(panel()).findByRole('region', {name: 'Node'});
@@ -441,6 +449,31 @@ describe('NodeDetailPanel', () => {
         await waitFor(() => expect(useActionTracker.getState().tracked.map((e) => [e.label, e.subject, e.state]))
             .toEqual([['Update the configuration', 'dev3n1', 'succeeded']]));
         expect(await within(panel()).findByLabelText('Node configuration file')).toHaveTextContent('max_parallel = 4');
+    });
+
+    test('its configuration validated on the node, as om node config validate; written, the result gone', async () => {
+        api['config/validate'] = {kind: 'ConfigAlertList', items: [
+            {node: 'dev3n1', path: '', level: 'warning', kind: 'unknown keyword', key: 'toto.titi', driver: '', comment: 'keyword does not exist: "toto.titi"'},
+            {node: 'dev3n1', path: '', level: 'error', kind: 'invalid value', key: 'node.max_parallel', driver: '', comment: 'not an integer'},
+        ]};
+        renderPanel('?peek=node:dev3n1&peektab=config');
+        await within(panel()).findByLabelText('Node configuration file');
+        const run = within(panel()).getByRole('button', {name: 'Validate the configuration'});
+        expect(run).toHaveTextContent(/^Validate$/);
+        fireEvent.click(run);
+        const result = await within(panel()).findByRole('region', {name: 'Validation of the configuration'});
+        expect(requests).toContainEqual(expect.objectContaining({method: 'GET', url: '/api/node/name/dev3n1/config/validate'}));
+        // The errors first, a write refusing them.
+        expect(result).toHaveTextContent(/^1 error, 1 warning · a write with errors is refused/);
+        expect([...result.querySelectorAll('[data-alert]')].map((a) => a.dataset.alert)).toEqual(['error', 'warning']);
+        expect(result).toHaveTextContent('node.max_parallel invalid value');
+        // Written, the result is no longer of the file.
+        fireEvent.click(within(panel()).getByRole('button', {name: 'Edit the configuration file'}));
+        const editor = await within(panel()).findByRole('textbox', {name: 'Node configuration file'});
+        fireEvent.change(editor, {target: {value: `${CONFIG}max_parallel = 4\n`}});
+        fireEvent.click(within(panel()).getByRole('button', {name: 'Save'}));
+        await within(panel()).findByLabelText('Node configuration file');
+        expect(within(panel()).queryByRole('region', {name: 'Validation of the configuration'})).toBeNull();
     });
 
     test('its secrets redacted, node.uuid, until shown for a while; edited, the file read whole', async () => {

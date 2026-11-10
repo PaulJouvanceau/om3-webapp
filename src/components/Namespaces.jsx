@@ -5,7 +5,7 @@ import {retainEventReception} from "../eventSourceManager.jsx";
 import useEventStore from "../hooks/useEventStore";
 import {useNamespaceClaims, useNamespacePg} from "../hooks/useNamespaceUsage";
 import {computeLimit, formatCpu, kindCounts, networkUsage, poolUsage} from "../app/namespace-usage";
-import {Table, HeaderRow, HeaderCell, SortHeaderCell, Row, Cell, EmptyRow} from "../ui/components/Table";
+import {Table, HeaderRow, HeaderCell, SortHeaderCell, Row, Cell, EmptyRow, LIST_PAGE} from "../ui/components/Table";
 import {useFitLevel} from "../ui/lib/fit-level";
 import {SegmentedBar} from "../ui/components/SegmentedBar";
 import {usageState} from "../ui/components/UsageBar";
@@ -137,19 +137,21 @@ const heatOf = (share) => usageState(share * 100);
 /**
  * A figure of a namespace over a cap: what it uses on top, and under it, a cap there,
  * its part of the cap in a bar of a segment a pool or a network, and the cap. A part
- * past 80% said in red.
+ * past 80% said in red; nothing measured, the dash on top alone, no share of nothing.
+ * In a card (`card`), beside the title of its line in the room left, its bar line
+ * wrapped there rather than all of it put under the title.
  */
-function StackedUsage({value, segments, used, cap, format, capFormat = format, capName, label, locale, measured = true}) {
+function StackedUsage({value, segments, used, cap, format, capFormat = format, capName, label, locale, measured = true, card = false}) {
     const {t} = useTranslation();
     const share = cap > 0 ? used / cap : undefined;
     return (
-        <span className="flex flex-col gap-0.5 whitespace-nowrap" data-usage="">
+        <span className={`flex flex-col gap-0.5 ${card ? "min-w-0 flex-1" : "whitespace-nowrap"}`} data-usage="">
             <span className="tabular-nums">{value}</span>
             {share !== undefined && (
-                <span className="flex items-center gap-1.5 text-data text-ink-muted tabular-nums">
+                <span className={`flex items-center gap-x-1.5 text-data text-ink-muted tabular-nums ${card ? "flex-wrap gap-y-0.5 [&>*]:whitespace-nowrap" : ""}`}>
                     {capName && <span className="text-ink">{capName}</span>}
                     <SegmentedBar segments={segments} total={cap} label={label} width="w-24"/>
-                    <span className={measured ? HEAT_TEXT[heatOf(share)] : undefined}>{measured ? percentOf(used, cap, locale) : "–"}</span>
+                    {measured && <span className={HEAT_TEXT[heatOf(share)]}>{percentOf(used, cap, locale)}</span>}
                     <span>{t("namespaces.usage.ofCap", {cap: capFormat(cap)})}</span>
                 </span>
             )}
@@ -184,7 +186,7 @@ export function pooled({t, usage, kind, format, plain, title, locale}) {
  * many on top; under it, the claim it is the nearest to filling, its name, its part
  * in a bar of its heat, and the claim. Claiming none, the top line alone.
  */
-function UsageCell({usage, kind, format, plain = format, title, locale}) {
+function UsageCell({usage, kind, format, plain = format, title, locale, card}) {
     const {t} = useTranslation();
     if (usage.segments.length === 0) return <span className="text-ink-muted">–</span>;
     const {value, hottest, label} = pooled({t, usage, kind, format, plain, title, locale});
@@ -199,12 +201,13 @@ function UsageCell({usage, kind, format, plain = format, title, locale}) {
             capName={hottest?.name}
             label={label}
             locale={locale}
+            card={card}
         />
     );
 }
 
 /** What a namespace uses of the cpu or the memory: the amount on top, its part of the cap under it, a claim capping it. */
-function CapCell({used, cap, format, label, locale}) {
+function CapCell({used, cap, format, label, locale, card}) {
     if (used === undefined && cap === undefined) return <span className="text-ink-muted">–</span>;
     return (
         <StackedUsage
@@ -217,6 +220,7 @@ function CapCell({used, cap, format, label, locale}) {
             label={label}
             locale={locale}
             measured={used !== undefined}
+            card={card}
         />
     );
 }
@@ -239,8 +243,8 @@ function ClaimsCell({figures}) {
                     <span className="text-data text-ink-muted tabular-nums">
                         {f.cap !== undefined && (
                             <>
-                                <span className={f.percent === "–" ? undefined : HEAT_TEXT[heatOf(f.share)]}>{f.percent}</span>
-                                {" "}{f.ofCap}
+                                {f.percent !== undefined && <><span className={HEAT_TEXT[heatOf(f.share)]}>{f.percent}</span>{" "}</>}
+                                {f.ofCap}
                                 {f.capName && <span className="text-ink"> · {f.capName}</span>}
                             </>
                         )}
@@ -257,6 +261,9 @@ const NamespaceRow = React.memo(({namespace, counts, pools, networks, cpu, memor
     const memoryUsed = memory.used;
     // In cpu, mcpu or µcpu, three significant digits at most.
     const cpus = (n) => formatCpu(n, locale);
+    const card = layout === "cards";
+    // In a card, the title of a figure of several lines beside its first, not halfway down.
+    const figure = card ? "!items-start" : undefined;
     return (
         // The row opens the panel of the namespace; its counts, the objects they count.
         // One height for every line, whatever its cells hold: pills, bars or a dash.
@@ -271,8 +278,8 @@ const NamespaceRow = React.memo(({namespace, counts, pools, networks, cpu, memor
         <Row onActivate={() => onOpen(namespace)} selected={isOpen} className="h-12" data-namespace={namespace}>
             <Cell className="font-medium">{namespace}</Cell>
             <Cell><KindChart namespace={namespace} counts={counts} onShow={onShow}/></Cell>
-            <Cell><UsageCell usage={pools} kind="pools" format={(n) => size(n, locale)} title={t("namespaces.columns.pools")} locale={locale}/></Cell>
-            <Cell>
+            <Cell className={figure}><UsageCell usage={pools} kind="pools" format={(n) => size(n, locale)} title={t("namespaces.columns.pools")} locale={locale} card={card}/></Cell>
+            <Cell className={figure}>
                 <UsageCell
                     usage={networks}
                     kind="nets"
@@ -280,10 +287,11 @@ const NamespaceRow = React.memo(({namespace, counts, pools, networks, cpu, memor
                     plain={(n) => n.toLocaleString(locale)}
                     title={t("namespaces.columns.nets")}
                     locale={locale}
+                    card={card}
                 />
             </Cell>
-            <Cell><CapCell used={cpuUsed} cap={cpu.cap} format={cpus} label={t("namespaces.usage.cpuOf", {namespace})} locale={locale}/></Cell>
-            <Cell><CapCell used={memoryUsed} cap={memory.cap} format={(n) => size(n, locale)} label={t("namespaces.usage.memoryOf", {namespace})} locale={locale}/></Cell>
+            <Cell className={figure}><CapCell used={cpuUsed} cap={cpu.cap} format={cpus} label={t("namespaces.usage.cpuOf", {namespace})} locale={locale} card={card}/></Cell>
+            <Cell className={figure}><CapCell used={memoryUsed} cap={memory.cap} format={(n) => size(n, locale)} label={t("namespaces.usage.memoryOf", {namespace})} locale={locale} card={card}/></Cell>
         </Row>
     );
 });
@@ -328,7 +336,7 @@ function claimFigures({t, namespace, pools, networks, cpu, memory, locale}) {
         key, title, value: used === undefined ? "–" : format(used),
         ...(cap === undefined ? {} : {
             segments: [{name: "used", value: used ?? 0, tint: used === undefined ? undefined : HEAT_BAR[heatOf(used / cap)]}], cap,
-            share: used === undefined ? 0 : used / cap, percent: used === undefined ? "–" : percentOf(used, cap, locale),
+            share: used === undefined ? 0 : used / cap, percent: used === undefined ? undefined : percentOf(used, cap, locale),
             ofCap: t("namespaces.usage.ofCap", {cap: format(cap)}), label,
         }),
     });
@@ -430,7 +438,7 @@ const Namespaces = () => {
     const handleClose = useCallback(() => selectNamespace(undefined), [selectNamespace]);
 
     return (
-        <div className="flex h-full flex-col gap-3 p-4">
+        <div className={`flex h-full flex-col gap-3 p-4 ${LIST_PAGE}`}>
             <p className="text-ink-muted tabular-nums">{t("namespaces.count", {count: sortedRows.length})}</p>
 
             <Table

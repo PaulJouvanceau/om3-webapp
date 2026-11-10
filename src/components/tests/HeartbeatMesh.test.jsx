@@ -200,7 +200,8 @@ describe('HeartbeatMesh', () => {
         const {rerender} = render(<HeartbeatMesh heartbeatStatus={all}/>);
         const overall = () => details().querySelector('[data-overall]');
         const arcs = () => [...overall().querySelectorAll('[data-arc]')].map((arc) => [
-            arc.dataset.arc, arc.getAttribute('class'), Math.round(parseFloat(arc.getAttribute('stroke-dasharray'))), Math.round(0 - arc.getAttribute('stroke-dashoffset')),
+            // Its colour, the first of its classes; those after, how it grows when pointed at.
+            arc.dataset.arc, arc.getAttribute('class').split(' ')[0], Math.round(parseFloat(arc.getAttribute('stroke-dasharray'))), Math.round(0 - arc.getAttribute('stroke-dashoffset')),
         ]);
         const round = Math.round(2 * Math.PI * 52);
         expect(overall()).toHaveTextContent('2/2streams operationaloptimal');

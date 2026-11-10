@@ -4,6 +4,7 @@ import {useTranslation} from "react-i18next";
 import {cn} from "../ui/cn";
 import {useMediaQuery} from "../ui/lib/media";
 import {AlertMark} from "../ui/components/AlertMark";
+import {CaretRightIcon} from "../ui/icons";
 import {ALL_LIST, OBJECT_LISTS, listUrl} from "../utils/objectLists";
 
 /**
@@ -174,15 +175,18 @@ function NavSection({section, alerts, onNavigate}) {
                         to={section.to}
                         onClick={onNavigate}
                         aria-current={current ? "page" : undefined}
-                        className={cn(TITLE, "flex rounded-(--radius-control) hover:text-ink", current && CURRENT)}
+                        className={cn(TITLE, "group flex items-center gap-0.5 rounded-(--radius-control) hover:text-ink", current && CURRENT)}
                     >
                         {t(section.labelKey)}
+                        {/* A caret after its name: a page it opens, not a heading alone (the help's), even
+                            with no entry under it (the relay's). */}
+                        <CaretRightIcon aria-hidden="true" data-title-caret="" className="h-3 w-3 shrink-0 opacity-70 group-hover:opacity-100"/>
                     </Link>
                     {alerts[section.id]?.alert && <AlertBadge id={section.id} alert={alerts[section.id].alert}/>}
                 </h2>
             )}
-            {/* Its entries indented under its title, along a line that ties them to it. */}
-            <ul className="ml-2 border-l border-line pl-1">
+            {/* Its entries indented under its title, along a line that ties them to it; none, no line. */}
+            {section.entries.length > 0 && <ul className="ml-2 border-l border-line pl-1">
                 {section.entries.map(({id, to, labelKey, list}) => {
                     const link = list === undefined ? (
                         <NavLink
@@ -206,7 +210,7 @@ function NavSection({section, alerts, onNavigate}) {
                         </li>
                     );
                 })}
-            </ul>
+            </ul>}
         </section>
     );
 }

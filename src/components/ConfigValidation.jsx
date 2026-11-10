@@ -1,7 +1,7 @@
-import React, {useCallback, useState} from "react";
+import React, {useCallback, useEffect, useState} from "react";
 import {useTranslation} from "react-i18next";
 import {Alert} from "../ui/components/Alert";
-import {IconButton} from "../ui/components/Button";
+import {Button, IconButton} from "../ui/components/Button";
 import {Spinner} from "../ui/components/Spinner";
 import {AlertTriangleIcon, CheckIcon, CloseIcon} from "../ui/icons";
 import {cn} from "../ui/cn";
@@ -9,9 +9,9 @@ import {authHeaders, getResponseErrorMessage} from "../services/api.jsx";
 
 /*
  * A configuration validated by the daemon, as `om <path> config validate` does it on
- * its node, and nothing written (POST `.../config/validate`): a draft sent, or the
- * configuration the node holds. Every alert answered, the warnings a write lets
- * through with the errors it refuses.
+ * its node, and nothing written (GET `.../config/validate`): the configuration the
+ * node holds, an object's as loaded on the node, its drivers checking it there.
+ * Every alert answered, the warnings a write lets through with the errors it refuses.
  */
 
 /**
@@ -21,21 +21,18 @@ import {authHeaders, getResponseErrorMessage} from "../services/api.jsx";
 const isRouter404 = (status, body) => status === 404 && body?.message === "Not Found" && !body?.title;
 
 /**
- * Validates the configuration at `url` (the `config/validate` address of an object
- * or a node): `validate(text)` a draft, `validate()` the one held. `result` null
- * before, then {loading}, {alerts}, {error} or {unsupported}; `reset` forgets it,
- * as a draft changed since makes it stale.
+ * Validates the configuration at `url` (the `config/validate` address of a node, or
+ * of an instance of an object on a node): `validate()`. `result` null before, then
+ * {loading}, {alerts}, {error} or {unsupported}; `reset` forgets it, as a
+ * configuration written since makes it stale.
  */
 export function useConfigValidation(url) {
     const [result, setResult] = useState(null);
-    const validate = useCallback(async (text) => {
+    const validate = useCallback(async () => {
+        if (!url) return;
         setResult({loading: true});
         try {
-            const response = await fetch(url, {
-                method: "POST",
-                headers: text === undefined ? authHeaders() : {...authHeaders(), "Content-Type": "application/octet-stream"},
-                ...(text === undefined ? {} : {body: text}),
-            });
+            const response = await fetch(url, {headers: authHeaders(), cache: "no-cache"});
             if (!response.ok) {
                 const body = await response.clone().json().catch(() => null);
                 if (isRouter404(response.status, body)) {
@@ -52,6 +49,10 @@ export function useConfigValidation(url) {
         }
     }, [url]);
     const reset = useCallback(() => setResult(null), []);
+    // Another node, another object: what was found there is not of this one.
+    useEffect(() => {
+        setResult(null);
+    }, [url]);
     return {result, validate, reset};
 }
 
@@ -122,12 +123,15 @@ export function ConfigValidationResult({result, onClose}) {
     );
 }
 
-/** The button validating the configuration held, in the tools over its text. */
+/**
+ * The button validating the configuration held, in the tools over its text: its word
+ * beside its icon, as the others there.
+ */
 export function ValidateButton({onClick, disabled}) {
     const {t} = useTranslation();
     return (
-        <IconButton label={t("configValidate.runHeld")} onClick={onClick} disabled={disabled}>
-            <CheckIcon/>
-        </IconButton>
+        <Button size="sm" aria-label={t("configValidate.runHeld")} icon={<CheckIcon/>} onClick={onClick} disabled={disabled}>
+            {t("configValidate.run")}
+        </Button>
     );
 }

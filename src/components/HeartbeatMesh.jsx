@@ -5,6 +5,7 @@ import {RelativeTime} from "../ui/components/RelativeTime";
 import {CARD as CARD_SURFACE} from "./HeartbeatSummary";
 import {RING_INK, StateRing} from "./StateRing";
 import {Dialog} from "../ui/components/Dialog";
+import {useRoomWidth} from "../ui/lib/room-width";
 
 /** The tint of a line: the state of its links, in the oc3 state colours. */
 const STROKE = {up: "stroke-state-up", warn: "stroke-state-warn", down: "stroke-state-down", none: "stroke-line"};
@@ -92,7 +93,9 @@ export function HeartbeatMesh({heartbeatStatus, onSelect, selected}) {
     const id = useId();
     const links = useMemo(() => meshLinks(heartbeatStatus ?? {}), [heartbeatStatus]);
     const nodes = useMemo(() => meshNodes(heartbeatStatus ?? {}, links), [heartbeatStatus, links]);
-    const layout = useMemo(() => meshLayout(nodes, links), [nodes, links]);
+    // Laid out for the width it is drawn in: narrow, its circle tighter, its names read.
+    const [square, room] = useRoomWidth();
+    const layout = useMemo(() => meshLayout(nodes, links, room), [nodes, links, room]);
     // What is hovered or focused, a half, a whole line or a node; what was clicked, a half or a line.
     const [hovered, setHovered] = useState(null);
     const [pinned, setPinned] = useState(null);
@@ -140,6 +143,7 @@ export function HeartbeatMesh({heartbeatStatus, onSelect, selected}) {
             <div className="overflow-hidden rounded-(--radius-panel) border border-line bg-surface-raised">
             {/* The ground of the drawing clicked, no line kept. */}
             <div
+                ref={square}
                 className="relative aspect-square w-full"
                 onClick={(event) => {
                     if (event.target.closest?.("[data-group]")) return;

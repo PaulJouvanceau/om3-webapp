@@ -271,7 +271,10 @@ const FeedRow = React.memo(({log, isOpen, onToggle}) => {
                     event.preventDefault();
                     onToggle();
                 }}
-                className="col-span-full grid cursor-pointer grid-cols-subgrid items-baseline px-2 py-0.5 hover:bg-surface-sunken focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--focus-ring)"
+                // Narrow, not a column a part: the time, the type and the node on a line, its
+                // object and its data on the next two, across the width, rather than its data
+                // cut to a few characters in a column of its own.
+                className="col-span-full grid cursor-pointer grid-cols-subgrid items-baseline px-2 py-0.5 hover:bg-surface-sunken focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--focus-ring) max-md:flex max-md:flex-wrap max-md:gap-x-2"
             >
                 {/* A caret before the time says the line opens, turned once open; the
                     time, the type under it in its tone. */}
@@ -281,20 +284,20 @@ const FeedRow = React.memo(({log, isOpen, onToggle}) => {
                         data-caret=""
                         className={cn("mt-px h-4 w-4 shrink-0 text-ink transition-transform", isOpen && "rotate-90")}
                     />
-                    <span className="flex flex-col">
+                    <span className="flex flex-col max-md:flex-row max-md:flex-wrap max-md:gap-x-2">
                         <span className="text-ink-muted">{formatTimestamp(log.timestamp, i18n.language)}</span>
                         <span data-tone={tone} className={TONE_CLASSES[tone]}>{log.eventType}</span>
                     </span>
                 </span>
                 <span className="text-ink-muted" data-node="">{node ?? ""}</span>
                 {/* What it is about apart, by a line: its object, a small badge; its data under. */}
-                <span className="flex min-w-0 flex-col border-l border-line pl-2">
+                <span className="flex min-w-0 flex-col border-l border-line pl-2 max-md:line-clamp-2 max-md:basis-full max-md:border-l-0 max-md:pl-0 max-md:break-all">
                     {path && (
-                        <span className="flex flex-wrap gap-1 font-sans" data-meta="">
+                        <span className="flex flex-wrap gap-1 font-sans max-md:mr-1.5 max-md:inline-flex" data-meta="">
                             <span className="rounded-full border border-line/60 px-1.5 text-[0.6875rem] leading-4 text-ink-muted">{path}</span>
                         </span>
                     )}
-                    <span className="truncate text-ink-muted" data-text="">{preview}</span>
+                    <span className="truncate text-ink-muted max-md:inline max-md:whitespace-normal" data-text="">{preview}</span>
                 </span>
             </div>
             {isOpen && (

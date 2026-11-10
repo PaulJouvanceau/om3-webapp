@@ -21,17 +21,19 @@ const TOLD_ONLY = new Set(["tasks", "read", "write"]);
 function GroupName({node}) {
     const {t} = useTranslation();
     const mono = (name) => <span className="font-mono text-data text-ink-muted">{name}</span>;
+    // Two parts, its name and its slice: narrow, the slice under the name rather than past the card.
+    const pair = "inline-flex items-center gap-x-2 max-md:min-w-0 max-md:flex-wrap";
     // The root cgroup, as systemd-cgtop names it.
-    if (node.kind === "host") return <span className="inline-flex items-center gap-2">{mono("/")}<span>{t("clusterUsage.host")}</span></span>;
+    if (node.kind === "host") return <span className={pair}>{mono("/")}<span>{t("clusterUsage.host")}</span></span>;
     if (node.kind === "slice") return mono(node.name);
     if (node.kind === "rest") return <span className="text-ink-muted">{t("clusterUsage.rest")}</span>;
     const slice = mono(node.kind === "opensvc" ? "opensvc.slice" : `opensvc-ns.${node.name}.slice`);
     if (node.kind === "opensvc") return slice;
-    if (node.kind === "namespace") return <span className="inline-flex items-center gap-2"><CrossLink kind="namespace" id={node.name}>{node.name}</CrossLink>{slice}</span>;
+    if (node.kind === "namespace") return <span className={pair}><CrossLink kind="namespace" id={node.name}>{node.name}</CrossLink>{slice}</span>;
     if (node.kind === "object") return <CrossLink kind="object" id={node.name}>{node.name}</CrossLink>;
     if (node.kind === "instance") return <InstanceLink path={node.path} node={node.name}/>;
     // A subset of the resources, a group of its own; a resource, its panel on that instance.
-    if (node.kind === "subset") return <span className="inline-flex items-center gap-2">{node.name}<span className="text-data text-ink-muted">{t("clusterUsage.subset")}</span></span>;
+    if (node.kind === "subset") return <span className={pair}>{node.name}<span className="text-data text-ink-muted">{t("clusterUsage.subset")}</span></span>;
     if (node.kind === "resource") return <CrossLink kind="resource" id={resourceId(node.path, node.name, node.node)}>{node.name}</CrossLink>;
     return <span className="text-ink-muted">{t("clusterUsage.other")}</span>;
 }
@@ -85,15 +87,24 @@ export function UsageTreeTable({tree, limits = false}) {
                 </HeaderRow>
             </thead>
             <tbody>
-                {rows.map(({n, depth}) => (
+                {rows.map(({n, depth}) => {
+                    const marked = n.kind === "opensvc" || n.kind === "host" || n.focus;
+                    return (
                     <Row
                         key={n.key}
                         data-group={n.key}
                         aria-current={n.focus || undefined}
-                        className={n.kind === "opensvc" || n.kind === "host" || n.focus ? "font-semibold" : undefined}
+                        // A line marked, bold; narrow, its rows as cards, its name alone, not
+                        // its titles and figures: the cards drawn alike.
+                        className={marked ? "font-semibold max-md:font-normal" : undefined}
                     >
                         <Cell className="whitespace-nowrap">
-                            <span className="inline-flex items-center gap-1.5" style={{paddingLeft: `${depth * 1.25}rem`}}>
+                            {/* Its depth, an indent in a table; narrow, a card each, none: its name
+                                beside its title, on its line, a long one wrapped in its room. */}
+                            <span
+                                className={`inline-flex items-center gap-1.5 max-md:min-w-0 max-md:flex-1 max-md:items-baseline max-md:pl-0! ${marked ? "max-md:font-semibold" : ""}`}
+                                style={{paddingLeft: `${depth * 1.25}rem`}}
+                            >
                                 {n.children.length > 0 && n.kind !== "host" ? (
                                     <button
                                         type="button"
@@ -113,7 +124,8 @@ export function UsageTreeTable({tree, limits = false}) {
                         {limits && <Cell className="tabular-nums">{limit(n.usage.limit)}</Cell>}
                         {figures.map((key) => <Cell key={key} className="tabular-nums">{ioFigure(key, n.usage[key], i18n.language)}</Cell>)}
                     </Row>
-                ))}
+                    );
+                })}
             </tbody>
         </Table>
     );

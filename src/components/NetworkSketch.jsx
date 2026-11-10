@@ -3,6 +3,7 @@ import {useTranslation} from "react-i18next";
 import {usePeek} from "../app/panel-search";
 import {sectionValues} from "../app/heartbeat-config";
 import {CHAR_WIDTH, sketchLayout} from "../app/network-sketch";
+import {TOUCH_QUERY, useMediaQuery} from "../ui/lib/media";
 import {Sketch} from "./Sketch";
 
 /**
@@ -15,6 +16,7 @@ import {Sketch} from "./Sketch";
 export function NetworkSketch({network, section, nodes, addresses}) {
     const {t} = useTranslation();
     const peek = usePeek();
+    const touch = useMediaQuery(TOUCH_QUERY);
     const computed = t("networks.sketch.computed");
     // The routes of a routed bridge: through a mesh of tunnels, unless never, its policy and mode said when set.
     const values = useMemo(() => sectionValues(section ?? null), [section]);
@@ -28,7 +30,8 @@ export function NetworkSketch({network, section, nodes, addresses}) {
         values,
         nodes,
         addresses,
-    }, computed.length * CHAR_WIDTH, routeLabel.length * CHAR_WIDTH), [network, values, nodes, addresses, computed, routeLabel]);
+        touch,
+    }, computed.length * CHAR_WIDTH, routeLabel.length * CHAR_WIDTH), [network, values, nodes, addresses, touch, computed, routeLabel]);
 
     return (
         <Sketch

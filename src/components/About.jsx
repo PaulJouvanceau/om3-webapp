@@ -87,7 +87,8 @@ export function About() {
             </Section>
 
             <Section id="licenses" title={t("about.licenses.title")}>
-                <ul className="space-y-0.5">
+                {/* Apart on a touch screen: a link a finger, not the next one. */}
+                <ul className="space-y-0.5 pointer-coarse:space-y-2.5">
                     {SOURCES.map((s) => (
                         <li key={s.name}>
                             <a className={`${LINK} font-mono`} href={s.url}>{s.name}</a>

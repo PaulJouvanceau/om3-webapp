@@ -155,6 +155,24 @@ describe('NetworkDetails Component', () => {
         expect(screen.getByText('Hide filters')).toBeInTheDocument();
     });
 
+    test('narrow, the filters stacked under their button, a line each, the fields lined up', () => {
+        render(
+            <MemoryRouter initialEntries={['/network/default']}>
+                <Routes>
+                    <Route path="/network/:networkName" element={<NetworkDetails/>}/>
+                </Routes>
+            </MemoryRouter>
+        );
+        const filters = document.querySelector('[data-filters]');
+        expect(filters).toHaveClass('max-md:flex-col', 'max-md:items-stretch');
+        expect(screen.getByRole('button', {name: 'Hide filters'})).toHaveClass('max-md:self-start');
+        for (const name of ['Node', 'Path', 'RID']) {
+            const field = screen.getByLabelText(name);
+            expect(field).toHaveClass('max-md:w-full');
+            expect(field.closest('label')).toHaveClass('max-md:grid', 'max-md:grid-cols-[4rem_minmax(0,1fr)]');
+        }
+    });
+
     test('toggles filter visibility on button click', async () => {
         axios.get.mockResolvedValueOnce({data: {items: mockIpDetails}});
 
@@ -250,6 +268,27 @@ describe('NetworkDetails Component', () => {
             expect(screen.getByText('192.168.1.3')).toBeInTheDocument();
             expect(screen.queryByText('192.168.1.2')).not.toBeInTheDocument();
         });
+        vi.useRealTimers();
+    });
+
+    test('a filter keeps the letters typed before the list is filtered', async () => {
+        vi.useFakeTimers();
+        axios.get.mockResolvedValueOnce({data: {items: mockIpDetails}});
+        render(
+            <MemoryRouter initialEntries={['/network/default']}>
+                <Routes>
+                    <Route path="/network/:networkName" element={<NetworkDetails/>}/>
+                </Routes>
+            </MemoryRouter>
+        );
+        await waitFor(() => expect(screen.getByText('192.168.1.1')).toBeInTheDocument());
+        const nodeInput = screen.getByLabelText('Node');
+        // Typed faster than the pause filtering the list: every letter in the field still.
+        fireEvent.change(nodeInput, {target: {value: 'n'}});
+        fireEvent.change(nodeInput, {target: {value: 'no'}});
+        expect(nodeInput).toHaveValue('no');
+        vi.advanceTimersByTime(300);
+        await waitFor(() => expect(nodeInput).toHaveValue('no'));
         vi.useRealTimers();
     });
 

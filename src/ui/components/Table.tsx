@@ -6,7 +6,7 @@ import type {
   TdHTMLAttributes,
   ThHTMLAttributes,
 } from "react";
-import { useLayoutEffect, useRef } from "react";
+import { type RefObject, useLayoutEffect, useRef } from "react";
 import { cn } from "../cn";
 import { CARDS, CARDS_ALWAYS, labelCells, useTableCards } from "./table-cards";
 
@@ -99,6 +99,44 @@ export function Table({
  * For the root of a page of a list, whose side panel slides over it.
  */
 export const LIST_PAGE_FIT = "2xl:w-fit 2xl:max-w-full";
+
+/**
+ * The root of a page of a list whose rows scroll in their table (`sticky`), its
+ * tools above held in view. On a small screen, a phone upright or on its side, those
+ * tools and the intro of the page left only a few rows to see: there, the rows run
+ * in the page, which scrolls as one, and the tools marked `data-list-tools` stay at
+ * its top while rows are selected, their actions at hand (index.css).
+ */
+export const LIST_PAGE = "list-page";
+
+/**
+ * Gives the page of a list the heights its lines opening a group stick under
+ * (`data-group-row`, index.css): of the header of its table (`--list-head`), and of
+ * its tools (`--list-tools`), held at its top on a small screen. Measured again as
+ * they change, or as the page does: its tools come and go with its width.
+ */
+export function useListOffsets(page: RefObject<HTMLElement | null>): void {
+  useLayoutEffect(() => {
+    const root = page.current;
+    if (root === null || typeof ResizeObserver !== "function") return;
+    const observer = new ResizeObserver(() => {
+      measure();
+    });
+    const measure = () => {
+      const head = root.querySelector("thead");
+      const tools = root.querySelector<HTMLElement>("[data-list-tools]");
+      root.style.setProperty("--list-head", `${head?.offsetHeight ?? 0}px`);
+      root.style.setProperty("--list-tools", `${tools?.offsetHeight ?? 0}px`);
+      if (head) observer.observe(head);
+      if (tools) observer.observe(tools);
+    };
+    measure();
+    observer.observe(root);
+    return () => {
+      observer.disconnect();
+    };
+  }, [page]);
+}
 
 /**
  * Wide enough for the tools of a list beside its table (`FilterRail`): its filters as

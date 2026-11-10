@@ -1,12 +1,12 @@
 import React, {useState, useEffect, useRef, useMemo, useReducer, useCallback} from "react";
 import {Dialog} from "../ui/components/Dialog";
-import {Button, IconButton} from "../ui/components/Button";
+import {Button} from "../ui/components/Button";
 import {Checkbox, Textarea} from "../ui/components/Field";
 import {Alert} from "../ui/components/Alert";
 import {Spinner} from "../ui/components/Spinner";
 import {CodeIcon, EyeIcon, EyeOffIcon, FileIcon, PencilIcon, SlidersIcon, UploadIcon} from "../ui/icons";
 import {formatSeconds, useAutoHide} from "../ui/lib/reveal";
-import {URL_OBJECT} from "../config/apiPath.js";
+import {URL_NODE, URL_OBJECT} from "../config/apiPath.js";
 import {parseObjectPath} from "../utils/objectUtils";
 import {useTranslation} from "react-i18next";
 import {ConfigText} from "./ConfigText";
@@ -17,6 +17,7 @@ import {PROBLEM_TITLE_HELD, forceLifts, readProblem, withWriteParams} from "../a
 import {useIsRoot} from "../hooks/useGrants";
 import {ForceRefusal} from "./ConfigWriteControls";
 import ConfigEvalDialog from "./ConfigEvalDialog";
+import {ConfigValidationResult, ValidateButton, useConfigValidation} from "./ConfigValidation";
 import useEventStore from "../hooks/useEventStore.js";
 import {newId, withId} from "../app/object-create";
 import {designChanges, designStart, parseDesign, rootOnlyKind} from "../app/object-design";
@@ -366,6 +367,12 @@ const ConfigSection = ({
     const [updateConfigDialogOpen, setUpdateConfigDialogOpen] = useState(false);
     // The keywords evaluated, as on a node of the object (om config eval --impersonate).
     const [evalOpen, setEvalOpen] = useState(false);
+    // The configuration validated as loaded on the node read, its drivers checking it
+    // there (om <path> config validate): stale once a change is written.
+    const validation = useConfigValidation(configNode && !absent ? (() => {
+        const {namespace, kind, name} = parseObjectPath(decodedObjectName);
+        return `${URL_NODE}/${encodeURIComponent(configNode)}/instance/path/${namespace}/${kind}/${name}/config/validate`;
+    })() : null);
     const scope = useEventStore((s) => s.objectStatus?.[decodedObjectName]?.scope);
     const [newConfigFile, setNewConfigFile] = useState(null);
     // Why the daemon refused the file uploaded, and who may write it anyway.
@@ -474,6 +481,7 @@ const ConfigSection = ({
             await trackWrite(response, {action: "config", label, subject: decodedObjectName, path: decodedObjectName}, refusal);
             if (absent) setCreated(true);
             setEdit(null);
+            validation.reset();
             if (configNode) await fetchConfig(configNode, true);
         } catch (err) {
             trackRefused({action: "config", label: t("actionTray.writes.configFile"), subject: decodedObjectName, reason: err.message});
@@ -547,6 +555,7 @@ const ConfigSection = ({
             }
             if (absent) setCreated(true);
             if (configNode) {
+                validation.reset();
                 await fetchConfig(configNode, true);
                 setConfigDialogOpen(true);
             }
@@ -617,6 +626,7 @@ const ConfigSection = ({
             setDesignBase(null);
             setDesign(null);
             if (configNode) {
+                validation.reset();
                 await fetchConfig(configNode, true);
                 setConfigDialogOpen(true);
             }
@@ -677,7 +687,9 @@ const ConfigSection = ({
                     </div>
                 ) : (
                     <>
-                        <div className="flex items-center justify-end gap-1">
+                        {/* Each button its word beside its icon: what it does read before a click,
+                            on a touch screen with no hover too. Narrow, on more lines. */}
+                        <div className="flex flex-wrap items-center justify-end gap-1.5">
                             {configData !== null && !configLoading && (
                                 <p className="mr-auto text-data text-ink-muted">
                                     {showSecrets
@@ -687,52 +699,74 @@ const ConfigSection = ({
                             )}
                             {/* The text shown copied: its secrets masked unless shown. */}
                             {shownText !== null && !configLoading && (
-                                <CopyButton size="md" text={shownText} label={t("config.view.copy")}/>
+                                <CopyButton text={shownText} label={t("config.view.copy")} word={t("config.view.copyShort")}/>
                             )}
-                            {!absent && <IconButton
-                                label={showSecrets ? t("config.view.hideSecrets") : t("config.view.showSecrets")}
-                                aria-pressed={showSecrets}
-                                onClick={() => setShowSecrets((shown) => !shown)}
-                                // Hidden at any time, a slow read in clear dropped.
-                                disabled={configLoading && !showSecrets}
-                            >
-                                {showSecrets ? <EyeOffIcon/> : <EyeIcon/>}
-                            </IconButton>}
-                            <IconButton
-                                label={t("config.view.editFile")}
+                            {!absent && (
+                                <Button
+                                    size="sm"
+                                    aria-label={showSecrets ? t("config.view.hideSecrets") : t("config.view.showSecrets")}
+                                    aria-pressed={showSecrets}
+                                    icon={showSecrets ? <EyeOffIcon/> : <EyeIcon/>}
+                                    onClick={() => setShowSecrets((shown) => !shown)}
+                                    // Hidden at any time, a slow read in clear dropped.
+                                    disabled={configLoading && !showSecrets}
+                                >
+                                    {showSecrets ? t("config.view.hideSecretsShort") : t("config.view.showSecretsShort")}
+                                </Button>
+                            )}
+                            <Button
+                                size="sm"
+                                aria-label={t("config.view.editFile")}
+                                // The file edited: the pencil.
+                                icon={<PencilIcon/>}
                                 onClick={startEdit}
                                 disabled={actionLoading || editLoading || (!configNode && !absent)}
                             >
-                                {/* The file edited: the pencil. */}
-                                <PencilIcon/>
-                            </IconButton>
+                                {t("config.view.editShort")}
+                            </Button>
                             {/* The whole file uploaded, its parameters set: not from a section. */}
                             {section === null && (
                                 <>
-                                    <IconButton
-                                        label={t("config.view.uploadFile")}
+                                    <Button
+                                        size="sm"
+                                        aria-label={t("config.view.uploadFile")}
+                                        icon={<UploadIcon/>}
                                         onClick={() => setUpdateConfigDialogOpen(true)}
                                         disabled={actionLoading}
                                     >
-                                        <UploadIcon/>
-                                    </IconButton>
-                                    <IconButton
-                                        label={t("config.view.manageParams")}
+                                        {t("config.view.uploadShort")}
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        aria-label={t("config.view.manageParams")}
+                                        // The configuration designed, its sections and keywords: the sliders.
+                                        icon={<SlidersIcon/>}
                                         onClick={openDesign}
                                         disabled={actionLoading}
                                     >
-                                        {/* The configuration designed, its sections and keywords: the sliders. */}
-                                        <SlidersIcon/>
-                                    </IconButton>
-                                    {/* None yet: nothing to evaluate. */}
+                                        {t("config.view.designShort")}
+                                    </Button>
+                                    {/* None yet: nothing to evaluate, nor to validate. */}
                                     {!absent && (
-                                        <IconButton label={t("configEval.open")} onClick={() => setEvalOpen(true)}>
-                                            <CodeIcon/>
-                                        </IconButton>
+                                        <Button
+                                            size="sm"
+                                            aria-label={t("configEval.open")}
+                                            icon={<CodeIcon/>}
+                                            onClick={() => setEvalOpen(true)}
+                                        >
+                                            {t("config.view.evaluateShort")}
+                                        </Button>
+                                    )}
+                                    {!absent && (
+                                        <ValidateButton
+                                            onClick={() => void validation.validate()}
+                                            disabled={!configNode || validation.result?.loading === true}
+                                        />
                                     )}
                                 </>
                             )}
                         </div>
+                        {section === null && <ConfigValidationResult result={validation.result} onClose={validation.reset}/>}
                         {absent && <p className="text-ink-muted">{t("config.view.absent")}</p>}
                         {!absent && !configNode && !configLoading && !configError && (
                             <p className="text-ink-muted">{t("config.view.noInstance")}</p>

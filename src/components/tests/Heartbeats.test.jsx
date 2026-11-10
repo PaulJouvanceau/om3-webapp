@@ -310,7 +310,7 @@ describe("Heartbeats Component", () => {
         await i18n.changeLanguage("fr");
         try {
             renderWithRouter(<Heartbeats/>);
-            expect(screen.getByRole("columnheader", {name: "Dernier battement"})).toBeInTheDocument();
+            expect(screen.getByRole("columnheader", {name: "Dernière émission"})).toBeInTheDocument();
             expect(screen.getByText("Aucun heartbeat ne correspond aux filtres actuels.")).toBeInTheDocument();
         } finally {
             await i18n.changeLanguage("en");

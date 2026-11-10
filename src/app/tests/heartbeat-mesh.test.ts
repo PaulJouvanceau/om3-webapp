@@ -276,6 +276,25 @@ describe("the relays in the centre", () => {
     }
   });
 
+  test("drawn narrow, a phone: the circle tighter, the drawing shrunk less, the lines still off the relay", () => {
+    const status = {
+      n1: { streams: [{ id: "hb#2.tx", type: "relay", state: "running", peers: { n2: { is_beating: true, desc: "→ c1@relay3.example.com:3333" } } }] },
+      n2: { streams: [{ id: "hb#2.rx", type: "relay", state: "running", peers: { n1: { is_beating: true, desc: "← c1@relay3.example.com:3333" } } }] },
+    };
+    const wide = meshLayout(["n1", "n2"], meshLinks(status));
+    const narrow = meshLayout(["n1", "n2"], meshLinks(status), 340);
+    expect(narrow.width).toBeLessThan(wide.width * 0.75);
+    // As wide a room as the usual drawing, nothing changed.
+    expect(meshLayout(["n1", "n2"], meshLinks(status), 1000).width).toBe(wide.width);
+    const r = narrow.relays[0];
+    for (const g of narrow.groups) {
+      for (const t of [0.25, 0.5, 0.75]) {
+        const m = at(g.path, t);
+        expect(Math.abs(m.x - r.x) > r.width / 2 || Math.abs(m.y - r.y) > r.height / 2).toBe(true);
+      }
+    }
+  });
+
   test("no relay heartbeat: none in the centre", () => {
     const status = { n1: { streams: [{ id: "hb#1.tx", type: "unicast", state: "running", peers: { n2: { is_beating: true, desc: "→ 10.0.0.2:10011" } } }] }, n2: { streams: [] } };
     expect(meshLayout(["n1", "n2"], meshLinks(status)).relays).toEqual([]);

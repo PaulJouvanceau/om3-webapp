@@ -1,7 +1,7 @@
 import React, {useId, useMemo} from "react";
 import {useTranslation} from "react-i18next";
 import {cn} from "../ui/cn";
-import {InfoIcon, PlusIcon, StopIcon} from "../ui/icons";
+import {PlusIcon, StopIcon} from "../ui/icons";
 import {heartbeatsOf, nodesOf, routinesOf} from "../app/heartbeat-summary";
 import {meshLinks} from "../app/heartbeat-mesh";
 
@@ -235,22 +235,12 @@ export function HeartbeatSummary({heartbeatStatus, onToggle, busy, onOpenHeartbe
                 </ul>
             </section>
             <section aria-labelledby={routinesId} className="min-w-0 space-y-2" data-box="routines">
-                {/* Its title, and how to act on a routine at the right of it, light; in an icon
-                    when the box is too narrow for it. */}
-                <div className="@container flex items-baseline justify-between gap-3">
+                {/* Its title, and how to act on a routine at the right of it, light; under it
+                    when the box is too narrow, its words wrapped: no icon that a tap would not open. */}
+                <div className="@container flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                     <h2 id={routinesId} className="font-semibold">{t("heartbeats.summary.routines")}</h2>
                     {onToggle && (
-                        <>
-                            <p className="hidden truncate text-data text-ink-muted @md:block" data-hint="">{t("heartbeats.summary.toggleHint")}</p>
-                            <span
-                                role="img"
-                                aria-label={t("heartbeats.summary.toggleHint")}
-                                className="self-center text-ink-muted @md:hidden"
-                                data-hint-icon=""
-                            >
-                                <InfoIcon className="h-4 w-4"/>
-                            </span>
-                        </>
+                        <p className="min-w-0 text-data text-ink-muted @md:truncate" data-hint="">{t("heartbeats.summary.toggleHint")}</p>
                     )}
                 </div>
                 {/* As high as its zones, all of them shown: the page scrolls, not the box. */}

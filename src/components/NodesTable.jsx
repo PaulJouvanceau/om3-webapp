@@ -11,7 +11,7 @@ import {URL_NODE_INFO} from "../config/apiPath.js";
 import {nodeMenuItems, postNodeAction} from "../app/node-actions";
 import {useTranslation} from "react-i18next";
 import {NodeActionDialog} from "./NodeActionDialog";
-import {Table, HeaderRow, HeaderCell, SortHeaderCell, EmptyRow, LIST_RAIL_QUERY} from "../ui/components/Table";
+import {Table, HeaderRow, HeaderCell, SortHeaderCell, EmptyRow, LIST_PAGE, LIST_RAIL_QUERY} from "../ui/components/Table";
 import {Checkbox} from "../ui/components/Field";
 import {Button, IconButton} from "../ui/components/Button";
 import {MenuButton} from "../ui/components/MenuButton";
@@ -338,6 +338,8 @@ const NodesTable = () => {
                 <Button
                     size="sm"
                     variant="create"
+                    // Nodes selected on a phone, the tools of the selection alone on its line.
+                    className={selectedNodes.length > 0 ? "max-md:hidden" : undefined}
                     icon={<PlusIcon className="h-4 w-4"/>}
                     onClick={() => setEnrollOpen(true)}
                 >
@@ -350,8 +352,9 @@ const NodesTable = () => {
                 <>
                     <span className="whitespace-nowrap text-ink-muted">{t("common.selected", {count: selectedNodes.length})}</span>
                     <MenuButton
-                        // The actions: a solid pill.
+                        // The actions: a solid pill, said in a word on a phone too.
                         prominent
+                        worded
                         icon={<BoltIcon className="h-3.5 w-3.5"/>}
                         label={t("nodes.bulkActions")}
                         align={align}
@@ -376,11 +379,12 @@ const NodesTable = () => {
     );
 
     return (
-        <div ref={page} className="flex gap-6 p-4">
+        <div ref={page} className={`flex gap-6 p-4 ${LIST_PAGE}`}>
             <div className="min-w-0 flex-1 space-y-3">
                 {/* Wide, the tools at the head of the rail and the filters in it; narrower, over the table. */}
                 {!hasRail && (
-                    <div className="flex min-h-7 flex-wrap items-center gap-3">
+                    <div data-list-tools="" data-selecting={selectedNodes.length > 0 ? "" : undefined}
+                         className="flex min-h-7 flex-wrap items-center gap-3">
                         <FilterToolbar
                             facets={facets}
                             search={search}

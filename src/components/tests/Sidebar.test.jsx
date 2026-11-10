@@ -54,6 +54,16 @@ describe('Sidebar', () => {
         for (const name of ['Cluster', 'Objects']) expect(within(section(name)).getByRole('list')).toHaveClass('ml-2', 'border-l', 'pl-1');
     });
 
+    test('a title opening a page, a caret after its name, the relay of no entry too; a heading alone, none', () => {
+        renderSidebar();
+        const caret = (name) => screen.getByRole('heading', {name}).querySelector('[data-title-caret]');
+        for (const name of ['Cluster', 'Relay', 'Objects']) expect(caret(name)).toBeInTheDocument();
+        expect(caret('Help')).toBeNull();
+        expect(within(screen.getByRole('heading', {name: 'Relay'})).getByRole('link', {name: 'Relay'})).toHaveAttribute('href', '/relay');
+        // No entry, no empty list under it.
+        expect(within(section('Relay')).queryByRole('list')).not.toBeInTheDocument();
+    });
+
     test('each entry where it leads: the heartbeats are the links, each list of objects its tab of the Objects page', () => {
         renderSidebar();
         const hrefs = Object.fromEntries(screen.getAllByRole('link').map((link) => [link.textContent, link.getAttribute('href')]));

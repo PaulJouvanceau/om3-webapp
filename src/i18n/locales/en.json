@@ -239,6 +239,25 @@
     "value": "Value",
     "evaluated": "Evaluated"
   },
+  "configValidate": {
+    "title": "Validation of the configuration",
+    "run": "Validate",
+    "runHeld": "Validate the configuration",
+    "checking": "Validating the configuration",
+    "unsupported": "This daemon does not validate a configuration: it is older than the validation.",
+    "failed": "The configuration could not be validated: {{message}}",
+    "none": "The configuration is valid: no error, no warning.",
+    "errors_one": "{{count}} error",
+    "errors_other": "{{count}} errors",
+    "warnings_one": "{{count}} warning",
+    "warnings_other": "{{count}} warnings",
+    "refused": "a write with errors is refused",
+    "levels": {
+      "error": "Error",
+      "warning": "Warning"
+    },
+    "close": "Close the validation"
+  },
   "actions": {
     "labels": {
       "start": "Start",
@@ -399,6 +418,13 @@
       "empty": "No configuration available.",
       "noSection": "No section [{{section}}] in the configuration.",
       "copy": "Copy the configuration shown",
+      "copyShort": "Copy",
+      "showSecretsShort": "Show secrets",
+      "hideSecretsShort": "Hide secrets",
+      "editShort": "Edit",
+      "uploadShort": "Upload",
+      "designShort": "Design",
+      "evaluateShort": "Evaluate",
       "absent": "No configuration yet: it is created with the first change written."
     },
     "feedback": {
@@ -2044,6 +2070,7 @@
   "panel": {
     "resize": "Resize the panel",
     "tabs": {
+      "label": "Views of {{name}}",
       "status": "Status",
       "usage": "Usage",
       "capacity": "Capacity",

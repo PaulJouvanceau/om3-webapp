@@ -55,6 +55,8 @@ describe("SlideOver", () => {
     const panel = screen.getByRole("dialog", { name: "node-1" });
     expect(panel).toHaveAttribute("inert");
     expect(panel).toHaveClass("translate-x-full");
+    // No shadow slid away: it would fall back over the window's edge, a grey bar.
+    expect(panel).not.toHaveClass("shadow-lg");
     expect(screen.getByText("Body")).toBeInTheDocument();
   });
 
@@ -67,7 +69,7 @@ describe("SlideOver", () => {
     const panel = screen.getByRole("dialog", { name: "node-1" });
     expect(panel).toHaveAttribute("aria-modal", "false");
     expect(panel).not.toHaveAttribute("inert");
-    expect(panel).toHaveClass("translate-x-0");
+    expect(panel).toHaveClass("translate-x-0", "shadow-lg");
     expect(screen.getByRole("heading", { name: "node-1" })).toBeInTheDocument();
   });
 

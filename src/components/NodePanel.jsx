@@ -26,6 +26,7 @@ import {FrozenMark} from "../ui/components/FrozenMark";
 import {RelativeTime} from "../ui/components/RelativeTime";
 import {BoltIcon, CodeIcon, EyeIcon, EyeOffIcon, PencilIcon, RefreshIcon, ResetIcon, SearchIcon} from "../ui/icons";
 import ConfigEvalDialog from "./ConfigEvalDialog";
+import {ConfigValidationResult, ValidateButton, useConfigValidation} from "./ConfigValidation";
 import {formatSeconds, useAutoHide} from "../ui/lib/reveal";
 import {formatBytes, formatSizeMiB} from "../ui/lib/format";
 import {NodeDaemon} from "./NodeDaemon";
@@ -395,6 +396,9 @@ function NodeStatusTab({node, onOrchestrationLogs}) {
         setFocusGroup(sectionId);
     };
     const valueOf = (p) => {
+        // The agent the node runs, as its status says it: the properties are a cache the
+        // daemon writes when it pushes the asset, an upgrade since still told the old one.
+        if (p.name === "version" && status?.agent) return status.agent;
         if (p.error) return <span className="text-ink-muted">{p.error}</span>;
         if (isUnset(p)) return <span className="text-ink-muted">{none}</span>;
         // The memory in bytes, readable.
@@ -508,7 +512,8 @@ function NodeStatusTab({node, onOrchestrationLogs}) {
 function Facts({facts}) {
     return (
         // The labels in a column of one width in every block: the values aligned from one block to the next.
-        <dl className="grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)] items-baseline gap-x-6 gap-y-1">
+        // Narrow, a narrower one: the room to the values, a version or an id on its line.
+        <dl className="grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)] items-baseline gap-x-6 gap-y-1 max-md:grid-cols-[minmax(0,8rem)_minmax(0,1fr)] max-md:gap-x-3">
             {facts.map(([key, label, value]) => (
                 <React.Fragment key={key}>
                     <dt className="break-words text-ink-muted">{label}</dt>
@@ -799,6 +804,9 @@ function NodeConfig({node}) {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState(null);
     const [evalOpen, setEvalOpen] = useState(false);
+    // The configuration validated on the node, the cluster's merged (om node config
+    // validate): stale once the file is written.
+    const validation = useConfigValidation(nodeUrl(node, "config/validate"));
 
     // The file as stored, its secrets in clear: what an edit starts from and writes back.
     const read = async () => {
@@ -841,6 +849,7 @@ function NodeConfig({node}) {
             }
             trackDone(write);
             setEdit(null);
+            validation.reset();
             file.reload();
         } catch (err) {
             trackRefused({...write, reason: err.message});
@@ -879,7 +888,8 @@ function NodeConfig({node}) {
 
     return (
         <div className="space-y-2">
-            <div className="flex items-center justify-end gap-1">
+            {/* Each button its word beside its icon, as in the configuration of an object. */}
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
                 {file.data !== null && !file.loading && (
                     <p className="mr-auto text-data text-ink-muted">
                         {showSecrets
@@ -887,21 +897,25 @@ function NodeConfig({node}) {
                             : t("config.view.secretsHidden")}
                     </p>
                 )}
-                <IconButton
-                    label={showSecrets ? t("config.view.hideSecrets") : t("config.view.showSecrets")}
+                <Button
+                    size="sm"
+                    aria-label={showSecrets ? t("config.view.hideSecrets") : t("config.view.showSecrets")}
                     aria-pressed={showSecrets}
+                    icon={showSecrets ? <EyeOffIcon/> : <EyeIcon/>}
                     onClick={() => setShowSecrets((shown) => !shown)}
                     disabled={file.loading}
                 >
-                    {showSecrets ? <EyeOffIcon/> : <EyeIcon/>}
-                </IconButton>
-                <IconButton label={t("nodePanel.config.edit")} onClick={startEdit} disabled={file.loading}>
-                    <PencilIcon/>
-                </IconButton>
-                <IconButton label={t("configEval.open")} onClick={() => setEvalOpen(true)}>
-                    <CodeIcon/>
-                </IconButton>
+                    {showSecrets ? t("config.view.hideSecretsShort") : t("config.view.showSecretsShort")}
+                </Button>
+                <Button size="sm" aria-label={t("nodePanel.config.edit")} icon={<PencilIcon/>} onClick={startEdit} disabled={file.loading}>
+                    {t("config.view.editShort")}
+                </Button>
+                <Button size="sm" aria-label={t("configEval.open")} icon={<CodeIcon/>} onClick={() => setEvalOpen(true)}>
+                    {t("config.view.evaluateShort")}
+                </Button>
+                <ValidateButton onClick={() => void validation.validate()} disabled={validation.result?.loading === true}/>
             </div>
+            <ConfigValidationResult result={validation.result} onClose={validation.reset}/>
             {/* The node's own configuration, evaluated on it: no other node to impersonate. */}
             <ConfigEvalDialog open={evalOpen} onClose={() => setEvalOpen(false)} configUrl={nodeUrl(node, "config")}
                               subject={node} nodes={null}/>

@@ -1,5 +1,6 @@
-import React from "react";
+import React, {useState} from "react";
 import {useHref, useNavigate} from "react-router-dom";
+import {useRoomWidth} from "../ui/lib/room-width";
 
 const RING_RADIUS = 52;
 const ROUND = 2 * Math.PI * RING_RADIUS;
@@ -9,18 +10,32 @@ export const RING_INK = {up: "text-state-up", warn: "text-state-warn", down: "te
 /** The room of the labels: on each side of the ring, its width; and their least gap, one above the other. */
 const LABEL_ROOM = 64;
 const LABEL_GAP = 11;
+/**
+ * The size of the labels in the drawing, and the least they are read at, in pixels:
+ * the drawing shrunk to a phone, its labels larger in it, not smaller than that.
+ */
+const LABEL_SIZE = 8;
+const LABEL_READ = 11.5;
 /** How far to a side the middle of an arc stands for its label to leave from it (the sine of its angle). */
 const SIDEWAYS = 0.6;
 /** Where a label's line leaves the ring, outside its stroke, and where it turns along the label. */
 const LEAD_FROM = RING_RADIUS + 5;
 const LEAD_TO = RING_RADIUS + 12;
+/**
+ * The width of the stroke of the ring; of an arc pointed at, its own page opened by a
+ * click, thicker, said to open; of the whole ring on a card pointed at, its link, a
+ * little thicker.
+ */
+const STROKE = 8;
+const STROKE_POINTED = 13;
+const ARC_GROWS = "transition-[stroke-width] duration-150 [[data-card]:hover_&]:[stroke-width:10]";
 
 /**
  * The labels of the arcs, each `\_ word count` from the middle of its arc out: on the
  * side of the ring the middle stands, one above the other with room between them, kept
  * in the drawing.
  */
-function placeLabels(arcs, cx, cy, height) {
+function placeLabels(arcs, cx, cy, height, gap = LABEL_GAP) {
     const placed = arcs.map((arc) => {
         // From its middle; near the top or the bottom of the ring, from the point of the arc
         // farthest to a side, its label beside the ring rather than under or over it.
@@ -47,29 +62,41 @@ function placeLabels(arcs, cx, cy, height) {
     });
     for (const right of [true, false]) {
         const side = placed.filter((l) => l.right === right).sort((a, b) => a.y - b.y);
-        for (let i = 1; i < side.length; i += 1) side[i].y = Math.max(side[i].y, side[i - 1].y + LABEL_GAP);
+        for (let i = 1; i < side.length; i += 1) side[i].y = Math.max(side[i].y, side[i - 1].y + gap);
         // Pushed past the bottom: back up, the gaps kept.
         const over = (side.at(-1)?.y ?? 0) - (height - 4);
         if (over > 0) for (const l of side) l.y -= over;
-        for (const l of side) l.y = Math.max(l.y, 10);
+        // Its text in the drawing, however large: its line under its top.
+        for (const l of side) l.y = Math.max(l.y, gap - 1);
     }
     return placed;
 }
 
-/** A label opening a page: a link of the drawing, the page of the app opened in place. */
-function LabelLink({to, title, children}) {
+/**
+ * A label opening a page: a link of the drawing, the page of the app opened in place.
+ * `hidden`, a second way to the page of a label, for the pointer alone: out of the
+ * keyboard and of assistive tools, which have the label. `onPoint`, told true as the
+ * pointer or the focus comes on it, false as it leaves.
+ */
+function LabelLink({to, title, hidden = false, onPoint, children}) {
     const href = useHref(to);
     const navigate = useNavigate();
     return (
         <a
             href={href}
-            aria-label={title}
+            aria-label={hidden ? undefined : title}
+            tabIndex={hidden ? -1 : undefined}
+            onMouseEnter={() => onPoint?.(true)}
+            onMouseLeave={() => onPoint?.(false)}
+            onFocus={() => onPoint?.(true)}
+            onBlur={() => onPoint?.(false)}
             onClick={(e) => {
                 if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                 e.preventDefault();
                 navigate(to);
             }}
-            className="outline-none focus-visible:[&_text]:underline"
+            // Taken by the pointer, the ring around it letting it through (StateRing).
+            className="pointer-events-auto cursor-pointer outline-none focus-visible:[&_text]:underline"
         >
             {children}
         </a>
@@ -81,7 +108,10 @@ function LabelLink({to, title, children}) {
  * `parts` as [name, count, stroke class, label?], those of none left out, on a grey
  * track; in it, `children`, its figures and words. `total`, the whole, the sum of the
  * parts unless said. A part's `label` ({word, to, title}): `\_ word count` drawn from
- * its arc out, beside the ring, a link to `to` when given.
+ * its arc out, beside the ring, a link to `to` when given, its arc one too.
+ *
+ * Clicked or tapped elsewhere than a link of its own, the ring lets it through, to the
+ * link under it: on the overview, the card holding it, its whole surface its link.
  */
 export function StateRing({parts, total = parts.reduce((sum, [, count]) => sum + count, 0), children}) {
     let start = 0;
@@ -96,29 +126,57 @@ export function StateRing({parts, total = parts.reduce((sum, [, count]) => sum +
     const labelled = parts.some(([, , , label]) => label);
     const width = labelled ? 120 + 2 * LABEL_ROOM : 120;
     const cx = width / 2;
-    const labels = labelled ? placeLabels(arcs.filter((a) => a.label), cx, 60, 120) : [];
+    // Its labels read on a phone: as large in the drawing as its shrinking asks.
+    const [box, room] = useRoomWidth();
+    const size = room ? Math.max(LABEL_SIZE, (LABEL_READ * width) / room) : LABEL_SIZE;
+    const labels = labelled ? placeLabels(arcs.filter((a) => a.label), cx, 60, 120, Math.max(LABEL_GAP, size + 3)) : [];
+    // The part of a page pointed at, by its arc or its label: its arc thicker, its label underlined.
+    const [pointed, setPointed] = useState(null);
+    const point = (part) => (on) => setPointed((was) => (on ? part : was === part ? null : was));
     return (
-        <div className={labelled ? "relative aspect-[248/120] w-full max-w-[23rem]" : "relative size-44"}>
+        <div ref={box} className={`pointer-events-none ${labelled ? "relative aspect-[248/120] w-full max-w-[23rem]" : "relative size-44"}`}>
             <svg viewBox={`0 0 ${width} 120`} className="size-full overflow-visible">
                 <g aria-hidden="true" transform={`rotate(-90 ${cx} 60)`}>
-                    <circle cx={cx} cy="60" r={RING_RADIUS} fill="none" strokeWidth="8" className="stroke-surface-sunken"/>
-                    {arcs.map(({part, length, start: from, stroke}) => (
-                        <circle
-                            key={part}
-                            data-arc={part}
-                            cx={cx}
-                            cy="60"
-                            r={RING_RADIUS}
-                            fill="none"
-                            strokeWidth="8"
-                            strokeDasharray={`${length} ${ROUND}`}
-                            strokeDashoffset={-from}
-                            className={stroke}
-                        />
-                    ))}
+                    <circle cx={cx} cy="60" r={RING_RADIUS} fill="none" strokeWidth={STROKE} className={`stroke-surface-sunken ${ARC_GROWS}`}/>
+                    {arcs.map(({part, length, start: from, stroke, label}) => {
+                        const arc = (
+                            <circle
+                                key={part}
+                                data-arc={part}
+                                cx={cx}
+                                cy="60"
+                                r={RING_RADIUS}
+                                fill="none"
+                                strokeWidth={STROKE}
+                                strokeDasharray={`${length} ${ROUND}`}
+                                strokeDashoffset={-from}
+                                data-pointed={pointed === part ? "" : undefined}
+                                style={pointed === part ? {strokeWidth: STROKE_POINTED} : undefined}
+                                className={`${stroke} ${ARC_GROWS}`}
+                            />
+                        );
+                        if (!label?.to) return arc;
+                        // An arc of a page, as its label: its link, wider than the arc for a finger.
+                        return (
+                            <LabelLink key={part} to={label.to} hidden onPoint={point(part)}>
+                                {arc}
+                                <circle
+                                    data-arc-link={part}
+                                    cx={cx}
+                                    cy="60"
+                                    r={RING_RADIUS}
+                                    fill="none"
+                                    stroke="transparent"
+                                    strokeWidth="20"
+                                    strokeDasharray={`${length} ${ROUND}`}
+                                    strokeDashoffset={-from}
+                                />
+                            </LabelLink>
+                        );
+                    })}
                 </g>
                 {labels.length > 0 && (
-                    <g data-ring-labels="" className="text-[8px]">
+                    <g data-ring-labels="" style={{fontSize: `${size}px`}}>
                         {labels.map((l) => {
                             const end = l.right ? width - 2 : 2;
                             const drawn = (
@@ -129,7 +187,7 @@ export function StateRing({parts, total = parts.reduce((sum, [, count]) => sum +
                                         x={end}
                                         y={l.y - 2}
                                         textAnchor={l.right ? "end" : "start"}
-                                        className="fill-current"
+                                        className={pointed === l.part ? "fill-current underline" : "fill-current"}
                                     >
                                         <tspan className="fill-ink-muted">{l.label.word}</tspan>
                                         <tspan className="font-semibold tabular-nums">{` ${l.count}`}</tspan>
@@ -137,7 +195,7 @@ export function StateRing({parts, total = parts.reduce((sum, [, count]) => sum +
                                 </g>
                             );
                             return l.label.to
-                                ? <LabelLink key={l.part} to={l.label.to} title={l.label.title}>{drawn}</LabelLink>
+                                ? <LabelLink key={l.part} to={l.label.to} title={l.label.title} onPoint={point(l.part)}>{drawn}</LabelLink>
                                 : <React.Fragment key={l.part}>{drawn}</React.Fragment>;
                         })}
                     </g>

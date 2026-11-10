@@ -157,6 +157,16 @@ describe('KeysSection', () => {
         expect(add).toHaveTextContent(/^Add$/);
     });
 
+    test('narrow, the title and its buttons on a line, the help on the next, the title whole', async () => {
+        mockFetch({keys: [{name: 'k', node: 'n', size: 100}]});
+        await renderAndWait('root/sec/sec1', 1);
+        const title = screen.getByRole('heading', {name: /Object Keys/});
+        expect(title).toHaveClass('whitespace-nowrap', 'max-md:mr-auto');
+        expect(title.parentElement).toHaveClass('flex-wrap');
+        const help = screen.getByText('Check keys to select them.').parentElement;
+        expect(help).toHaveClass('max-md:order-last', 'max-md:basis-full', 'max-md:ml-0');
+    });
+
     test('the key shown, edited or removed from its dialog: the dialog of the action in its place', async () => {
         mockFetch({keys: [{name: 'k', node: 'n', size: 5}], keyBlob: makeMockBlob(encodeText('hello'))});
         await renderAndWait('root/cfg/cfg1', 1);
