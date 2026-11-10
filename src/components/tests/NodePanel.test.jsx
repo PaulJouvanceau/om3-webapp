@@ -224,11 +224,19 @@ describe('NodeDetailPanel', () => {
     });
 
     test('the last boot an age, its date hovered', async () => {
-        renderPanel();
-        const node = await within(panel()).findByRole('region', {name: 'Node'});
-        const age = node.querySelector('time');
-        expect(age).toHaveAttribute('datetime', '2026-10-10T12:08:50.000Z');
-        expect(age).toHaveTextContent(/ago|day|week/);
+        // The clock set, the age the same whatever the day the test runs: the
+        // timers left real, for the panel to be waited for.
+        vi.useFakeTimers({toFake: ['Date']});
+        vi.setSystemTime(new Date('2026-10-13T12:08:50Z'));
+        try {
+            renderPanel();
+            const node = await within(panel()).findByRole('region', {name: 'Node'});
+            const age = node.querySelector('time');
+            expect(age).toHaveAttribute('datetime', '2026-10-10T12:08:50.000Z');
+            expect(age).toHaveTextContent('3 days ago');
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     test('the labels as badges, those of the cluster dashed; root edits them in a buffer, applied in one write', async () => {
