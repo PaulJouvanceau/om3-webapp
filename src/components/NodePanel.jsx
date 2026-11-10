@@ -396,6 +396,9 @@ function NodeStatusTab({node, onOrchestrationLogs}) {
         setFocusGroup(sectionId);
     };
     const valueOf = (p) => {
+        // The agent the node runs, as its status says it: the properties are a cache the
+        // daemon writes when it pushes the asset, an upgrade since still told the old one.
+        if (p.name === "version" && status?.agent) return status.agent;
         if (p.error) return <span className="text-ink-muted">{p.error}</span>;
         if (isUnset(p)) return <span className="text-ink-muted">{none}</span>;
         // The memory in bytes, readable.

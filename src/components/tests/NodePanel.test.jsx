@@ -215,6 +215,14 @@ describe('NodeDetailPanel', () => {
         expect(useActionTracker.getState().tracked.some((e) => e.label === 'Update 2 organisation properties' && e.state === 'succeeded')).toBe(true);
     });
 
+    test('the agent version the one the node runs, not the one cached at the last asset push', async () => {
+        api['system/property'].items.push({data: {name: 'version', source: 'probe', title: 'agent version', value: '.0.0-rc40-0-g791130387', error: ''}});
+        renderPanel();
+        const node = await within(panel()).findByRole('region', {name: 'Node'});
+        expect(node).toHaveTextContent('Agent versionv3.0.0-rc46');
+        expect(node).not.toHaveTextContent('rc40');
+    });
+
     test('the last boot an age, its date hovered', async () => {
         renderPanel();
         const node = await within(panel()).findByRole('region', {name: 'Node'});
