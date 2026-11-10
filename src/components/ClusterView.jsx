@@ -12,6 +12,7 @@ import {groupState, meshLinks} from "../app/heartbeat-mesh";
 import {CrossLink} from "../app/CrossLink";
 import {storeSource} from "../app/store-config";
 import {kindOf, useMenuState} from "../hooks/useSidebarAlerts";
+import {parseObjectPath} from "../utils/objectUtils.jsx";
 import {useClusterNodeOrder} from "../hooks/useClusterNodeOrder";
 import {usePgReadings} from "../hooks/usePgUsage";
 import {IO_FIGURES, sumUsage} from "../app/pg-usage";
@@ -478,11 +479,11 @@ export default function ClusterView() {
     const kinds = Object.entries(paths.reduce((acc, p) => ({...acc, [kindOf(p)]: (acc[kindOf(p)] ?? 0) + 1}), {}))
         .sort(([a], [b]) => kindRank(a) - kindRank(b) || a.localeCompare(b));
 
-    // The namespaces, by the objects they hold: "ns/kind/name" of its namespace, "kind/name" and a bare name of the root one.
+    // The namespaces, by the objects they hold: "ns/kind/name" of its namespace, "kind/name" and a bare name of the root one,
+    // "ns/" its configuration, of the namespace it names ("/" of the root one).
     const byNamespace = paths.reduce((acc, p) => {
-        const parts = p.split("/");
-        const ns = parts.length === 3 ? parts[0] : "root";
-        if (kindOf(p) !== "ccfg") acc[ns] = (acc[ns] ?? 0) + 1;
+        const {namespace} = parseObjectPath(p);
+        if (kindOf(p) !== "ccfg") acc[namespace] = (acc[namespace] ?? 0) + 1;
         return acc;
     }, {});
     const busiest = Object.entries(byNamespace).sort(([a, x], [b, y]) => y - x || a.localeCompare(b)).slice(0, SHOWN);

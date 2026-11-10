@@ -88,6 +88,14 @@ limit = 2
   test("a claim without a limit caps nothing", () => {
     expect(parseClaims("[claim#1]\ntype = pool\nname = p\n")).toEqual([{ type: "pool", name: "p", limit: undefined, section: "claim#1", raw: undefined }]);
   });
+
+  test("a value continued on the lines under its key, as om3 reads one: held whole, no line of it a key", () => {
+    const [claim] = parseClaims("[claim#1]\ntype = pool\nname = p\nlimit@n1 = 1g\n  limit = 5g\nlimit = 10g\n  more\n");
+    // The indented "limit = 5g" continues the scoped limit, no cluster-wide one; the limit continued, no size.
+    expect(claim).toEqual({ type: "pool", name: "p", limit: undefined, section: "claim#1", raw: "10g\n  more" });
+    // A blank line ends a value: the indented line after it is none of it, a key of its own, as om3 reads it.
+    expect(parseClaims("[claim#1]\ntype = pool\nname = p\nlimit = 10g\n\n  name = q\n")[0]).toMatchObject({ name: "q", limit: 10 * 1024 ** 3 });
+  });
 });
 
 describe("usage", () => {

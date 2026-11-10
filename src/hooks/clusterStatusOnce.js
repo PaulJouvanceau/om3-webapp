@@ -10,7 +10,7 @@ import logger from "../utils/logger.js";
 
 let reading = null;
 
-/** Forgets the status read, for the tests. */
+/** Forgets the status read: at the end of a session (app/session), and for the tests. */
 export const resetClusterStatus = () => {
     reading = null;
 };

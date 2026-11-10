@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ActionTray, formatDuration } from "../ActionTray";
-import { trackAccepted, trackPoll, trackRefused, trackResponse, useActionTracker } from "../action-tracker";
+import { type Tracked, trackAccepted, trackPoll, trackRefused, trackResponse, useActionTracker } from "../action-tracker";
 import { resetClusterStatus } from "../../hooks/clusterStatusOnce";
 import useEventStore from "../../hooks/useEventStore.js";
 
@@ -281,6 +281,39 @@ describe("ActionTray, the warnings of a write", () => {
     const list = within(tray).getByRole("list", { name: /What went wrong beside/ });
     expect(within(list).getByText("ns1/svc/oc3 volume#1: refresh failed")).toBeInTheDocument();
     expect(list).toHaveClass("text-state-warn");
+  });
+});
+
+describe("ActionTray, an orchestration aborted", () => {
+  const aborted = (steps: Tracked["steps"]): Tracked => ({
+    id: "a1",
+    action: "start",
+    subject: "ns1/svc/web",
+    kind: "orchestration",
+    followedId: "o1",
+    node: "n1",
+    state: "aborted",
+    startedAt: 0,
+    endedAt: 1,
+    steps,
+  });
+
+  test("its run already under way went on to its end: said so, the action done all the same", () => {
+    useActionTracker.setState({
+      tracked: [aborted([{ execId: "e1", node: "n1", title: "start", state: "succeeded" }])],
+    });
+    render(<ActionTray />);
+    const status = within(openTray()).getByText(/^Aborted/, { selector: "p" });
+    expect(status).toHaveTextContent("Aborted · the run under way on n1 went on to its end");
+    expect(status).toHaveClass("text-state-warn");
+  });
+
+  test("aborted before any run: aborted alone", () => {
+    useActionTracker.setState({ tracked: [aborted([])] });
+    render(<ActionTray />);
+    const status = within(openTray()).getByText(/^Aborted/, { selector: "p" });
+    expect(status).toHaveTextContent(/^Aborted$/);
+    expect(status).not.toHaveClass("text-state-warn");
   });
 });
 

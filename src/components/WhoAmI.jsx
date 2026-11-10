@@ -12,7 +12,7 @@ import {Link, useNavigate} from "react-router-dom";
 import logger from '../utils/logger.js';
 import {useApiNode} from "../hooks/useApiNode";
 import {useDarkMode} from "../context/DarkModeContext";
-import {clearObjectCache} from "../hooks/useEventStore.js";
+import {broadcastLogout} from "../app/session";
 import {LANGUAGES, LANGUAGE_NAMES, isLanguage, setLanguage} from "../i18n";
 import {useReleaseCheck} from "../app/release-check";
 import {APP_VERSION, isRelease} from "../app/version";
@@ -114,11 +114,12 @@ const WhoAmI = () => {
             void userManager.signoutRedirect();
             void userManager.removeUser();
         }
+        // What the session held forgotten here (AuthProvider), then in the other tabs.
         localStorage.removeItem("authToken");
-        clearObjectCache();
         if (authDispatch) {
             authDispatch({type: Logout});
         }
+        broadcastLogout();
         navigate("/auth-choice");
     };
 

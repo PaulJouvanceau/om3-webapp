@@ -2452,6 +2452,8 @@
     "noStep": "Waiting for the nodes to run it…",
     "exitCode": "exit code {{code}}",
     "gone": "the daemon no longer knows how it ended",
+    "ranAnyway_one": "the run under way on {{nodes}} went on to its end",
+    "ranAnyway_other": "the runs under way on {{nodes}} went on to their end",
     "reasons": {
       "unknownObject": "the object is not known",
       "alreadyFrozen": "already frozen",
@@ -2544,7 +2546,7 @@
     },
     "abort": {
       "label": "Abort",
-      "description": "Abort the orchestration of the node in progress."
+      "description": "Abort the orchestration of the node in progress: what it has yet to do is not done. A run already under way goes on to its end."
     },
     "asset": {
       "label": "Asset",
@@ -2654,7 +2656,7 @@
       "unfreeze": "Let the daemon start it and act on it again.",
       "switch": "Stop the running instance and start it on the next preferred node.",
       "giveback": "Stop the misplaced instances and start them on the preferred nodes.",
-      "abort": "Abort the orchestration in progress.",
+      "abort": "Abort the orchestration in progress: what it has yet to do is not done. A run already under way on a node, a start or a stop, goes on to its end.",
       "enable": "Act on it again: the actions no longer skip it.",
       "disable": "Skip it on the actions; what runs is left as it is.",
       "provision": "Allocate the system resources its resources need on its nodes: format a filesystem, create a volume…",
@@ -3668,7 +3670,7 @@
       },
       "actionAbort": {
         "term": "Abort",
-        "definition": "Cancel the cluster-wide action in progress."
+        "definition": "Cancel the cluster-wide action in progress: the steps it has yet to take. A run already under way on a node, a start or a stop, goes on to its end."
       },
       "actionClear": {
         "term": "Clear",

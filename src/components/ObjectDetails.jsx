@@ -7,10 +7,10 @@ import {MenuButton} from "../ui/components/MenuButton";
 import {SlideOver} from "../ui/components/SlideOver";
 import {Spinner} from "../ui/components/Spinner";
 import {BoltIcon, CloseIcon} from "../ui/icons";
+import {useShallow} from "zustand/react/shallow";
 import useEventStore from "../hooks/useEventStore.js";
 import {retainEventReception} from "../eventSourceManager.jsx";
-import {URL_NODE, URL_OBJECT} from "../config/apiPath.js";
-import {getResponseErrorMessage} from "../services/api.jsx";
+import {URL_OBJECT} from "../config/apiPath.js";
 import ActionDialogManager from "../components/ActionDialogManager";
 import HeaderSection from "./HeaderSection";
 import ConfigSection from "./ConfigSection";
@@ -20,16 +20,10 @@ import LogsViewer from "./LogsViewer";
 import {INSTANCE_ACTIONS, KEY_KINDS, OBJECT_ACTIONS, actionLabel} from "../constants/actions";
 import {parseObjectPath} from "../utils/objectUtils.jsx";
 import {orchestrationOf} from "./OrchestrationBadge";
-import {trackRefused, trackResponse} from "../app/action-tracker";
-import {actionSubject, refusalReason} from "./objectActions";
+import {postAction} from "./objectActions";
 import logger from "../utils/logger";
 import {explainedMenu} from "../app/action-menu";
 import {childrenDown} from "../app/statusboard";
-
-const DEFAULT_CHECKBOXES = {failover: false};
-const DEFAULT_STOP_CHECKBOX = false;
-const DEFAULT_UNPROVISION_CHECKBOXES = {dataLoss: false, serviceInterruption: false};
-const DEFAULT_PURGE_CHECKBOXES = {dataLoss: false, configLoss: false, serviceInterruption: false};
 
 /** The feedback message hides itself after a while, as the snackbar did. */
 const FEEDBACK_DURATION_MS = 5000;
@@ -77,7 +71,16 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
 
     const objectStatus = useEventStore((s) => s.objectStatus[decodedObjectName]);
     const objectInstanceStatus = useEventStore((s) => s.objectInstanceStatus[decodedObjectName]);
-    const instanceMonitor = useEventStore((s) => s.instanceMonitor);
+    // The monitors of this object's instances alone, by node: the map of them all,
+    // replaced at each monitor event in the cluster, would render the page at each.
+    const instanceMonitor = useEventStore(useShallow((s) => {
+        const monitors = {};
+        for (const node of Object.keys(s.objectInstanceStatus[decodedObjectName] ?? {})) {
+            const monitor = s.instanceMonitor[`${node}:${decodedObjectName}`];
+            if (monitor) monitors[node] = monitor;
+        }
+        return monitors;
+    }));
     const instanceConfig = useEventStore((s) => s.instanceConfig[decodedObjectName]);
 
     const [configNode, setConfigNode] = useState(/** @type {string | null} */ (null));
@@ -89,15 +92,6 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
     const [pendingAction, setPendingAction] = useState(/** @type {any} */ (null));
     const [actionInProgress, setActionInProgress] = useState(false);
 
-    const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
-    const [stopDialogOpen, setStopDialogOpen] = useState(false);
-    const [unprovisionDialogOpen, setUnprovisionDialogOpen] = useState(false);
-    const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
-    const [simpleDialogOpen, setSimpleDialogOpen] = useState(false);
-    const [checkboxes, setCheckboxes] = useState(DEFAULT_CHECKBOXES);
-    const [stopCheckbox, setStopCheckbox] = useState(DEFAULT_STOP_CHECKBOX);
-    const [unprovisionCheckboxes, setUnprovisionCheckboxes] = useState(DEFAULT_UNPROVISION_CHECKBOXES);
-    const [purgeCheckboxes, setPurgeCheckboxes] = useState(DEFAULT_PURGE_CHECKBOXES);
     const [snackbar, setSnackbar] = useState({open: false, message: "", severity: "success"});
 
     const [initialLoading, setInitialLoading] = useState(true);
@@ -135,8 +129,7 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
 
         if (objectInstanceStatus) {
             for (const node of Object.keys(objectInstanceStatus)) {
-                const monitorKey = `${node}:${decodedObjectName}`;
-                const monitor = instanceMonitor[monitorKey] || {};
+                const monitor = instanceMonitor[node] || {};
                 if (!globalExpect && monitor.global_expect && monitor.global_expect !== "none") {
                     ({globalExpect, orchestrationId} = orchestrationOf([monitor]));
                 }
@@ -160,7 +153,7 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
             enhanced[node] = {
                 ...objectInstanceStatus[node],
                 instanceConfig: instanceConfig?.[node] || {resources: {}},
-                instanceMonitor: instanceMonitor[`${node}:${decodedObjectName}`] || {resources: {}},
+                instanceMonitor: instanceMonitor[node] || {resources: {}},
             };
         });
         return enhanced;
@@ -170,7 +163,7 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
     const isChildrenDown = childrenDown(
         decodedObjectName,
         objectStatus?.avail,
-        nodesList.map((node) => instanceMonitor[`${node}:${decodedObjectName}`]),
+        nodesList.map((node) => instanceMonitor[node]),
     );
 
     const fetchFallbackData = useCallback(async () => {
@@ -308,108 +301,49 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
         return () => clearTimeout(timer);
     }, [snackbar, closeSnackbar]);
 
-    const postActionUrl = useCallback(({node, objectName, action}) => {
-        const {namespace, kind, name} = parseObjectPath(objectName);
-        const endpoint = INSTANCE_ACTIONS.find((a) => a.name === action)?.endpoint ?? action;
-        return `${URL_NODE}/${encodeURIComponent(node)}/instance/path/${encodeURIComponent(namespace)}/${encodeURIComponent(kind)}/${encodeURIComponent(name)}/action/${endpoint}`;
-    }, []);
-
-    // What comes of an action, accepted or refused, the actions tray says.
-    const postObjectAction = useCallback(async ({action}) => {
-        const token = localStorage.getItem("authToken");
-        if (!token) return openSnackbar(t("objectDetails.feedback.authTokenNotFound"), "error");
+    // An action with the options set in its dialog, posted as the other views post
+    // theirs (postAction): what comes of it, accepted or refused, the actions tray says.
+    const runAction = useCallback(async (target) => {
+        if (!localStorage.getItem("authToken")) return openSnackbar(t("objectDetails.feedback.authTokenNotFound"), "error");
         setActionInProgress(true);
-        const endpoint = OBJECT_ACTIONS.find((a) => a.name === action)?.endpoint ?? `action/${action}`;
-        const url = `${URL_OBJECT}/${encodeURIComponent(namespace)}/${encodeURIComponent(kind)}/${encodeURIComponent(name)}/${endpoint}`;
-        const subject = decodedObjectName;
         try {
-            const res = await fetch(url, {method: "POST", headers: {Authorization: `Bearer ${token}`}});
-            if (!res.ok) {
-                const detail = await getResponseErrorMessage(res);
-                trackRefused({action, subject, reason: refusalReason({status: res.status, detail})});
-                return;
-            }
-            await trackResponse(res, {action, subject, path: decodedObjectName});
-        } catch (err) {
-            trackRefused({action, subject, reason: err.message});
+            await postAction({path: decodedObjectName, ...target});
         } finally {
             setActionInProgress(false);
         }
-    }, [decodedObjectName, openSnackbar, namespace, kind, name, t]);
+    }, [decodedObjectName, openSnackbar, t]);
 
-    const postNodeAction = useCallback(async ({node, action}) => {
-        const token = localStorage.getItem("authToken");
-        if (!token) return openSnackbar(t("objectDetails.feedback.authTokenNotFound"), "error");
-        setActionInProgress(true);
-        const url = postActionUrl({node, objectName: decodedObjectName, action});
-        const subject = actionSubject({path: decodedObjectName, node});
-        try {
-            const res = await fetch(url, {method: "POST", headers: {Authorization: `Bearer ${token}`}});
-            if (!res.ok) {
-                const detail = await getResponseErrorMessage(res);
-                trackRefused({action, subject, reason: refusalReason({status: res.status, detail})});
-                return;
-            }
-            await trackResponse(res, {action, subject, node});
-        } catch (err) {
-            trackRefused({action, subject, reason: err.message});
-        } finally {
-            setActionInProgress(false);
-        }
-    }, [decodedObjectName, openSnackbar, postActionUrl, t]);
+    const postObjectAction = useCallback(({action, options}) => runAction({action, options}), [runAction]);
+    const postNodeAction = useCallback(({node, action, options}) => runAction({node, action, options}), [runAction]);
 
+    // The action pending opens its confirmation (ActionDialogManager), its checkboxes its own.
     const openActionDialog = useCallback((action, context = null) => {
         setPendingAction({action, ...(context ? context : {})});
-        if (action === "freeze") {
-            setCheckboxes(DEFAULT_CHECKBOXES);
-            setConfirmDialogOpen(true);
-        } else if (action === "stop") {
-            setStopCheckbox(DEFAULT_STOP_CHECKBOX);
-            setStopDialogOpen(true);
-        } else if (action === "unprovision") {
-            setUnprovisionCheckboxes(DEFAULT_UNPROVISION_CHECKBOXES);
-            setUnprovisionDialogOpen(true);
-        } else if (action === "purge") {
-            setPurgeCheckboxes(DEFAULT_PURGE_CHECKBOXES);
-            setPurgeDialogOpen(true);
-        } else {
-            setSimpleDialogOpen(true);
-        }
     }, []);
 
-    const handleDialogConfirm = useCallback(() => {
+    const handleDialogConfirm = useCallback((_action, options) => {
         if (!pendingAction || !pendingAction.action) {
             setPendingAction(null);
-            setConfirmDialogOpen(false);
-            setStopDialogOpen(false);
-            setUnprovisionDialogOpen(false);
-            setPurgeDialogOpen(false);
-            setSimpleDialogOpen(false);
             return;
         }
         if (pendingAction.batch === "nodes") {
             selectedNodes.forEach(node => {
                 if (!node) return;
-                postNodeAction({node, action: pendingAction.action}).catch((err) => {
+                postNodeAction({node, action: pendingAction.action, options}).catch((err) => {
                     logger.error("[ObjectDetail] postNodeAction failed:", err);
                 });
             });
             setSelectedNodes([]);
         } else if (pendingAction.node && !pendingAction.rid) {
-            postNodeAction({node: pendingAction.node, action: pendingAction.action}).catch((err) => {
+            postNodeAction({node: pendingAction.node, action: pendingAction.action, options}).catch((err) => {
                 logger.error("[ObjectDetail] postNodeAction failed:", err);
             });
         } else {
-            postObjectAction({action: pendingAction.action}).catch((err) => {
+            postObjectAction({action: pendingAction.action, options}).catch((err) => {
                 logger.error("[ObjectDetail] postObjectAction failed:", err);
             });
         }
         setPendingAction(null);
-        setConfirmDialogOpen(false);
-        setStopDialogOpen(false);
-        setUnprovisionDialogOpen(false);
-        setPurgeDialogOpen(false);
-        setSimpleDialogOpen(false);
     }, [pendingAction, selectedNodes, postNodeAction, postObjectAction]);
 
     const toggleNode = useCallback((node) => {
@@ -453,7 +387,7 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
 
     const getNodeState = useCallback((node) => {
         const nodeStatus = objectInstanceStatus?.[node] || {};
-        const monitor = instanceMonitor[`${node}:${decodedObjectName}`] || {};
+        const monitor = instanceMonitor[node] || {};
         const avail = nodeStatus.avail || '';
         const frozen = nodeStatus.frozen_at && nodeStatus.frozen_at !== ZERO_TIME ? "frozen" : "unfrozen";
         const state = monitor.state !== "idle" ? monitor.state : null;
@@ -582,27 +516,8 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
                             ? INSTANCE_ACTIONS.map(a => a.name)
                             : OBJECT_ACTIONS.map(a => a.name)
                     }
-                    onClose={() => {
-                        setPendingAction(null);
-                        setConfirmDialogOpen(false);
-                        setStopDialogOpen(false);
-                        setUnprovisionDialogOpen(false);
-                        setPurgeDialogOpen(false);
-                        setSimpleDialogOpen(false);
-                    }}
-                    confirmDialogOpen={confirmDialogOpen}
-                    stopDialogOpen={stopDialogOpen}
-                    unprovisionDialogOpen={unprovisionDialogOpen}
-                    purgeDialogOpen={purgeDialogOpen}
-                    simpleDialogOpen={simpleDialogOpen}
-                    checkboxes={checkboxes}
-                    setCheckboxes={setCheckboxes}
-                    stopCheckbox={stopCheckbox}
-                    setStopCheckbox={setStopCheckbox}
-                    unprovisionCheckboxes={unprovisionCheckboxes}
-                    setUnprovisionCheckboxes={setUnprovisionCheckboxes}
-                    purgeCheckboxes={purgeCheckboxes}
-                    setPurgeCheckboxes={setPurgeCheckboxes}
+                    nodes={nodesList}
+                    onClose={() => setPendingAction(null)}
                 />
             )}
 

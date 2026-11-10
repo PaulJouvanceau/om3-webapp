@@ -1,5 +1,5 @@
 import React from "react";
-import {render as rtlRender, screen, waitFor, within} from "@testing-library/react";
+import {act, render as rtlRender, screen, waitFor, within} from "@testing-library/react";
 import {MemoryRouter, useLocation} from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import {VolumeFiles, fileOrigin} from "../VolumeFiles.jsx";
@@ -178,6 +178,24 @@ describe("VolumeFiles", () => {
             await screen.findByText("debian.iso");
             await userEvent.upload(screen.getByLabelText("The file to upload"), new File(["x"], "ubuntu.iso"));
             await waitFor(() => expect(uploadFile).toHaveBeenCalledWith(PATH, "n1", expect.objectContaining({name: "ubuntu.iso"}), expect.any(Function), {replace: false, dir: "isos"}));
+        });
+
+        test("a listing answered late, another directory shown meanwhile, never stands for it", async () => {
+            up({n1: "up"});
+            let answerIsos;
+            listFiles.mockImplementation((_p, _n, dir) => (dir === "isos"
+                ? new Promise((resolve) => {
+                    answerIsos = () => resolve({items: ISOS, truncated: false});
+                })
+                : Promise.resolve({items: TOP, truncated: false})));
+            render(<VolumeFiles path={PATH}/>, {at: "/objects?view=isos"});
+            await waitFor(() => expect(listFiles).toHaveBeenCalledWith(PATH, "n1", "isos"));
+            await userEvent.click(within(screen.getByRole("navigation", {name: "Directory"})).getByRole("button", {name: "/"}));
+            expect(await screen.findByText("zz.img")).toBeInTheDocument();
+            await act(async () => answerIsos());
+            expect(screen.getByText("zz.img")).toBeInTheDocument();
+            expect(screen.queryByText("debian.iso")).toBeNull();
+            expect(screen.queryByRole("button", {name: "Delete debian.iso"})).toBeNull();
         });
 
         test("a directory created where shown; a name with a slash or hidden refused before asking", async () => {
@@ -495,5 +513,36 @@ describe("VolumeFiles", () => {
         await userEvent.click(within(dialog).getByRole("button", {name: "Delete"}));
         await waitFor(() => expect(deleteFile).toHaveBeenCalledWith(PATH, "n1", "noble.qcow2", ""));
         await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    });
+
+    test("a file deleted on the node and in the directory it was asked of, the node shown changed meanwhile", async () => {
+        up({n1: "up", n2: "up"});
+        render(<VolumeFiles path={PATH}/>);
+        await screen.findByText("noble.qcow2");
+        await userEvent.selectOptions(screen.getByRole("combobox", {name: "Node"}), "n2");
+        await waitFor(() => expect(listFiles).toHaveBeenLastCalledWith(PATH, "n2", ""));
+        await userEvent.click(await screen.findByRole("button", {name: "Delete noble.qcow2"}));
+        // The instance of n2 down while the dialog is open: n1 shown instead.
+        act(() => up({n1: "up", n2: "down"}));
+        await waitFor(() => expect(listFiles).toHaveBeenLastCalledWith(PATH, "n1", ""));
+        await userEvent.click(within(screen.getByRole("dialog", {name: "Delete noble.qcow2?"})).getByRole("button", {name: "Delete"}));
+        await waitFor(() => expect(deleteFile).toHaveBeenCalledWith(PATH, "n2", "noble.qcow2", ""));
+        expect(deleteFile).not.toHaveBeenCalledWith(PATH, "n1", expect.anything(), expect.anything());
+    });
+
+    test("a replace confirmed sent where it was asked, the node shown changed meanwhile", async () => {
+        up({n1: "up", n2: "up"});
+        uploadFile.mockImplementation(() => ({done: Promise.resolve(), abort: () => {}}));
+        render(<VolumeFiles path={PATH}/>);
+        await screen.findByText("noble.qcow2");
+        await userEvent.selectOptions(screen.getByRole("combobox", {name: "Node"}), "n2");
+        await waitFor(() => expect(listFiles).toHaveBeenLastCalledWith(PATH, "n2", ""));
+        await screen.findByText("noble.qcow2");
+        await userEvent.upload(screen.getByLabelText("The file to upload"), new File(["x"], "noble.qcow2"));
+        const dialog = await screen.findByRole("dialog", {name: /noble.qcow2/});
+        act(() => up({n1: "up", n2: "down"}));
+        await waitFor(() => expect(listFiles).toHaveBeenLastCalledWith(PATH, "n1", ""));
+        await userEvent.click(within(dialog).getByRole("button", {name: "Replace it"}));
+        await waitFor(() => expect(uploadFile).toHaveBeenCalledWith(PATH, "n2", expect.objectContaining({name: "noble.qcow2"}), expect.any(Function), {replace: true, dir: ""}));
     });
 });

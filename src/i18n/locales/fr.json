@@ -271,7 +271,7 @@
       "install": "Installer",
       "switch": "Basculer",
       "giveback": "Restituer",
-      "abort": "Abandonner",
+      "abort": "Interrompre",
       "enable": "Activer",
       "disable": "Désactiver",
       "delete": "Supprimer",
@@ -2452,6 +2452,8 @@
     "noStep": "En attente de son exécution par les nœuds…",
     "exitCode": "code de sortie {{code}}",
     "gone": "le démon ne sait plus comment elle s'est terminée",
+    "ranAnyway_one": "l'exécution déjà lancée sur {{nodes}} est allée à son terme",
+    "ranAnyway_other": "les exécutions déjà lancées sur {{nodes}} sont allées à leur terme",
     "reasons": {
       "unknownObject": "l'objet est inconnu",
       "alreadyFrozen": "déjà gelé",
@@ -2469,7 +2471,7 @@
       "running": "En cours",
       "succeeded": "Réussie",
       "failed": "Échouée",
-      "aborted": "Abandonnée",
+      "aborted": "Interrompue",
       "refused": "Refusée",
       "unknown": "Issue inconnue"
     },
@@ -2544,7 +2546,7 @@
     },
     "abort": {
       "label": "Interrompre",
-      "description": "Abandonner l'orchestration en cours du nœud."
+      "description": "Interrompre l'orchestration en cours du nœud : ce qu'il lui reste à faire n'est pas fait. Une exécution déjà lancée va à son terme."
     },
     "asset": {
       "label": "Matériel",
@@ -2654,7 +2656,7 @@
       "unfreeze": "Permettre de nouveau au démon de le démarrer et d'agir dessus.",
       "switch": "Arrêter l'instance en cours et la démarrer sur le nœud préféré suivant.",
       "giveback": "Arrêter les instances mal placées et les démarrer sur les nœuds préférés.",
-      "abort": "Interrompre l'orchestration en cours.",
+      "abort": "Interrompre l'orchestration en cours : ce qu'il lui reste à faire n'est pas fait. Une exécution déjà lancée sur un nœud, un démarrage ou un arrêt, va à son terme.",
       "enable": "Le réintégrer aux actions : elles ne l'ignorent plus.",
       "disable": "L'exclure des actions ; ce qui tourne reste en l'état.",
       "provision": "Allouer les ressources système dont ses ressources ont besoin sur ses nœuds : formater un système de fichiers, créer un volume…",
@@ -3668,7 +3670,7 @@
       },
       "actionAbort": {
         "term": "Interrompre",
-        "definition": "Annuler l'action en cours sur tout le cluster."
+        "definition": "Annuler l'action en cours sur tout le cluster : les étapes qu'il lui reste. Une exécution déjà lancée sur un nœud, un démarrage ou un arrêt, va à son terme."
       },
       "actionClear": {
         "term": "Effacer",

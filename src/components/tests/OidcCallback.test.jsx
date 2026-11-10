@@ -462,10 +462,11 @@ describe('OidcCallback Component', () => {
         mockUserManager.getUser.mockResolvedValue(mockUser);
         render(<OidcCallback/>);
         await waitFor(() => expect(mockUserManager.getUser).toHaveBeenCalled());
+        mockBroadcastChannel.postMessage.mockClear();
         mockBroadcastChannel.onmessage({data: {type: 'logout'}});
-        expect(mockAuthDispatch).toHaveBeenCalledWith({type: 'SET_ACCESS_TOKEN', data: null});
-        expect(localStorage.getItem('authToken')).toBeNull();
+        // The session is forgotten by the AuthProvider, which hears it too: the page only leaves.
         expect(mockNavigate).toHaveBeenCalledWith('/auth-choice');
+        expect(mockAuthDispatch).not.toHaveBeenCalledWith({type: 'SET_ACCESS_TOKEN', data: null});
     });
 
     test('handles missing BroadcastChannel gracefully', async () => {
@@ -530,9 +531,8 @@ describe('OidcCallback Component', () => {
         expect(localStorage.getItem('tokenExpiration')).toBe('');
     });
 
-    // ── handleLogout with null authDispatch ──────────────────────────
-    test('handleLogout with null authDispatch does not crash', async () => {
-        mockUseAuthDispatch.mockReturnValue(null);
+    // ── A logout heard ───────────────────────────────────────────────
+    test('a logout heard from another tab is told back to no one', async () => {
         mockUseOidc.mockReturnValue({
             userManager: mockUserManager,
             recreateUserManager: mockRecreateUserManager,
@@ -540,10 +540,10 @@ describe('OidcCallback Component', () => {
         mockUserManager.getUser.mockResolvedValue(mockUser);
         render(<OidcCallback/>);
         await waitFor(() => expect(mockUserManager.getUser).toHaveBeenCalled());
+        mockBroadcastChannel.postMessage.mockClear();
         mockBroadcastChannel.onmessage({data: {type: 'logout'}});
-        expect(localStorage.getItem('authToken')).toBeNull();
         expect(mockNavigate).toHaveBeenCalledWith('/auth-choice');
-        expect(mockBroadcastChannel.postMessage).toHaveBeenCalledWith({type: 'logout'});
+        expect(mockBroadcastChannel.postMessage).not.toHaveBeenCalledWith({type: 'logout'});
     });
 
     // ── userManager null ─────────────────────────────────────────────

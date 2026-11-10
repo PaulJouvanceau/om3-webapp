@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { GlobalSearch } from "../GlobalSearch";
+import { GlobalSearch, Highlight } from "../GlobalSearch";
 import { setHistoryGrouping } from "../panel-history";
 import { reloadRecordHistory, useRecordHistory } from "../record-history";
 import { LIMIT_ALL, hitIcon, search, type SearchIndex } from "../search";
@@ -51,6 +51,26 @@ describe("search", () => {
   });
 });
 
+describe("Highlight", () => {
+  const marked = (text: string, query: string) => {
+    const { container } = render(<Highlight text={text} query={query} />);
+    return { text: container.textContent, marks: [...container.querySelectorAll("mark")].map((m) => m.textContent) };
+  };
+
+  test("the matches marked, case-insensitive, the text whole", () => {
+    expect(marked("system/svc/DNS", "dns")).toEqual({ text: "system/svc/DNS", marks: ["DNS"] });
+    expect(marked("a-a-a", "a")).toEqual({ text: "a-a-a", marks: ["a", "a", "a"] });
+  });
+
+  test("a character longer lowered, the marks where the matches are", () => {
+    // "İ" lowered is "i̇", two units: the places after it no longer shift.
+    expect(marked("İstanbul-web", "web")).toEqual({ text: "İstanbul-web", marks: ["web"] });
+    expect(marked("İİ-dns", "dns")).toEqual({ text: "İİ-dns", marks: ["dns"] });
+    // The character itself matched whole.
+    expect(marked("x-İ-y", "i̇")).toEqual({ text: "x-İ-y", marks: ["İ"] });
+  });
+});
+
 function Search() {
   return <output data-testid="location">{decodeURIComponent(useLocation().pathname + useLocation().search)}</output>;
 }
@@ -77,6 +97,19 @@ describe("GlobalSearch", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     fireEvent.keyDown(document.body, { key: "k", ctrlKey: true });
     expect(screen.getByRole("dialog", { name: "Search the cluster" })).toBeInTheDocument();
+  });
+
+  test("in a field, Ctrl K and / its own: no palette, the key not taken", () => {
+    renderSearch();
+    const field = document.body.appendChild(document.createElement("input"));
+    try {
+      for (const key of [{ key: "k", ctrlKey: true }, { key: "k", metaKey: true }, { key: "/" }]) {
+        expect(fireEvent.keyDown(field, key)).toBe(true);
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      }
+    } finally {
+      field.remove();
+    }
   });
 
   test("the shortcut said on the button, but in a narrow window, the button its icon only", () => {
@@ -271,6 +304,8 @@ describe("GlobalSearch, the records shown recently", () => {
     const cross = screen.getByRole("button", { name: "Remove ns1/sec/tls from the history" });
     // Shown on hover, and always on a touch screen: no hover there.
     expect(cross).toHaveClass("opacity-0", "group-hover:opacity-100", "pointer-coarse:opacity-100");
+    // Beside its option, not in it: an option holds no control.
+    for (const option of screen.getAllByRole("option")) expect(option.querySelector("button")).toBeNull();
     fireEvent.click(cross);
     expect(names()).toEqual(["lo"]);
     // Still open, the focus back in the field.

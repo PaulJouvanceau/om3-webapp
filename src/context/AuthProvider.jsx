@@ -2,7 +2,7 @@ import React, {createContext, useCallback, useContext, useEffect, useReducer, us
 import {decodeToken as decodeTokenFromLogin, hasRefreshToken, refreshToken as doRefreshToken} from '../components/Login';
 import {updateEventSourceToken} from '../eventSourceManager';
 import logger from '../utils/logger.js';
-import {clearEditDrafts} from '../app/edit-drafts';
+import {AUTH_CHANNEL, forgetSession} from '../app/session';
 
 const getLocalStorage = () => (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined' ? window.localStorage : null);
 
@@ -37,8 +37,8 @@ const authReducer = (state, action) => {
         case Login:
             return {...state, user: action.data, isAuthenticated: true};
         case Logout: {
-            // The configuration edits kept in progress hold the files in clear: not left to the next user.
-            clearEditDrafts();
+            // Nothing of the session left to the next user. Idempotent, the reducer run twice in StrictMode.
+            forgetSession();
             const browserStorage = getLocalStorage();
             browserStorage?.removeItem('authToken');
             browserStorage?.removeItem('tokenExpiration');
@@ -56,6 +56,8 @@ const authReducer = (state, action) => {
                 // Notify EventSource manager about token update
                 updateEventSourceToken(action.data);
             } else {
+                // No token: the session ended (its renewal refused, the OpenID one ended).
+                forgetSession();
                 browserStorage?.removeItem('authToken');
                 browserStorage?.removeItem('tokenExpiration');
                 browserStorage?.removeItem('refreshToken');
@@ -155,7 +157,7 @@ export const AuthProvider = ({children}) => {
     // Multi-tab synchronization (only in browser)
     useEffect(() => {
         if (typeof BroadcastChannel === 'undefined') return;
-        channel.current = new BroadcastChannel('auth-channel');
+        channel.current = new BroadcastChannel(AUTH_CHANNEL);
         channel.current.onmessage = (event) => {
             const {type, data} = event.data || {};
             if (type === 'tokenUpdated') {

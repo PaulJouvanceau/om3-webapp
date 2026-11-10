@@ -6,7 +6,6 @@ import oidcConfiguration from "../config/oidcConfiguration.js";
 import useAuthInfo from "../hooks/AuthInfo.jsx";
 import {useOidc} from "../context/OidcAuthContext.tsx";
 import logger from '../utils/logger.js';
-import {clearObjectCache} from "../hooks/useEventStore.js";
 import {takeReturn} from '../app/after-login';
 
 const OidcCallback = () => {
@@ -15,23 +14,6 @@ const OidcCallback = () => {
     const authInfo = useAuthInfo();
     const navigate = useNavigate();
     const {t} = useTranslation();
-
-    const handleLogout = useCallback(() => {
-        if (authDispatch) {
-            authDispatch({type: SetAccessToken, data: null});
-        }
-        localStorage.removeItem('authToken');
-        clearObjectCache();
-        localStorage.removeItem('tokenExpiration');
-        localStorage.removeItem('authChoice');
-
-        if (typeof BroadcastChannel !== 'undefined') {
-            const channel = new BroadcastChannel('auth-channel');
-            channel.postMessage({type: 'logout'});
-            channel.close();
-        }
-        navigate('/auth-choice');
-    }, [authDispatch, navigate]);
 
     const onUserRefreshed = useCallback((user) => {
         logger.info("User refreshed:", user.profile?.preferred_username, "expires_at:", user.expires_at);
@@ -116,8 +98,10 @@ const OidcCallback = () => {
         channel.onmessage = (event) => {
             const {type, data, expires_at} = event.data || {};
             if (type === 'logout') {
+                // The session forgotten by the AuthProvider, which hears it too; told
+                // back to no one, or two tabs here would tell each other forever.
                 logger.info('Logout triggered from another tab');
-                handleLogout();
+                navigate('/auth-choice');
             } else if (type === 'tokenUpdated' && data && expires_at) {
                 logger.info('Token updated from another tab');
                 if (authDispatch) {
@@ -128,7 +112,7 @@ const OidcCallback = () => {
             }
         };
         return () => channel.close();
-    }, [authDispatch, handleLogout]);
+    }, [authDispatch, navigate]);
 
     return <>{t('auth.callback.logging')}</>;
 };

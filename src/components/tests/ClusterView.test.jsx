@@ -332,6 +332,23 @@ describe('ClusterView', () => {
         expect(within(card('networks')).getByRole('list', {name: 'The fullest'})).toHaveTextContent(/^backend/);
     });
 
+    test('a namespace configuration, "ns/", of the namespace it names; one holding only it counted', () => {
+        useMenuState.setState({
+            objects: {
+                'ns1/svc/web': {avail: 'up'},
+                'ns1/': {},
+                'ns3/': {},
+                'svc1': {avail: 'up'},
+                '/': {},
+                'cluster': {},
+            },
+        });
+        render(<ClusterView/>, {wrapper: MemoryRouter});
+        expect(within(card('namespaces')).getByRole('list', {name: 'The busiest'}))
+            .toHaveTextContent(/^ns12 objectsroot2 objectsns31 object$/);
+        expect(within(card('namespaces')).getByRole('heading', {level: 2})).toHaveTextContent(/3$/);
+    });
+
     test('the stores, their snapshots, the unreached said; the resources, a ring of those in warn and the others; a list unread said so', async () => {
         const {unmount} = render(<ClusterView/>, {wrapper: MemoryRouter});
         await waitFor(() => expect(card('stores')).toHaveTextContent('17 snapshots · 1 not reached'));

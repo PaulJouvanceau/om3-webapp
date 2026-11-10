@@ -11,13 +11,17 @@ import {
     useAuth,
     useAuthDispatch,
 } from '../AuthProvider';
-import {updateEventSourceToken} from '../../eventSourceManager';
+import {closeEventSource, updateEventSourceToken} from '../../eventSourceManager';
+import {useActionTracker} from '../../app/action-tracker';
 import {decodeToken, hasRefreshToken, refreshToken} from '../../components/Login';
 import logger from '../../utils/logger.js';
 
 // ── Mocks ──────────────────────────────────────────────────────────────
 vi.mock('../../eventSourceManager', () => ({
     updateEventSourceToken: vi.fn(),
+    closeEventSource: vi.fn(),
+    closeLoggerEventSource: vi.fn(),
+    clearEventBuffers: vi.fn(),
 }));
 vi.mock('../../components/Login', () => ({
     decodeToken: vi.fn(),
@@ -66,18 +70,6 @@ const {
 });
 
 // ── Globals ────────────────────────────────────────────────────────────
-const mockUserManager = {
-    signinSilent: mockSigninSilent,
-    events: {
-        addAccessTokenExpired: mockAddAccessTokenExpired,
-        removeAccessTokenExpired: mockRemoveAccessTokenExpired,
-    },
-};
-Object.defineProperty(window, 'oidcUserManager', {
-    value: mockUserManager,
-    writable: true,
-});
-
 global.BroadcastChannel = class {
     constructor() {
         this.onmessage = null;
@@ -555,6 +547,17 @@ describe('AuthProvider', () => {
             expect(logger.info).toHaveBeenCalledWith('Logout triggered from another tab');
             expect(getText('isAuthenticated')).toBe('false');
             expect(getText('accessToken')).toBe('null');
+        });
+
+        test('a logout heard from another tab forgets the session here too', async () => {
+            useActionTracker.setState({tracked: [{id: 'a', action: 'start', subject: 'root/svc/a', state: 'running'}]});
+            renderProvider();
+            click('login');
+            await act(async () => {
+                broadcastInstance.onmessage({data: {type: 'logout'}});
+            });
+            expect(closeEventSource).toHaveBeenCalled();
+            expect(useActionTracker.getState().tracked).toEqual([]);
         });
 
         test.each([

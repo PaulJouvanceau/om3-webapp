@@ -67,8 +67,13 @@ export function VolumeFiles({path}) {
     const nodes = Object.entries(instances ?? {}).filter(([, st]) => AVAILABLE.includes(st?.avail)).map(([n]) => n).sort();
     const [picked, setPicked] = useState("");
     const node = nodes.includes(picked) ? picked : nodes[0];
+    // The listing of a directory of a node, shown only under its own: one answered
+    // late, another directory or node shown meanwhile, never stands for it.
     const [listing, setListing] = useState(null);
-    const files = listing?.items ?? null;
+    const files = listing?.node === node && listing?.dir === dir ? listing.items : null;
+    const lastRead = useRef(0);
+    const shown = useRef("");
+    shown.current = `${node}\0${dir}`;
     const [error, setError] = useState("");
     const [certificateUrl, setCertificateUrl] = useState("");
     const [sending, setSending] = useState(null);
@@ -86,13 +91,20 @@ export function VolumeFiles({path}) {
     const upload = useRef(null);
     const input = useRef(null);
 
+    // The directory shown read, the last read asked winning: one answering after it,
+    // of the directory before a delete or of another, is dropped. Asked of a directory
+    // no longer shown (a delete there ended), nothing read.
     const refresh = useCallback(async () => {
-        if (!node) return;
+        if (!node || shown.current !== `${node}\0${dir}`) return;
+        const read = ++lastRead.current;
         try {
-            setListing(await listFiles(path, node, dir));
+            const answer = await listFiles(path, node, dir);
+            if (read !== lastRead.current) return;
+            setListing({...answer, node, dir});
             setError("");
         } catch (err) {
-            setListing({items: [], truncated: false});
+            if (read !== lastRead.current) return;
+            setListing({items: [], truncated: false, node, dir});
             setError(err.message);
         }
     }, [path, node, dir]);
@@ -110,11 +122,13 @@ export function VolumeFiles({path}) {
         setView(next || undefined);
     };
 
-    const send = async (file, {replace = false} = {}) => {
+    // Sent to the directory shown, or, a replace confirmed, where it was asked.
+    const send = async (file, {replace = false, node: to = node, dir: into = dir} = {}) => {
         setError("");
         setCertificateUrl("");
+        const asked = {file, node: to, dir: into};
         // Installed from a datastore: the next install would write it again, its key is what changes it.
-        const there = files?.find((f) => f.name === file.name);
+        const there = to === node && into === dir ? files?.find((f) => f.name === file.name) : undefined;
         const installed = there && fileOrigin(there)?.kind === "installed" ? fileOrigin(there) : null;
         if (installed) {
             setError(t("volumeFiles.installed.refused", {name: file.name, from: installed.from, key: installed.key}));
@@ -123,12 +137,12 @@ export function VolumeFiles({path}) {
         }
         // Known there already: asked before anything is sent.
         if (!replace && there) {
-            setReplacing(file);
+            setReplacing(asked);
             if (input.current) input.current.value = "";
             return;
         }
         setSending({name: file.name, part: 0});
-        const transfer = uploadFile(path, node, file, (part) => setSending({name: file.name, part}), {replace, dir});
+        const transfer = uploadFile(path, to, file, (part) => setSending({name: file.name, part}), {replace, dir: into});
         upload.current = transfer;
         try {
             await transfer.done;
@@ -140,7 +154,7 @@ export function VolumeFiles({path}) {
                 setError(t("volumeFiles.failed", {name: file.name, message: err.message}));
             } else if (isFileExists(err) && !replace) {
                 // There since the listing, or written meanwhile: asked as well.
-                setReplacing(file);
+                setReplacing(asked);
                 void refresh();
             } else if (err.name !== "AbortError") {
                 setError(t("volumeFiles.failed", {name: file.name, message: err.message}));
@@ -153,10 +167,12 @@ export function VolumeFiles({path}) {
         }
     };
 
-    const remove = async (name) => {
+    // Deleted where it was asked: the node and the directory of its row, not those
+    // shown by then, a node down or another picked while the dialog was open.
+    const remove = async ({name, node: on, dir: within}) => {
         setDeleting(name);
         try {
-            await deleteFile(path, node, name, dir);
+            await deleteFile(path, on, name, within);
             await refresh();
         } catch (err) {
             setError(err.message);
@@ -325,7 +341,7 @@ export function VolumeFiles({path}) {
                                             size="sm"
                                             label={t("volumeFiles.deleteOne", {name: f.name})}
                                             disabled={deleting === f.name}
-                                            onClick={() => setDeleteAsked({name: f.name, type: f.type, origin})}
+                                            onClick={() => setDeleteAsked({name: f.name, type: f.type, origin, node, dir})}
                                         >
                                             <TrashIcon className="h-3.5 w-3.5"/>
                                         </IconButton>
@@ -362,7 +378,7 @@ export function VolumeFiles({path}) {
                     onDelete={() => {
                         const file = files?.find((f) => f.name === viewing);
                         setViewing(null);
-                        setDeleteAsked({name: viewing, type: "file", origin: fileOrigin(file)});
+                        setDeleteAsked({name: viewing, type: "file", origin: fileOrigin(file), node, dir});
                     }}
                 />
             )}
@@ -373,7 +389,7 @@ export function VolumeFiles({path}) {
                 footer={(
                     <>
                         <Button onClick={() => setDeleteAsked(null)}>{t("volumeFiles.cancel")}</Button>
-                        <Button variant="delete" disabled={deleting !== ""} onClick={() => remove(deleteAsked.name)}>
+                        <Button variant="delete" disabled={deleting !== ""} onClick={() => remove(deleteAsked)}>
                             {deleting !== "" ? t("volumeFiles.deleting") : t("volumeFiles.delete")}
                         </Button>
                     </>
@@ -387,16 +403,16 @@ export function VolumeFiles({path}) {
             <Dialog
                 open={replacing !== null}
                 onClose={() => setReplacing(null)}
-                title={t("volumeFiles.replace.title", {name: replacing?.name ?? ""})}
+                title={t("volumeFiles.replace.title", {name: replacing?.file.name ?? ""})}
                 footer={(
                     <>
                         <Button onClick={() => setReplacing(null)}>{t("volumeFiles.cancel")}</Button>
                         <Button
                             variant="delete"
                             onClick={() => {
-                                const file = replacing;
+                                const {file, node: to, dir: into} = replacing;
                                 setReplacing(null);
-                                void send(file, {replace: true});
+                                void send(file, {replace: true, node: to, dir: into});
                             }}
                         >
                             {t("volumeFiles.replace.confirm")}
@@ -404,7 +420,7 @@ export function VolumeFiles({path}) {
                     </>
                 )}
             >
-                {t("volumeFiles.replace.text", {name: replacing?.name ?? ""})}
+                {t("volumeFiles.replace.text", {name: replacing?.file.name ?? ""})}
             </Dialog>
             <Dialog
                 open={creating !== null}

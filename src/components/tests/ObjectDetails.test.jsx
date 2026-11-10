@@ -109,6 +109,7 @@ vi.mock('../../constants/actions', async (importOriginal) => ({
         {name: 'freeze', icon: 'FreezeIcon', endpoint: 'action/freeze'},
         {name: 'unprovision', icon: 'UnprovisionIcon', endpoint: 'action/unprovision'},
         {name: 'purge', icon: 'PurgeIcon', endpoint: 'action/purge'},
+        {name: 'switch', icon: 'SwitchIcon', endpoint: 'action/switch'},
         {name: 'enable', icon: 'EnableIcon', endpoint: 'enable', kinds: ['svc']},
         {name: 'disable', icon: 'DisableIcon', endpoint: 'disable', kinds: ['svc'], color: 'red'},
     ],
@@ -749,6 +750,46 @@ describe('ObjectDetail Component', () => {
         await waitFor(() => {
             expect(global.fetch).toHaveBeenCalledWith(
                 expect.stringMatching(/\/api\/node\/name\/node1\/instance\/path\/root(%2F|\/)svc(%2F|\/)svc1\/action\/pg\/reset$/),
+                expect.objectContaining({method: 'POST'})
+            );
+        });
+    });
+
+    // ── Options set in the dialog ─────────────────────────────────────────
+    test('object switch posts the destination picked among the nodes of the object', async () => {
+        await renderReadySvc();
+        await user.click(screen.getByRole('button', {name: /object actions/i}));
+        await user.click(getMenuItemByLabel('Switch', screen.getByRole('menu', {name: 'Object actions'})));
+        const dialog = await findActionDialog();
+        const destination = within(dialog).getByRole('combobox', {name: '--to'});
+        expect(within(destination).getAllByRole('option').map((o) => o.value)).toEqual(['', 'node1', 'node2']);
+        await user.selectOptions(destination, 'node2');
+        for (const cb of within(dialog).queryAllByRole('checkbox')) {
+            if (!/^--/.test(cb.getAttribute('aria-label') ?? cb.closest('label')?.textContent ?? '')) await user.click(cb);
+        }
+        await user.click(within(dialog).getByRole('button', {name: /confirm|switch/i}));
+        await waitFor(() => {
+            expect(global.fetch).toHaveBeenCalledWith(
+                expect.stringMatching(/\/api\/object\/path\/root\/svc\/svc1\/action\/switch$/),
+                expect.objectContaining({
+                    method: 'POST',
+                    headers: expect.objectContaining({'Content-Type': 'application/json'}),
+                    body: JSON.stringify({destination: ['node2'], live: false}),
+                })
+            );
+        });
+    });
+
+    test('instance stop posts the flags set', async () => {
+        await renderReadySvc();
+        await user.click(screen.getByRole('button', {name: /Node node1 actions/i}));
+        await user.click(getMenuItemByLabel('Stop', screen.getByRole('menu', {name: 'Node node1 actions'})));
+        const dialog = await findActionDialog();
+        await user.click(within(dialog).getByRole('checkbox', {name: '--force'}));
+        await confirmDialog(dialog);
+        await waitFor(() => {
+            expect(global.fetch).toHaveBeenCalledWith(
+                expect.stringMatching(/\/api\/node\/name\/node1\/instance\/path\/root\/svc\/svc1\/action\/stop\?force=true/),
                 expect.objectContaining({method: 'POST'})
             );
         });

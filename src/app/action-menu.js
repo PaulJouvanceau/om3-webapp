@@ -50,7 +50,7 @@ export function actionKeywords(action) {
 }
 
 /** The key of an action in the translations: "sync update" → "syncUpdate". */
-const keyOf = (name) => name.replace(/\s+(\w)/g, (_, c) => c.toUpperCase());
+export const keyOf = (name) => name.replace(/\s+(\w)/g, (_, c) => c.toUpperCase());
 
 /**
  * What the action `name` does, on an object, an instance or a resource (`scope`), as

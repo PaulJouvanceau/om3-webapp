@@ -17,12 +17,13 @@ import {
     useAuthDispatch,
     SetAccessToken,
     SetAuthChoice,
-    Login as LoginAction
+    Login as LoginAction,
+    Logout
 } from "../context/AuthProvider";
 import oidcConfiguration from "../config/oidcConfiguration.js";
 import useAuthInfo from "../hooks/AuthInfo.jsx";
 import logger from "../utils/logger.js";
-import {prepareForNavigation} from "../eventSourceManager";
+import {AUTH_RENEW_EVENT, prepareForNavigation} from "../eventSourceManager";
 import {isRenewalRefused} from "../context/serialRenewal";
 import {PeekPanel} from "./PeekPanel";
 import {PanelReopenKey} from "../app/PanelReopenKey";
@@ -259,14 +260,30 @@ const OidcInitializer = ({children, authInfo}) => {
         }
     }, [auth.authChoice]);
 
+    /*
+     * An event stream refused its token (401): the session renewed, the streams then
+     * reopened with the new token. Ended only when it cannot be: the OpenID provider
+     * refusing (renewSession), or no refresh token to renew a password session with.
+     * A renewal not answered keeps it, the stream asking again on its next refusal.
+     */
     useEffect(() => {
-        const handler = (e) => {
-            const path = e?.detail || '/auth-choice';
-            navigate(path, {replace: true});
+        const handler = () => {
+            if (localStorage.getItem('authChoice') === 'openid') {
+                // Still being built: its startup renews.
+                if (userManager) void renewSession('event stream refused');
+                return;
+            }
+            if (hasRefreshToken()) {
+                void doRefreshToken(authDispatch);
+                return;
+            }
+            logger.warn('Event stream refused and no refresh token to renew the session: session ended');
+            authDispatch?.({type: Logout});
+            navigateRef.current('/auth-choice', {replace: true});
         };
-        window.addEventListener('om3:auth-redirect', handler);
-        return () => window.removeEventListener('om3:auth-redirect', handler);
-    }, [navigate]);
+        window.addEventListener(AUTH_RENEW_EVENT, handler);
+        return () => window.removeEventListener(AUTH_RENEW_EVENT, handler);
+    }, [userManager, renewSession, authDispatch]);
 
     useEffect(() => {
         const handleCheckAuthOnResume = () => {

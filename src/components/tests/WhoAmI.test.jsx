@@ -445,6 +445,28 @@ describe('WhoAmI', () => {
             expect(mockNavigate).toHaveBeenCalledWith('/auth-choice');
         });
 
+        test('a logout tells the other tabs, for them to forget the session too', async () => {
+            const posted = [];
+            const original = global.BroadcastChannel;
+            global.BroadcastChannel = class {
+                constructor(name) {
+                    this.name = name;
+                }
+                postMessage(message) {
+                    posted.push([this.name, message]);
+                }
+                close() {}
+            };
+            try {
+                setupMocks({authChoice: 'local'});
+                renderComponent();
+                fireEvent.click(await screen.findByRole('button', {name: 'Sign out'}));
+                expect(posted).toEqual([['auth-channel', {type: 'logout'}]]);
+            } finally {
+                global.BroadcastChannel = original;
+            }
+        });
+
         test('handles logout when auth is null', async () => {
             setupMocks({auth: null});
             renderComponent();

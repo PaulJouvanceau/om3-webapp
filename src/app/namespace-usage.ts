@@ -11,6 +11,8 @@
  * the total then.
  */
 
+import { continued, isContinuationLine } from "./ini";
+
 /** A `[claim#N]` section of a namespace configuration. */
 export interface Claim {
   type: "pool" | "network" | "cpu" | "memory";
@@ -74,7 +76,15 @@ export function parseClaims(ini: string | undefined): Claim[] {
     }
     current = null;
   };
+  // The key whose value the indented lines under it continue, as om3 reads them:
+  // a scoped one's too, so none of them is taken for a key of its own.
+  let last: string | null = null;
   for (const line of (ini ?? "").split("\n")) {
+    if (last !== null && isContinuationLine(line)) {
+      if (current && last in current) current[last] = continued(current[last], line);
+      continue;
+    }
+    last = null;
     const text = line.trim();
     if (text === "" || text.startsWith("#") || text.startsWith(";")) continue;
     const header = /^\[(.+)\]$/.exec(text);
@@ -85,7 +95,9 @@ export function parseClaims(ini: string | undefined): Claim[] {
       continue;
     }
     const pair = /^([^=\s]+)\s*=\s*(.*)$/.exec(text);
-    if (current && pair && !pair[1].includes("@")) current[pair[1]] = pair[2];
+    if (!pair) continue;
+    last = pair[1];
+    if (current && !pair[1].includes("@")) current[pair[1]] = pair[2];
   }
   flush();
   return claims;

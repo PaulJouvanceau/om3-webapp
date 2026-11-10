@@ -17,21 +17,48 @@ import { KIND_ICON, SEARCH_KINDS, hitIcon, search, type SearchEntry, type Search
 
 type Scope = SearchKind | "all";
 
+/**
+ * A text in lower case, and where each of its units comes from in the text: lowered,
+ * a character may take more units than it had ("İ" is "i̇", two), the places of the
+ * two strings then apart.
+ */
+function lowered(text: string): { lower: string; start: number[]; end: number[] } {
+  let lower = "";
+  const start: number[] = [];
+  const end: number[] = [];
+  let at = 0;
+  for (const char of text) {
+    const low = char.toLocaleLowerCase();
+    for (let i = 0; i < low.length; i++) {
+      start.push(at);
+      end.push(at + char.length);
+    }
+    lower += low;
+    at += char.length;
+  }
+  return { lower, start, end };
+}
+
 /** The parts of a text that match the query, marked; case-insensitive. */
-function Highlight({ text, query }: { text: string; query: string }) {
+export function Highlight({ text, query }: { text: string; query: string }) {
   const q = query.trim().toLocaleLowerCase();
   if (q === "") return <>{text}</>;
-  const lower = text.toLocaleLowerCase();
+  const { lower, start, end } = lowered(text);
   const parts: ReactNode[] = [];
   let from = 0;
-  for (let at = lower.indexOf(q); at !== -1; at = lower.indexOf(q, from)) {
-    if (at > from) parts.push(text.slice(from, at));
+  for (let at = lower.indexOf(q); at !== -1; at = lower.indexOf(q, at + q.length)) {
+    // The match in the text: the whole characters its units come from.
+    const first = start[at]!;
+    const last = end[at + q.length - 1]!;
+    // Begun in a character a match before it already marked.
+    if (first < from) continue;
+    if (first > from) parts.push(text.slice(from, first));
     parts.push(
-      <mark key={at} className="bg-transparent font-semibold text-ink underline decoration-accent underline-offset-2">
-        {text.slice(at, at + q.length)}
+      <mark key={first} className="bg-transparent font-semibold text-ink underline decoration-accent underline-offset-2">
+        {text.slice(first, last)}
       </mark>,
     );
-    from = at + q.length;
+    from = last;
   }
   if (from < text.length) parts.push(text.slice(from));
   return <>{parts}</>;
@@ -45,7 +72,7 @@ function isMac(): boolean {
  * Global search of the cluster, from the top bar, as oc3 searches the collector.
  *
  * A compact field in the bar opens a command palette over the current view:
- * Ctrl+K (⌘K on a Mac) or "/" open it from anywhere. The results come grouped by
+ * Ctrl+K (⌘K on a Mac) or "/" open it from anywhere but a field. The results come grouped by
  * kind (`search.ts`), each with its icon, what tells homonyms apart and its
  * status. Choosing one opens its record in the panel over the current view, as a
  * badge does (`usePeek`), a node included. Up and Down move through the results,
@@ -68,8 +95,10 @@ export function GlobalSearch({ loadIndex }: { loadIndex: () => Promise<SearchInd
 
   useEffect(() => {
     function onKeyDown(event: globalThis.KeyboardEvent) {
+      // In a field, its keys its own: Ctrl+K deletes to the end of the line in many.
+      if (typing(event.target)) return;
       const combo = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k";
-      if (combo || (event.key === "/" && !typing(event.target) && !event.altKey)) {
+      if (combo || (event.key === "/" && !event.altKey)) {
         // Not over another modal dialog: the help, a confirmation.
         if (!combo && document.querySelector('[aria-modal="true"]') !== null) return;
         event.preventDefault();
@@ -508,26 +537,30 @@ function RecentRow({
 }) {
   const { t } = useTranslation();
   return (
-    <div {...optionProps} aria-current={entry.current ? "true" : undefined}>
-      <ObjectIcon kind={entry.icon} className="h-4 w-4 shrink-0" />
-      <div className="min-w-0 flex-1">
-        <div className="truncate font-medium">{entry.label}</div>
-        {kindShown && <div className="truncate text-data text-ink-muted">{t(`search.recent.types.${entry.type}`)}</div>}
+    // The cross beside the option, not in it: an option holds no control of its own.
+    <div role="none" className="group relative">
+      <div {...optionProps} aria-current={entry.current ? "true" : undefined} aria-keyshortcuts="Delete">
+        <ObjectIcon kind={entry.icon} className="h-4 w-4 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-medium">{entry.label}</div>
+          {kindShown && <div className="truncate text-data text-ink-muted">{t(`search.recent.types.${entry.type}`)}</div>}
+        </div>
+        {entry.current && (
+          <span className="shrink-0 rounded-full border border-accent px-1.5 text-data text-ink">{t("search.recent.current")}</span>
+        )}
+        <span className="shrink-0 text-data text-ink-muted tabular-nums">{when}</span>
+        {/* The room of the cross, laid over it. */}
+        <span className="h-5 w-5 shrink-0" />
       </div>
-      {entry.current && (
-        <span className="shrink-0 rounded-full border border-accent px-1.5 text-data text-ink">{t("search.recent.current")}</span>
-      )}
-      <span className="shrink-0 text-data text-ink-muted tabular-nums">{when}</span>
       <button
         type="button"
         // The keyboard removes it with Delete: the cross is for the pointer, shown on
         // hover, and always on a touch screen, which has none.
         tabIndex={-1}
-        onClick={(event) => {
-          event.stopPropagation();
-          onRemove();
-        }}
-        className="shrink-0 rounded-full p-1 text-ink-muted opacity-0 group-hover:opacity-100 group-aria-selected:opacity-100 pointer-coarse:opacity-100 hover:bg-surface-sunken hover:text-ink"
+        onClick={onRemove}
+        className={`absolute top-1/2 right-3 -translate-y-1/2 rounded-full p-1 text-ink-muted group-hover:opacity-100 pointer-coarse:opacity-100 hover:bg-surface-sunken hover:text-ink ${
+          optionProps["aria-selected"] === true ? "opacity-100" : "opacity-0"
+        }`}
       >
         <CloseIcon className="h-3 w-3" />
         <span className="sr-only">{t("panelHistory.remove", { name: entry.label })}</span>

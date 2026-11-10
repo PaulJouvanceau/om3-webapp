@@ -111,6 +111,10 @@ function Entry({ entry, now }: { entry: Tracked; now: number }) {
   const took = (entry.endedAt ?? now) - entry.startedAt;
   const state = t(`actionTray.states.${entry.state}`);
   const waiting = entry.state === "running" && entry.kind === "orchestration";
+  // Aborted, its runs already under way went on to their end (an abort stops what the
+  // orchestration has yet to do, not a start or a stop running): said, the action done
+  // all the same rather than read as never done.
+  const ranOn = entry.state === "aborted" ? [...new Set(entry.steps.filter((step) => step.state !== "aborted").map((step) => step.node))] : [];
   // The nodes with no run of it yet, where their monitor stands.
   const monitors = useMonitorStates(entry.path, waiting).filter(
     ([node]) => !entry.steps.some((step) => step.node === node && step.state === "running"),
@@ -125,7 +129,12 @@ function Entry({ entry, now }: { entry: Tracked; now: number }) {
           <p className="truncate">
             <span className="font-semibold">{action}</span> <span className="text-ink-muted">{entry.subject}</span>
           </p>
-          <p className={cn("text-data", entry.state === "failed" || entry.state === "refused" ? "text-state-down" : "text-ink-muted")}>
+          <p
+            className={cn(
+              "text-data",
+              entry.state === "failed" || entry.state === "refused" ? "text-state-down" : ranOn.length > 0 ? "text-state-warn" : "text-ink-muted",
+            )}
+          >
             {state}
             {entry.state === "running" &&
               entry.kind === "orchestration" &&
@@ -133,6 +142,7 @@ function Entry({ entry, now }: { entry: Tracked; now: number }) {
             {entry.error && entry.error !== "gone" && entry.error !== "queued" && ` · ${entry.error}`}
             {entry.error === "gone" && ` · ${t("actionTray.gone")}`}
             {entry.error === "queued" && ` · ${t("actionTray.neverTakenOn", { node: entry.node })}`}
+            {ranOn.length > 0 && ` · ${t("actionTray.ranAnyway", { count: ranOn.length, nodes: ranOn.join(", ") })}`}
           </p>
         </div>
         <span className="shrink-0 pt-0.5 text-data text-ink-muted tabular-nums">{formatDuration(took)}</span>

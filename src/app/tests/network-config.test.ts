@@ -112,6 +112,31 @@ describe("network config", () => {
     expect(bodyOps("seg", "", "x y").invalid).toEqual(["x y"]);
   });
 
+  test("a value continued on the lines under its key, as om3 reads one: its lines, their indent kept", () => {
+    const body = "type = lan\ndns = 10.0.0.1\n  10.0.0.2\n\t10.0.0.3 = x\nnetwork = 10.0.0.0/24\n# a comment\n  not continued\n";
+    // An indented line under a key continues it, an "=" in it or not; under a comment, it is none.
+    expect(parseBody(body)).toEqual({
+      values: { type: "lan", dns: "10.0.0.1\n  10.0.0.2\n\t10.0.0.3 = x", network: "10.0.0.0/24" },
+      invalid: ["not continued"],
+    });
+    // A blank line ends it; a key with no value on its line, continued.
+    expect(parseBody("dns =\n  a\n  b\n\n  c = d").values).toEqual({ dns: "\n  a\n  b", c: "d" });
+  });
+
+  test("a section holding a value on many lines: saved untouched, the others edited; itself edited, written whole", () => {
+    const before = "type = lan\ndns = 10.0.0.1\n  10.0.0.2\nnetwork = 10.0.0.0/24";
+    expect(bodyOps("seg", before, before.replace("10.0.0.0/24", "10.1.0.0/24"))).toEqual({
+      set: ["network#seg.network=10.1.0.0/24"],
+      unset: [],
+      invalid: [],
+    });
+    expect(bodyOps("seg", before, before.replace("  10.0.0.2", "  10.0.0.2\n  10.0.0.3"))).toEqual({
+      set: ["network#seg.dns=10.0.0.1\n  10.0.0.2\n  10.0.0.3"],
+      unset: [],
+      invalid: [],
+    });
+  });
+
   test("a modification: the fields changed set, those emptied unset, other keys left alone", () => {
     const fields = ["network", "subnet", "tunnel", "dns"];
     const original = { type: "routed_bridge", network: "10.100.0.0/22", "subnet@n1": "10.100.0.0/24", tunnel: "auto", custom: "x" };

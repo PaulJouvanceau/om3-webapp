@@ -449,12 +449,14 @@ const scheduleFlush = () => {
     }
 };
 
-const navigationService = {
-    redirectToAuth: () => {
-        window.dispatchEvent(new CustomEvent('om3:auth-redirect', {
-            detail: '/auth-choice'
-        }));
-    }
+/**
+ * Asked of the app when the daemon refuses a stream its token (401): the session is
+ * the app's to renew, or to end when it cannot be (App, OidcInitializer). Renewed,
+ * its token reopens the streams (updateEventSourceToken).
+ */
+export const AUTH_RENEW_EVENT = 'om3:auth-renew';
+const requestRenewal = () => {
+    window.dispatchEvent(new CustomEvent(AUTH_RENEW_EVENT));
 };
 
 const clearBuffers = () => {
@@ -846,7 +848,7 @@ export const createEventSource = (url, token, filters = DEFAULT_FILTERS) => {
     return currentEventSource;
 };
 
-const handleAuthError = (token, url) => {
+const handleAuthError = (token, url, filters) => {
     logger.warn('🔐 Authentication error detected');
 
     useEventLogStore.getState().addEventLog(CONNECTION_EVENTS.CONNECTION_ERROR, {
@@ -864,63 +866,57 @@ const handleAuthError = (token, url) => {
         return;
     }
 
-    if (window.oidcUserManager) {
-        logger.info('🔄 Attempting silent token renewal...');
-        window.oidcUserManager.signinSilent()
-            .then(user => {
-                const refreshedToken = user.access_token;
-                localStorage.setItem('authToken', refreshedToken);
-                localStorage.setItem('tokenExpiration', user.expires_at.toString());
-                updateEventSourceToken(refreshedToken);
-            })
-            .catch(silentError => {
-                logger.error('❌ Silent renew failed:', silentError);
-                navigationService.redirectToAuth();
-            });
-        return;
-    }
-
-    navigationService.redirectToAuth();
+    // The session renewed by the app if it can be, the stream then reopened with
+    // its new token; tried again meanwhile, a renewal asked on each refusal. A
+    // laptop waking with its token expired, a provider not answering, keep it.
+    requestRenewal();
+    handleReconnection(url, filters);
 };
 
+/**
+ * The delay before the attempt `attempt` to reconnect: doubling from a second, a
+ * try every 30 seconds after a few. Never given up: a daemon restarting, the
+ * network down a while, the stream comes back with them, the session kept.
+ */
+const reconnectDelay = (attempt) => Math.min(
+    BASE_RECONNECT_DELAY * Math.pow(2, Math.min(attempt, 16)) + Math.random() * 100,
+    MAX_RECONNECT_DELAY
+);
+
 const handleReconnection = (url, filters) => {
-    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS && isPageActive) {
-        reconnectAttempts++;
+    if (!isPageActive) return;
+    reconnectAttempts++;
 
-        // Log reconnection attempt
-        useEventLogStore.getState().addEventLog(CONNECTION_EVENTS.RECONNECTION_ATTEMPT, {
-            attempt: reconnectAttempts,
-            maxAttempts: MAX_RECONNECT_ATTEMPTS,
-            timestamp: new Date().toISOString()
-        });
-
-        const delay = Math.min(
-            BASE_RECONNECT_DELAY * Math.pow(2, reconnectAttempts) + Math.random() * 100,
-            MAX_RECONNECT_DELAY
-        );
-
-        logger.info(`🔄 Reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
-
-        const failed = currentEventSource;
-        clearReconnectTimer();
-        reconnectTimer = setTimeout(() => {
-            reconnectTimer = null;
-            // Replaced since (a token updated, other claims): that one is not to be reopened.
-            if (currentEventSource !== failed) return;
-            const token = getCurrentToken();
-            if (token && isPageActive) {
-                createEventSource(url, token, filters);
-            }
-        }, delay);
-    } else if (isPageActive) {
-        logger.error('❌ Max reconnection attempts reached');
-        // Log max reconnections reached
+    // Log reconnection attempt
+    useEventLogStore.getState().addEventLog(CONNECTION_EVENTS.RECONNECTION_ATTEMPT, {
+        attempt: reconnectAttempts,
+        maxAttempts: MAX_RECONNECT_ATTEMPTS,
+        timestamp: new Date().toISOString()
+    });
+    // Said once, the attempts going on at their longest delay.
+    if (reconnectAttempts === MAX_RECONNECT_ATTEMPTS) {
+        logger.error(`❌ Max reconnection attempts reached, trying again every ${MAX_RECONNECT_DELAY / 1000}s`);
         useEventLogStore.getState().addEventLog(CONNECTION_EVENTS.MAX_RECONNECTIONS_REACHED, {
             maxAttempts: MAX_RECONNECT_ATTEMPTS,
             timestamp: new Date().toISOString()
         });
-        navigationService.redirectToAuth();
     }
+
+    const delay = reconnectDelay(reconnectAttempts);
+
+    logger.info(`🔄 Reconnecting in ${delay}ms (attempt ${reconnectAttempts})`);
+
+    const failed = currentEventSource;
+    clearReconnectTimer();
+    reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        // Replaced since (a token updated, other claims): that one is not to be reopened.
+        if (currentEventSource !== failed) return;
+        const token = getCurrentToken();
+        if (token && isPageActive) {
+            createEventSource(url, token, filters);
+        }
+    }, delay);
 };
 
 export const createLoggerEventSource = (url, token, filters) => {
@@ -973,33 +969,21 @@ export const createLoggerEventSource = (url, token, filters) => {
                 return;
             }
 
-            if (window.oidcUserManager) {
-                window.oidcUserManager.signinSilent()
-                    .then(user => {
-                        const refreshedToken = user.access_token;
-                        localStorage.setItem('authToken', refreshedToken);
-                        localStorage.setItem('tokenExpiration', user.expires_at.toString());
-                        updateLoggerEventSourceToken(refreshedToken);
-                    })
-                    .catch(silentError => {
-                        logger.error('❌ Silent renew failed for logger:', silentError);
-                        navigationService.redirectToAuth();
-                    });
-                return;
-            }
+            // Renewed by the app if it can be, as for the main stream; tried again meanwhile.
+            requestRenewal();
         }
 
         // Reconnecting on its own: a second connection of ours would replace it.
         if (loggerEventSourceRef.readyState === CONNECTING) return;
 
-        if (loggerReconnectAttempts < MAX_RECONNECT_ATTEMPTS && isPageActive) {
+        if (isPageActive) {
             loggerReconnectAttempts++;
-            const delay = Math.min(
-                BASE_RECONNECT_DELAY * Math.pow(2, loggerReconnectAttempts) + Math.random() * 100,
-                MAX_RECONNECT_DELAY
-            );
+            if (loggerReconnectAttempts === MAX_RECONNECT_ATTEMPTS) {
+                logger.error(`❌ Max reconnection attempts reached for logger, trying again every ${MAX_RECONNECT_DELAY / 1000}s`);
+            }
+            const delay = reconnectDelay(loggerReconnectAttempts);
 
-            logger.info(`🔄 Logger reconnecting in ${delay}ms (attempt ${loggerReconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+            logger.info(`🔄 Logger reconnecting in ${delay}ms (attempt ${loggerReconnectAttempts})`);
 
             clearLoggerReconnectTimer();
             loggerReconnectTimer = setTimeout(() => {
@@ -1011,9 +995,6 @@ export const createLoggerEventSource = (url, token, filters) => {
                     createLoggerEventSource(url, token, filters);
                 }
             }, delay);
-        } else if (isPageActive) {
-            logger.error('❌ Max reconnection attempts reached for logger');
-            navigationService.redirectToAuth();
         }
     };
 
@@ -1250,9 +1231,6 @@ export const forceFlush = () => {
         flushBuffers();
     }
 };
-
-// Export navigation service for external use
-export {navigationService};
 
 // Export prepareForNavigation as alias to forceFlush
 export const prepareForNavigation = forceFlush;

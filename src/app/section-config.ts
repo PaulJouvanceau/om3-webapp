@@ -5,6 +5,8 @@
  * operations writing it (PATCH /api/cluster/config), the section they write.
  */
 
+import { continued as continuedValue, isContinuationLine } from "./ini";
+
 /** A keyword as the daemon describes it; the fields the wizard reads. */
 export interface Keyword {
   section?: string;
@@ -170,12 +172,21 @@ export function sectionBody(section: string | null): string {
     .trim();
 }
 
-/** The keys of a body and their values; the lines that are none, blank and comments aside. */
+/**
+ * The keys of a body and their values; the lines that are none, blank and comments
+ * aside. A value continued on the lines under its key holds them, one a line.
+ */
 export function parseBody(body: string): { values: SectionValues; invalid: string[] } {
   const values: SectionValues = {};
   const invalid: string[] = [];
+  let continued: string | null = null;
   for (const line of body.split("\n")) {
+    if (continued !== null && isContinuationLine(line)) {
+      values[continued] = continuedValue(values[continued], line);
+      continue;
+    }
     const match = BODY_LINE.exec(line);
+    continued = match ? match[1] : null;
     if (match) values[match[1]] = match[2];
     else if (!IGNORED_LINE.test(line)) invalid.push(line.trim());
   }

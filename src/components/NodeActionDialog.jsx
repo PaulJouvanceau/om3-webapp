@@ -1,10 +1,11 @@
-import React, {useEffect, useState} from "react";
+import React, {useEffect, useRef, useState} from "react";
 import {useTranslation} from "react-i18next";
 import {Alert} from "../ui/components/Alert";
 import {Button} from "../ui/components/Button";
 import {Checkbox} from "../ui/components/Field";
 import {Dialog} from "../ui/components/Dialog";
-import {nodeAction, nodeActionKey} from "../app/node-actions";
+import {nodeAction} from "../app/node-actions";
+import {keyOf} from "../app/action-menu";
 
 /**
  * The confirmation of an action on nodes: what it does; for a harmful one, what it
@@ -15,10 +16,20 @@ import {nodeAction, nodeActionKey} from "../app/node-actions";
 export function NodeActionDialog({pending, target, description, onConfirm, onClose}) {
     const {t} = useTranslation();
     const [understood, setUnderstood] = useState(false);
-    useEffect(() => setUnderstood(false), [pending?.action]);
+    // Confirmed once: a second click, before the dialog closes, sends nothing more.
+    const confirmed = useRef(false);
+    useEffect(() => {
+        setUnderstood(false);
+        confirmed.current = false;
+    }, [pending]);
+    const confirm = () => {
+        if (confirmed.current) return;
+        confirmed.current = true;
+        onConfirm(pending.action);
+    };
     if (!pending) return null;
     const action = nodeAction(pending.action);
-    const key = nodeActionKey(pending.action);
+    const key = keyOf(pending.action);
     const harmful = action?.color === "red";
     const label = t(`nodeActions.${key}.label`);
     return (
@@ -32,7 +43,7 @@ export function NodeActionDialog({pending, target, description, onConfirm, onClo
                     <Button
                         variant={pending.action === "evict" ? "delete" : "change"}
                         disabled={harmful && !understood}
-                        onClick={() => onConfirm(pending.action)}
+                        onClick={confirm}
                     >
                         {label}
                     </Button>
