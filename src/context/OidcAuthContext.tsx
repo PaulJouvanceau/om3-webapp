@@ -47,12 +47,6 @@ export const OidcProvider = ({children}: { children: React.ReactNode }) => {
 
         // One renewal at a time, whoever asks: the refresh token rotates (serialRenewal).
         const newUserManager = serializeSilentRenew(new UserManager(settings));
-        // Expose globally for legacy modules that rely on window.oidcUserManager
-        try {
-            (window as any).oidcUserManager = newUserManager;
-        } catch (e) {
-            logger.debug('Unable to set window.oidcUserManager:', e);
-        }
         setUserManager(newUserManager);
         userManagerRef.current = newUserManager;
         settingsRef.current = settings;
@@ -63,11 +57,6 @@ export const OidcProvider = ({children}: { children: React.ReactNode }) => {
     useEffect(() => {
         return () => {
             cleanupUserManager(userManagerRef.current);
-            try {
-                delete (window as any).oidcUserManager;
-            } catch (e) {
-                logger.debug('Unable to delete window.oidcUserManager during cleanup:', e);
-            }
         };
     }, []);
 

@@ -25,11 +25,6 @@ import logger from "../utils/logger";
 import {explainedMenu} from "../app/action-menu";
 import {childrenDown} from "../app/statusboard";
 
-const DEFAULT_CHECKBOXES = {failover: false};
-const DEFAULT_STOP_CHECKBOX = false;
-const DEFAULT_UNPROVISION_CHECKBOXES = {dataLoss: false, serviceInterruption: false};
-const DEFAULT_PURGE_CHECKBOXES = {dataLoss: false, configLoss: false, serviceInterruption: false};
-
 /** The feedback message hides itself after a while, as the snackbar did. */
 const FEEDBACK_DURATION_MS = 5000;
 const TONES = {info: "info", success: "success", warning: "warning", error: "error"};
@@ -97,15 +92,6 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
     const [pendingAction, setPendingAction] = useState(/** @type {any} */ (null));
     const [actionInProgress, setActionInProgress] = useState(false);
 
-    const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
-    const [stopDialogOpen, setStopDialogOpen] = useState(false);
-    const [unprovisionDialogOpen, setUnprovisionDialogOpen] = useState(false);
-    const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
-    const [simpleDialogOpen, setSimpleDialogOpen] = useState(false);
-    const [checkboxes, setCheckboxes] = useState(DEFAULT_CHECKBOXES);
-    const [stopCheckbox, setStopCheckbox] = useState(DEFAULT_STOP_CHECKBOX);
-    const [unprovisionCheckboxes, setUnprovisionCheckboxes] = useState(DEFAULT_UNPROVISION_CHECKBOXES);
-    const [purgeCheckboxes, setPurgeCheckboxes] = useState(DEFAULT_PURGE_CHECKBOXES);
     const [snackbar, setSnackbar] = useState({open: false, message: "", severity: "success"});
 
     const [initialLoading, setInitialLoading] = useState(true);
@@ -330,33 +316,14 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
     const postObjectAction = useCallback(({action, options}) => runAction({action, options}), [runAction]);
     const postNodeAction = useCallback(({node, action, options}) => runAction({node, action, options}), [runAction]);
 
+    // The action pending opens its confirmation (ActionDialogManager), its checkboxes its own.
     const openActionDialog = useCallback((action, context = null) => {
         setPendingAction({action, ...(context ? context : {})});
-        if (action === "freeze") {
-            setCheckboxes(DEFAULT_CHECKBOXES);
-            setConfirmDialogOpen(true);
-        } else if (action === "stop") {
-            setStopCheckbox(DEFAULT_STOP_CHECKBOX);
-            setStopDialogOpen(true);
-        } else if (action === "unprovision") {
-            setUnprovisionCheckboxes(DEFAULT_UNPROVISION_CHECKBOXES);
-            setUnprovisionDialogOpen(true);
-        } else if (action === "purge") {
-            setPurgeCheckboxes(DEFAULT_PURGE_CHECKBOXES);
-            setPurgeDialogOpen(true);
-        } else {
-            setSimpleDialogOpen(true);
-        }
     }, []);
 
     const handleDialogConfirm = useCallback((_action, options) => {
         if (!pendingAction || !pendingAction.action) {
             setPendingAction(null);
-            setConfirmDialogOpen(false);
-            setStopDialogOpen(false);
-            setUnprovisionDialogOpen(false);
-            setPurgeDialogOpen(false);
-            setSimpleDialogOpen(false);
             return;
         }
         if (pendingAction.batch === "nodes") {
@@ -377,11 +344,6 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
             });
         }
         setPendingAction(null);
-        setConfirmDialogOpen(false);
-        setStopDialogOpen(false);
-        setUnprovisionDialogOpen(false);
-        setPurgeDialogOpen(false);
-        setSimpleDialogOpen(false);
     }, [pendingAction, selectedNodes, postNodeAction, postObjectAction]);
 
     const toggleNode = useCallback((node) => {
@@ -555,27 +517,7 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
                             : OBJECT_ACTIONS.map(a => a.name)
                     }
                     nodes={nodesList}
-                    onClose={() => {
-                        setPendingAction(null);
-                        setConfirmDialogOpen(false);
-                        setStopDialogOpen(false);
-                        setUnprovisionDialogOpen(false);
-                        setPurgeDialogOpen(false);
-                        setSimpleDialogOpen(false);
-                    }}
-                    confirmDialogOpen={confirmDialogOpen}
-                    stopDialogOpen={stopDialogOpen}
-                    unprovisionDialogOpen={unprovisionDialogOpen}
-                    purgeDialogOpen={purgeDialogOpen}
-                    simpleDialogOpen={simpleDialogOpen}
-                    checkboxes={checkboxes}
-                    setCheckboxes={setCheckboxes}
-                    stopCheckbox={stopCheckbox}
-                    setStopCheckbox={setStopCheckbox}
-                    unprovisionCheckboxes={unprovisionCheckboxes}
-                    setUnprovisionCheckboxes={setUnprovisionCheckboxes}
-                    purgeCheckboxes={purgeCheckboxes}
-                    setPurgeCheckboxes={setPurgeCheckboxes}
+                    onClose={() => setPendingAction(null)}
                 />
             )}
 

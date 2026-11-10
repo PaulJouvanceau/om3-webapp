@@ -6,13 +6,10 @@
 
 import {URL_CLUSTER, URL_NODE} from "../config/apiPath.js";
 import {NODE_ACTION_GROUPS, NODE_ACTIONS} from "../constants/actions";
-import {actionKeywords, impactBadges} from "./action-menu";
+import {actionKeywords, impactBadges, keyOf} from "./action-menu";
 import {trackPending, trackRefused, trackResponse} from "./action-tracker";
 import {refusalReason} from "../components/objectActions";
 import {getResponseErrorMessage} from "../services/api.jsx";
-
-/** The key of an action in the texts of the node actions: "restart daemon" is restartDaemon. */
-export const nodeActionKey = (name) => name.replace(/\s+(\w)/g, (_, c) => c.toUpperCase());
 
 /** The definition of a node action, by its name. */
 export const nodeAction = (name) => NODE_ACTIONS.find((action) => action.name === name);
@@ -73,7 +70,7 @@ export function nodeMenuItems({t, nodes, offered = () => true, apiNode, renderIc
     NODE_ACTION_GROUPS.forEach((group) => {
         const actions = NODE_ACTIONS.filter((action) => action.group === group && action.menu !== false && offered(action.name));
         actions.forEach((action, i) => {
-            const key = nodeActionKey(action.name);
+            const key = keyOf(action.name);
             const fromHere = action.cluster === "evict" && apiNode !== undefined && nodes.includes(apiNode);
             items.push({
                 key: action.name,

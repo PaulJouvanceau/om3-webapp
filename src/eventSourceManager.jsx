@@ -449,14 +449,6 @@ const scheduleFlush = () => {
     }
 };
 
-const navigationService = {
-    redirectToAuth: () => {
-        window.dispatchEvent(new CustomEvent('om3:auth-redirect', {
-            detail: '/auth-choice'
-        }));
-    }
-};
-
 /**
  * Asked of the app when the daemon refuses a stream its token (401): the session is
  * the app's to renew, or to end when it cannot be (App, OidcInitializer). Renewed,
@@ -1239,9 +1231,6 @@ export const forceFlush = () => {
         flushBuffers();
     }
 };
-
-// Export navigation service for external use
-export {navigationService};
 
 // Export prepareForNavigation as alias to forceFlush
 export const prepareForNavigation = forceFlush;

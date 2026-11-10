@@ -1,7 +1,7 @@
 import {renderHook, act} from '@testing-library/react';
 import {OidcProvider, useOidc, cleanupUserManager} from '../OidcAuthContext';
 import {UserManager, Log} from 'oidc-client-ts';
-import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
+import {vi, describe, test, expect, beforeEach} from 'vitest';
 
 vi.mock('../../utils/logger', () => ({
     default: {
@@ -40,13 +40,8 @@ describe('OidcAuthContext', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
-        delete (window as any).oidcUserManager;
         (Log as unknown as { logger?: Console; level?: number }).logger = console;
         (Log as unknown as { logger?: Console; level?: number }).level = 0;
-    });
-
-    afterEach(() => {
-        delete (window as any).oidcUserManager;
     });
 
     test('provides userManager context', () => {
@@ -84,7 +79,6 @@ describe('OidcAuthContext', () => {
         expect(logMock.level).toBe(logMock.DEBUG);
 
         expect(UserManager).toHaveBeenCalledWith(settings);
-        expect((window as any).oidcUserManager).toBe(mockUserManagerInstance);
 
         expect(result.current.userManager).toBe(mockUserManagerInstance);
         expect(result.current.isInitialized).toBe(true);
@@ -181,44 +175,6 @@ describe('OidcAuthContext', () => {
         expect(mockUserManagerInstance.stopSilentRenew).not.toHaveBeenCalled();
     });
 
-    test('handles failure when setting window.oidcUserManager', () => {
-        const settings = {
-            authority: 'https://example.com',
-            client_id: 'test-client',
-            redirect_uri: 'https://example.com/callback',
-        };
-
-        const originalDescriptor = Object.getOwnPropertyDescriptor(window, 'oidcUserManager');
-        Object.defineProperty(window, 'oidcUserManager', {
-            configurable: true,
-            set() {
-                throw new Error('Assignment failed');
-            },
-            get() {
-                return undefined;
-            },
-        });
-
-        const {result} = renderHook(() => useOidc(), {wrapper});
-        act(() => {
-            result.current.recreateUserManager(settings);
-        });
-
-        expect(logger.debug).toHaveBeenCalledWith(
-            'Unable to set window.oidcUserManager:',
-            expect.any(Error)
-        );
-
-        if (originalDescriptor) {
-            Object.defineProperty(window, 'oidcUserManager', originalDescriptor);
-        } else {
-            delete (window as any).oidcUserManager;
-        }
-
-        expect(result.current.userManager).toBe(mockUserManagerInstance);
-        expect(result.current.isInitialized).toBe(true);
-    });
-
     test('cleanupUserManager stops the silent renewal and clears stale state', () => {
         const mockUserManager = {
             stopSilentRenew: vi.fn(),
@@ -259,7 +215,7 @@ describe('OidcAuthContext', () => {
         expect(logger.debug).toHaveBeenCalledWith('Error during clearStaleState:', mockError);
     });
 
-    test('useEffect cleanup is called on unmount with userManager and deletes global reference', () => {
+    test('useEffect cleanup is called on unmount with userManager', () => {
         const settings = {
             authority: 'https://example.com',
             client_id: 'test-client',
@@ -270,11 +226,9 @@ describe('OidcAuthContext', () => {
             result.current.recreateUserManager(settings);
         });
         expect(result.current.userManager).toBe(mockUserManagerInstance);
-        expect((window as any).oidcUserManager).toBe(mockUserManagerInstance);
         unmount();
         expect(mockUserManagerInstance.stopSilentRenew).toHaveBeenCalled();
         expect(mockUserManagerInstance.clearStaleState).toHaveBeenCalled();
-        expect((window as any).oidcUserManager).toBeUndefined();
     });
 
     test('useEffect cleanup handles null userManager on unmount', () => {
@@ -282,6 +236,5 @@ describe('OidcAuthContext', () => {
         unmount();
         expect(mockUserManagerInstance.stopSilentRenew).not.toHaveBeenCalled();
         expect(mockUserManagerInstance.clearStaleState).not.toHaveBeenCalled();
-        expect((window as any).oidcUserManager).toBeUndefined();
     });
 });

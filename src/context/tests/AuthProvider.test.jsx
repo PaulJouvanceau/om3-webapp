@@ -70,18 +70,6 @@ const {
 });
 
 // ── Globals ────────────────────────────────────────────────────────────
-const mockUserManager = {
-    signinSilent: mockSigninSilent,
-    events: {
-        addAccessTokenExpired: mockAddAccessTokenExpired,
-        removeAccessTokenExpired: mockRemoveAccessTokenExpired,
-    },
-};
-Object.defineProperty(window, 'oidcUserManager', {
-    value: mockUserManager,
-    writable: true,
-});
-
 global.BroadcastChannel = class {
     constructor() {
         this.onmessage = null;

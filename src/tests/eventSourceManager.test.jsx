@@ -141,7 +141,6 @@ describe('eventSourceManager', () => {
         };
 
         Object.defineProperty(window, 'location', {configurable: true, value: {href: ''}});
-        window.oidcUserManager = null;
         window.dispatchEvent = vi.fn();
         global.EventSource = {CLOSED: 2};
         global.requestAnimationFrame = vi.fn((cb) => {
@@ -158,7 +157,6 @@ describe('eventSourceManager', () => {
         Object.values(consoleSpies).forEach(spy => spy.mockRestore());
         eventSourceManager.closeEventSource();
         eventSourceManager.closeLoggerEventSource();
-        delete window.oidcUserManager;
     });
 
     // ==================== EventSource lifecycle ====================
@@ -291,7 +289,6 @@ describe('eventSourceManager', () => {
             }
             const reached = mockLogStore.addEventLog.mock.calls.filter(([type]) => type === 'MAX_RECONNECTIONS_REACHED');
             expect(reached).toHaveLength(1);
-            expect(dispatched()).not.toContain('om3:auth-redirect');
             vi.mocked(EventSourcePolyfill).mockClear();
             mockEventSource.onerror({status: 502});
             vi.advanceTimersByTime(30200);
@@ -319,13 +316,10 @@ describe('eventSourceManager', () => {
         });
 
         test('a 401 renews nothing itself: the token the app renews reopens the stream', () => {
-            const signinSilent = vi.fn();
-            window.oidcUserManager = {signinSilent};
             localStorageMock.getItem.mockReturnValue('old-token');
             createES('old-token');
             mockEventSource.onerror({status: 401});
-            expect(signinSilent).not.toHaveBeenCalled();
-            expect(dispatched()).not.toContain('om3:auth-redirect');
+            expect(dispatched()).toEqual(['om3:auth-renew']);
             vi.mocked(EventSourcePolyfill).mockClear();
             eventSourceManager.updateEventSourceToken('renewed-token');
             expect(EventSourcePolyfill).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
@@ -1208,14 +1202,6 @@ describe('eventSourceManager', () => {
             expect(EventSourcePolyfill).toHaveBeenCalled();
         });
 
-        test('should dispatch auth redirect event', () => {
-            eventSourceManager.navigationService.redirectToAuth();
-            expect(window.dispatchEvent).toHaveBeenCalledWith(expect.any(CustomEvent));
-            const event = vi.mocked(window.dispatchEvent).mock.calls[0][0];
-            expect(event.type).toBe('om3:auth-redirect');
-            expect(event.detail).toBe('/auth-choice');
-        });
-
         test('should export prepareForNavigation as alias for forceFlush', () => {
             expect(typeof eventSourceManager.prepareForNavigation).toBe('function');
             const es = createES();
@@ -1298,14 +1284,11 @@ describe('eventSourceManager', () => {
             mockLoggerEventSource.onerror({status: 401});
             expect(console.info).toHaveBeenCalledWith('🔄 New token available, updating Logger EventSource');
 
-            const signinSilent = vi.fn();
-            window.oidcUserManager = {signinSilent};
             localStorageMock.getItem.mockReturnValue('old-token');
             eventSourceManager.createLoggerEventSource(URL_NODE_EVENT, 'old-token', []);
             vi.mocked(window.dispatchEvent).mockClear();
             mockLoggerEventSource.readyState = 2;
             mockLoggerEventSource.onerror({status: 401});
-            expect(signinSilent).not.toHaveBeenCalled();
             expect(dispatched()).toEqual(['om3:auth-renew']);
             expect(console.info).toHaveBeenCalledWith(expect.stringContaining('Logger reconnecting in'));
         });
@@ -1318,7 +1301,6 @@ describe('eventSourceManager', () => {
             }
             expect(console.error).toHaveBeenCalledWith('❌ Max reconnection attempts reached for logger, trying again every 30s');
             expect(mockLogStore.addEventLog).not.toHaveBeenCalledWith('MAX_RECONNECTIONS_REACHED', expect.any(Object));
-            expect(dispatched()).not.toContain('om3:auth-redirect');
         });
 
         test('should process events and log them, handle invalid JSON', () => {

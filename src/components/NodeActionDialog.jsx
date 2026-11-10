@@ -4,7 +4,8 @@ import {Alert} from "../ui/components/Alert";
 import {Button} from "../ui/components/Button";
 import {Checkbox} from "../ui/components/Field";
 import {Dialog} from "../ui/components/Dialog";
-import {nodeAction, nodeActionKey} from "../app/node-actions";
+import {nodeAction} from "../app/node-actions";
+import {keyOf} from "../app/action-menu";
 
 /**
  * The confirmation of an action on nodes: what it does; for a harmful one, what it
@@ -28,7 +29,7 @@ export function NodeActionDialog({pending, target, description, onConfirm, onClo
     };
     if (!pending) return null;
     const action = nodeAction(pending.action);
-    const key = nodeActionKey(pending.action);
+    const key = keyOf(pending.action);
     const harmful = action?.color === "red";
     const label = t(`nodeActions.${key}.label`);
     return (

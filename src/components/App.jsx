@@ -260,15 +260,6 @@ const OidcInitializer = ({children, authInfo}) => {
         }
     }, [auth.authChoice]);
 
-    useEffect(() => {
-        const handler = (e) => {
-            const path = e?.detail || '/auth-choice';
-            navigate(path, {replace: true});
-        };
-        window.addEventListener('om3:auth-redirect', handler);
-        return () => window.removeEventListener('om3:auth-redirect', handler);
-    }, [navigate]);
-
     /*
      * An event stream refused its token (401): the session renewed, the streams then
      * reopened with the new token. Ended only when it cannot be: the OpenID provider

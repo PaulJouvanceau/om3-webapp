@@ -1076,12 +1076,6 @@ describe('App Component', () => {
     });
 
     // --- Miscellaneous ---
-    test('handles om3:auth-redirect event', async () => {
-        renderApp(['/']);
-        act(() => window.dispatchEvent(new CustomEvent('om3:auth-redirect', {detail: '/auth-choice'})));
-        expect(mockNavigate).toHaveBeenCalledWith('/auth-choice', {replace: true});
-    });
-
     test('storage event calls getItem to check new token', async () => {
         const newToken = makeTokenWithExp(3600);
         mockLocalStorage.getItem.mockImplementation((k) => k === 'authChoice' ? 'basic' : null);
@@ -1100,7 +1094,6 @@ describe('App Component', () => {
         await screen.findByTestId('navbar');
         unmount();
         expect(removeListenerSpy).toHaveBeenCalledWith('focus', expect.any(Function));
-        expect(removeListenerSpy).toHaveBeenCalledWith('om3:auth-redirect', expect.any(Function));
         expect(docRemoveListenerSpy).toHaveBeenCalledWith('visibilitychange', expect.any(Function));
     });
 
