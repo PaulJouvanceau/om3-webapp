@@ -699,11 +699,20 @@ export function StatusBoard({
   const instanceRow = board.rows.find((r) => r.kind === "instance");
   const nodeSelected = (node: string) => selection?.isNode(node) ?? false;
 
-  // Scaled down while its table overflows its frame; resized, the whole table tried again.
+  // Scaled down while its table overflows its frame; resized, or its content changed,
+  // the whole table tried again: narrower, it may fit where the one before did not.
   const root = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLDivElement>(null);
   const [step, setStep] = useState(0);
+  const fitted = useRef(board);
   useLayoutEffect(() => {
+    if (fitted.current !== board) {
+      fitted.current = board;
+      if (step !== 0) {
+        setStep(0);
+        return;
+      }
+    }
     const element = frame.current;
     if (element && step < BOARD_LAYOUT_STEPS && element.scrollWidth > element.clientWidth + 1) setStep((n) => n + 1);
   });
