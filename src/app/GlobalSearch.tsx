@@ -45,7 +45,7 @@ function isMac(): boolean {
  * Global search of the cluster, from the top bar, as oc3 searches the collector.
  *
  * A compact field in the bar opens a command palette over the current view:
- * Ctrl+K (⌘K on a Mac) or "/" open it from anywhere. The results come grouped by
+ * Ctrl+K (⌘K on a Mac) or "/" open it from anywhere but a field. The results come grouped by
  * kind (`search.ts`), each with its icon, what tells homonyms apart and its
  * status. Choosing one opens its record in the panel over the current view, as a
  * badge does (`usePeek`), a node included. Up and Down move through the results,
@@ -68,8 +68,10 @@ export function GlobalSearch({ loadIndex }: { loadIndex: () => Promise<SearchInd
 
   useEffect(() => {
     function onKeyDown(event: globalThis.KeyboardEvent) {
+      // In a field, its keys its own: Ctrl+K deletes to the end of the line in many.
+      if (typing(event.target)) return;
       const combo = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k";
-      if (combo || (event.key === "/" && !typing(event.target) && !event.altKey)) {
+      if (combo || (event.key === "/" && !event.altKey)) {
         // Not over another modal dialog: the help, a confirmation.
         if (!combo && document.querySelector('[aria-modal="true"]') !== null) return;
         event.preventDefault();

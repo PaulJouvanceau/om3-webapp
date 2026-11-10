@@ -79,6 +79,19 @@ describe("GlobalSearch", () => {
     expect(screen.getByRole("dialog", { name: "Search the cluster" })).toBeInTheDocument();
   });
 
+  test("in a field, Ctrl K and / its own: no palette, the key not taken", () => {
+    renderSearch();
+    const field = document.body.appendChild(document.createElement("input"));
+    try {
+      for (const key of [{ key: "k", ctrlKey: true }, { key: "k", metaKey: true }, { key: "/" }]) {
+        expect(fireEvent.keyDown(field, key)).toBe(true);
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      }
+    } finally {
+      field.remove();
+    }
+  });
+
   test("the shortcut said on the button, but in a narrow window, the button its icon only", () => {
     renderSearch();
     const trigger = screen.getByRole("button", { name: /Search the cluster/ });
