@@ -7,6 +7,7 @@ import {MenuButton} from "../ui/components/MenuButton";
 import {SlideOver} from "../ui/components/SlideOver";
 import {Spinner} from "../ui/components/Spinner";
 import {BoltIcon, CloseIcon} from "../ui/icons";
+import {useShallow} from "zustand/react/shallow";
 import useEventStore from "../hooks/useEventStore.js";
 import {retainEventReception} from "../eventSourceManager.jsx";
 import {URL_OBJECT} from "../config/apiPath.js";
@@ -75,7 +76,16 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
 
     const objectStatus = useEventStore((s) => s.objectStatus[decodedObjectName]);
     const objectInstanceStatus = useEventStore((s) => s.objectInstanceStatus[decodedObjectName]);
-    const instanceMonitor = useEventStore((s) => s.instanceMonitor);
+    // The monitors of this object's instances alone, by node: the map of them all,
+    // replaced at each monitor event in the cluster, would render the page at each.
+    const instanceMonitor = useEventStore(useShallow((s) => {
+        const monitors = {};
+        for (const node of Object.keys(s.objectInstanceStatus[decodedObjectName] ?? {})) {
+            const monitor = s.instanceMonitor[`${node}:${decodedObjectName}`];
+            if (monitor) monitors[node] = monitor;
+        }
+        return monitors;
+    }));
     const instanceConfig = useEventStore((s) => s.instanceConfig[decodedObjectName]);
 
     const [configNode, setConfigNode] = useState(/** @type {string | null} */ (null));
@@ -133,8 +143,7 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
 
         if (objectInstanceStatus) {
             for (const node of Object.keys(objectInstanceStatus)) {
-                const monitorKey = `${node}:${decodedObjectName}`;
-                const monitor = instanceMonitor[monitorKey] || {};
+                const monitor = instanceMonitor[node] || {};
                 if (!globalExpect && monitor.global_expect && monitor.global_expect !== "none") {
                     ({globalExpect, orchestrationId} = orchestrationOf([monitor]));
                 }
@@ -158,7 +167,7 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
             enhanced[node] = {
                 ...objectInstanceStatus[node],
                 instanceConfig: instanceConfig?.[node] || {resources: {}},
-                instanceMonitor: instanceMonitor[`${node}:${decodedObjectName}`] || {resources: {}},
+                instanceMonitor: instanceMonitor[node] || {resources: {}},
             };
         });
         return enhanced;
@@ -168,7 +177,7 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
     const isChildrenDown = childrenDown(
         decodedObjectName,
         objectStatus?.avail,
-        nodesList.map((node) => instanceMonitor[`${node}:${decodedObjectName}`]),
+        nodesList.map((node) => instanceMonitor[node]),
     );
 
     const fetchFallbackData = useCallback(async () => {
@@ -416,7 +425,7 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
 
     const getNodeState = useCallback((node) => {
         const nodeStatus = objectInstanceStatus?.[node] || {};
-        const monitor = instanceMonitor[`${node}:${decodedObjectName}`] || {};
+        const monitor = instanceMonitor[node] || {};
         const avail = nodeStatus.avail || '';
         const frozen = nodeStatus.frozen_at && nodeStatus.frozen_at !== ZERO_TIME ? "frozen" : "unfrozen";
         const state = monitor.state !== "idle" ? monitor.state : null;
