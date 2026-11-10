@@ -271,7 +271,7 @@
       "install": "Installer",
       "switch": "Basculer",
       "giveback": "Restituer",
-      "abort": "Abandonner",
+      "abort": "Interrompre",
       "enable": "Activer",
       "disable": "Désactiver",
       "delete": "Supprimer",
@@ -2471,7 +2471,7 @@
       "running": "En cours",
       "succeeded": "Réussie",
       "failed": "Échouée",
-      "aborted": "Abandonnée",
+      "aborted": "Interrompue",
       "refused": "Refusée",
       "unknown": "Issue inconnue"
     },
@@ -2546,7 +2546,7 @@
     },
     "abort": {
       "label": "Interrompre",
-      "description": "Abandonner l'orchestration en cours du nœud : ce qu'il lui reste à faire n'est pas fait. Une exécution déjà lancée va à son terme."
+      "description": "Interrompre l'orchestration en cours du nœud : ce qu'il lui reste à faire n'est pas fait. Une exécution déjà lancée va à son terme."
     },
     "asset": {
       "label": "Matériel",
