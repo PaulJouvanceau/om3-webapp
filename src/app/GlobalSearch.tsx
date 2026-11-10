@@ -17,21 +17,48 @@ import { KIND_ICON, SEARCH_KINDS, hitIcon, search, type SearchEntry, type Search
 
 type Scope = SearchKind | "all";
 
+/**
+ * A text in lower case, and where each of its units comes from in the text: lowered,
+ * a character may take more units than it had ("İ" is "i̇", two), the places of the
+ * two strings then apart.
+ */
+function lowered(text: string): { lower: string; start: number[]; end: number[] } {
+  let lower = "";
+  const start: number[] = [];
+  const end: number[] = [];
+  let at = 0;
+  for (const char of text) {
+    const low = char.toLocaleLowerCase();
+    for (let i = 0; i < low.length; i++) {
+      start.push(at);
+      end.push(at + char.length);
+    }
+    lower += low;
+    at += char.length;
+  }
+  return { lower, start, end };
+}
+
 /** The parts of a text that match the query, marked; case-insensitive. */
-function Highlight({ text, query }: { text: string; query: string }) {
+export function Highlight({ text, query }: { text: string; query: string }) {
   const q = query.trim().toLocaleLowerCase();
   if (q === "") return <>{text}</>;
-  const lower = text.toLocaleLowerCase();
+  const { lower, start, end } = lowered(text);
   const parts: ReactNode[] = [];
   let from = 0;
-  for (let at = lower.indexOf(q); at !== -1; at = lower.indexOf(q, from)) {
-    if (at > from) parts.push(text.slice(from, at));
+  for (let at = lower.indexOf(q); at !== -1; at = lower.indexOf(q, at + q.length)) {
+    // The match in the text: the whole characters its units come from.
+    const first = start[at]!;
+    const last = end[at + q.length - 1]!;
+    // Begun in a character a match before it already marked.
+    if (first < from) continue;
+    if (first > from) parts.push(text.slice(from, first));
     parts.push(
-      <mark key={at} className="bg-transparent font-semibold text-ink underline decoration-accent underline-offset-2">
-        {text.slice(at, at + q.length)}
+      <mark key={first} className="bg-transparent font-semibold text-ink underline decoration-accent underline-offset-2">
+        {text.slice(first, last)}
       </mark>,
     );
-    from = at + q.length;
+    from = last;
   }
   if (from < text.length) parts.push(text.slice(from));
   return <>{parts}</>;

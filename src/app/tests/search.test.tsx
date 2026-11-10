@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { GlobalSearch } from "../GlobalSearch";
+import { GlobalSearch, Highlight } from "../GlobalSearch";
 import { setHistoryGrouping } from "../panel-history";
 import { reloadRecordHistory, useRecordHistory } from "../record-history";
 import { LIMIT_ALL, hitIcon, search, type SearchIndex } from "../search";
@@ -48,6 +48,26 @@ describe("search", () => {
   test("an object shows the icon of its kind", () => {
     expect(hitIcon(index.entries[2]!)).toBe("secret");
     expect(hitIcon(index.entries[1]!)).toBe("service");
+  });
+});
+
+describe("Highlight", () => {
+  const marked = (text: string, query: string) => {
+    const { container } = render(<Highlight text={text} query={query} />);
+    return { text: container.textContent, marks: [...container.querySelectorAll("mark")].map((m) => m.textContent) };
+  };
+
+  test("the matches marked, case-insensitive, the text whole", () => {
+    expect(marked("system/svc/DNS", "dns")).toEqual({ text: "system/svc/DNS", marks: ["DNS"] });
+    expect(marked("a-a-a", "a")).toEqual({ text: "a-a-a", marks: ["a", "a", "a"] });
+  });
+
+  test("a character longer lowered, the marks where the matches are", () => {
+    // "İ" lowered is "i̇", two units: the places after it no longer shift.
+    expect(marked("İstanbul-web", "web")).toEqual({ text: "İstanbul-web", marks: ["web"] });
+    expect(marked("İİ-dns", "dns")).toEqual({ text: "İİ-dns", marks: ["dns"] });
+    // The character itself matched whole.
+    expect(marked("x-İ-y", "i̇")).toEqual({ text: "x-İ-y", marks: ["İ"] });
   });
 });
 
