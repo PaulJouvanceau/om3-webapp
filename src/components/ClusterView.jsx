@@ -496,11 +496,13 @@ export default function ClusterView() {
     const kinds = Object.entries(paths.reduce((acc, p) => ({...acc, [kindOf(p)]: (acc[kindOf(p)] ?? 0) + 1}), {}))
         .sort(([a], [b]) => kindRank(a) - kindRank(b) || a.localeCompare(b));
 
-    // The namespaces, by the objects they hold: "ns/kind/name" of its namespace, "kind/name" and a bare name of the root one,
-    // "ns/" its configuration, of the namespace it names ("/" of the root one).
+    // The namespaces, by the objects they hold, as the objects list counts them: "ns/kind/name" of its namespace,
+    // "kind/name" and a bare name of the root one, the cluster one too (root/ccfg/cluster). "ns/" its configuration,
+    // of the namespace it names ("/" of the root one): the namespace counted, its objects without it, the configuration
+    // the namespace line, no object of its own.
     const byNamespace = paths.reduce((acc, p) => {
         const {namespace} = parseObjectPath(p);
-        if (kindOf(p) !== "ccfg") acc[namespace] = (acc[namespace] ?? 0) + 1;
+        acc[namespace] = (acc[namespace] ?? 0) + (kindOf(p) === "nscfg" ? 0 : 1);
         return acc;
     }, {});
     const busiest = Object.entries(byNamespace).sort(([a, x], [b, y]) => y - x || a.localeCompare(b)).slice(0, SHOWN);

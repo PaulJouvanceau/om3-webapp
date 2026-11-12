@@ -324,18 +324,18 @@ describe('ClusterView', () => {
 
     test('the namespaces, the busiest; the pools and networks, the fullest, the full ones counted', () => {
         render(<ClusterView/>, {wrapper: MemoryRouter});
-        // ns1 its three, root its bare service and its configuration; the cluster object of none.
+        // ns1 its three, root its bare service, its configuration and the cluster object, as the objects list counts them.
         const busiest = within(card('namespaces')).getByRole('list', {name: 'The busiest'});
-        expect(busiest).toHaveTextContent(/^ns13 objectsroot2 objectsns21 object$/);
+        expect(busiest).toHaveTextContent(/^ns13 objectsroot3 objectsns21 object$/);
         // The count of a namespace, its objects on the objects page.
-        expect(within(busiest).getByRole('link', {name: '3 objects'})).toHaveAttribute('href', '/objects?list=any&namespace=ns1');
+        expect(within(busiest).getAllByRole('link', {name: '3 objects'})[0]).toHaveAttribute('href', '/objects?list=any&namespace=ns1');
         expect(card('pools')).toHaveTextContent('1 full');
         const fullest = within(card('pools')).getByRole('list', {name: 'The fullest'});
         expect(within(fullest).getAllByRole('listitem').map((li) => li.textContent.slice(0, 7))).toEqual(['tank100', 'default']);
         expect(within(card('networks')).getByRole('list', {name: 'The fullest'})).toHaveTextContent(/^backend/);
     });
 
-    test('a namespace configuration, "ns/", of the namespace it names; one holding only it counted', () => {
+    test('a namespace configuration, "ns/", of the namespace it names, no object of it, the cluster one of root, as the objects list counts them; one holding only it counted', () => {
         useMenuState.setState({
             objects: {
                 'ns1/svc/web': {avail: 'up'},
@@ -348,7 +348,7 @@ describe('ClusterView', () => {
         });
         render(<ClusterView/>, {wrapper: MemoryRouter});
         expect(within(card('namespaces')).getByRole('list', {name: 'The busiest'}))
-            .toHaveTextContent(/^ns12 objectsroot2 objectsns31 object$/);
+            .toHaveTextContent(/^root2 objectsns11 objectns30 objects$/);
         expect(within(card('namespaces')).getByRole('heading', {level: 2})).toHaveTextContent(/3$/);
     });
 
