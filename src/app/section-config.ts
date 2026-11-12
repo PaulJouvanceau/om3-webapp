@@ -5,7 +5,7 @@
  * operations writing it (PATCH /api/cluster/config), the section they write.
  */
 
-import { continued as continuedValue, isContinuationLine } from "./ini";
+import { continued as continuedValue, isContinuationLine, lineValue } from "./ini";
 
 /** A keyword as the daemon describes it; the fields the wizard reads. */
 export interface Keyword {
@@ -160,7 +160,7 @@ export function sectionPreview(section: string, name: string, type: string, valu
 }
 
 /** A line of a section: `key = value`, the key scoped to a node or not (`subnet@n1`). */
-const BODY_LINE = /^\s*([A-Za-z0-9_]+(?:@[A-Za-z0-9_.-]+)?)\s*=\s*(.*?)\s*$/;
+const BODY_LINE = /^\s*([A-Za-z0-9_]+(?:@[A-Za-z0-9_.-]+)?)\s*=(.*)$/;
 const IGNORED_LINE = /^\s*([#;].*)?$/;
 
 /** The body of a section as written: its lines but its header. */
@@ -173,8 +173,9 @@ export function sectionBody(section: string | null): string {
 }
 
 /**
- * The keys of a body and their values; the lines that are none, blank and comments
- * aside. A value continued on the lines under its key holds them, one a line.
+ * The keys of a body and their values, as om3 reads them (lineValue): an inline
+ * comment not in the value; the lines that are none, blank and comments aside. A value
+ * continued on the lines under its key holds them, one a line.
  */
 export function parseBody(body: string): { values: SectionValues; invalid: string[] } {
   const values: SectionValues = {};
@@ -187,7 +188,7 @@ export function parseBody(body: string): { values: SectionValues; invalid: strin
     }
     const match = BODY_LINE.exec(line);
     continued = match ? match[1] : null;
-    if (match) values[match[1]] = match[2];
+    if (match) values[match[1]] = lineValue(match[2]);
     else if (!IGNORED_LINE.test(line)) invalid.push(line.trim());
   }
   return { values, invalid };

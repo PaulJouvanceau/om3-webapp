@@ -4,7 +4,7 @@
  * the operations writing it (PATCH /api/cluster/config), the section they write.
  */
 
-import { continued, isContinuationLine } from "./ini";
+import { continued, isContinuationLine, lineValue } from "./ini";
 
 /** The drivers of a heartbeat, its `type`. */
 export const HB_TYPES = ["unicast", "multicast", "disk", "relay"] as const;
@@ -37,11 +37,12 @@ export const HB_FIELDS: Record<HbType, HbField[]> = {
 export type HbValues = Record<string, string>;
 
 const HEADER = /^\s*\[([^\]]+)\]\s*$/;
-const KEY = /^\s*([^#;=\s][^=]*?)\s*=\s*(.*?)\s*$/;
+const KEY = /^\s*([^#;=\s][^=]*?)\s*=(.*)$/;
 
 /**
- * The keys of a section as om3 writes it, its header first; comments left out. A
- * value continued on the lines under its key holds them, as om3 reads it.
+ * The keys of a section as om3 writes it, its header first; comments left out, an
+ * inline one too (lineValue). A value continued on the lines under its key holds
+ * them, as om3 reads it.
  */
 export function sectionValues(section: string | null): HbValues {
   const values: HbValues = {};
@@ -53,7 +54,7 @@ export function sectionValues(section: string | null): HbValues {
     }
     const match = HEADER.test(line) ? null : KEY.exec(line);
     last = match ? match[1] : null;
-    if (match) values[match[1]] = match[2];
+    if (match) values[match[1]] = lineValue(match[2]);
   }
   return values;
 }
