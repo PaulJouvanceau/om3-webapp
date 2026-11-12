@@ -2931,9 +2931,12 @@
     "noMatch": "Aucune ressource ne correspond.",
     "notProvisioned": "non provisionnée",
     "passive": "passif",
+    "unused": "volume inutilisé",
     "passiveHint": "Son objet tourne sur un autre nœud : celui-ci attend, comme prévu. Pas de problème.",
+    "reason": "Pourquoi down",
+    "reasonNone": "aucune, un problème",
     "problemsOnly": "Problèmes seulement",
-    "problemsOnlyHint": "Ne garder que les ressources down (hors nœuds passifs) et celles en warn",
+    "problemsOnlyHint": "Ne garder que les ressources en warn, et celles down sans raison valable (hors optionnelles, désactivées, arrêtées, nœuds passifs, volumes inutilisés)",
     "restarts_one": "{{count}} redémarrage restant",
     "restarts_other": "{{count}} redémarrages restants",
     "columns": {
@@ -3223,9 +3226,11 @@
     },
     "resources": {
       "unread": "Impossible de lire les ressources : {{message}}",
-      "operational": "ressources en warn",
+      "operational": "ressources sans problème",
+      "down": "down",
       "warn": "warn",
-      "other": "autres"
+      "quiet": "down, sans problème",
+      "ok": "ok"
     },
     "reading": "Lecture…",
     "links": {

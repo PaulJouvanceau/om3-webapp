@@ -1,5 +1,6 @@
 import React, {useEffect, useMemo, useState} from "react";
 import {Link} from "react-router-dom";
+import {useShallow} from "zustand/react/shallow";
 import {useTranslation} from "react-i18next";
 import {URL_CLUSTER_STATUS_NODES, URL_RESOURCES, URL_STORE} from "../config/apiPath.js";
 import {servedSlots, slotCounts} from "../app/heartbeat-relays";
@@ -12,7 +13,10 @@ import {groupState, meshLinks} from "../app/heartbeat-mesh";
 import {CrossLink} from "../app/CrossLink";
 import {storeSource} from "../app/store-config";
 import {kindOf, useMenuState} from "../hooks/useSidebarAlerts";
+import useEventStore from "../hooks/useEventStore.js";
+import {retainEventReception} from "../eventSourceManager";
 import {parseObjectPath} from "../utils/objectUtils.jsx";
+import {DOWN_REASONS, isProblem, quietReason, toLine} from "../app/resource-lines";
 import {useClusterNodeOrder} from "../hooks/useClusterNodeOrder";
 import {usePgReadings} from "../hooks/usePgUsage";
 import {IO_FIGURES, sumUsage} from "../app/pg-usage";
@@ -52,11 +56,23 @@ const AVAIL_STATES = [
     ["na", "stroke-line-strong", "bg-line-strong"],
 ];
 
-/** The resources: those in warn, the others of any state. [state, arc, dot] */
+/**
+ * The resources: the problems, down or in warn, as the Resources page keeps them; those
+ * down for a reason that is none (quietReason), apart, gray, every resource down counted;
+ * the others. [state, arc, dot]
+ */
 const RESOURCE_STATES = [
+    ["down", "stroke-state-down", "bg-state-down"],
     ["warn", "stroke-state-warn", "bg-state-warn"],
-    ["other", "stroke-line-strong", "bg-line-strong"],
+    ["quiet", "stroke-line-strong", "bg-line-strong"],
+    ["ok", "stroke-state-up", "bg-state-up"],
 ];
+
+/** The resources down of no issue on the resources page: down, for any reason of it (DOWN_REASONS but none). */
+const QUIET_URL = `/resources?${new URLSearchParams({status: "down", reason: DOWN_REASONS.filter((r) => r !== "none").join(",")})}`;
+
+/** The reports of the instances, which tell a resource down on a passive node. */
+const INSTANCE_EVENTS = ["InstanceStatusUpdated"];
 
 /** The arbitrators, as the nodes see them: up, or not reached. [state, arc, dot] */
 const ARBITRATOR_STATES = [
@@ -80,15 +96,16 @@ const nodeState = (status) => (status === undefined ? "dropped" : status.is_over
 
 /**
  * Things by their state at a glance: a ring, its arcs the `states` ([state, arc, dot],
- * the words of `words`.<state>), and in it how many are in the `shown` one, the `good`
- * one unless said, out of all, `label` under, and a word for it, optimal when all are in
- * the `good` one; beside each arc that counts some, its word and count, a link opening
+ * the words of `words`.<state>), and in it how many are in the `shown` ones, the `good`
+ * ones unless said, out of all, `label` under, and a word for it, optimal when all are in
+ * the `good` ones (a state or several); beside each arc that counts some, its word and count, a link opening
  * its page filtered on its state when `link` gives it an address.
  */
 function CountsRing({name, states, counts, good, shown = good, label, words, link}) {
     const {t} = useTranslation();
     const total = states.reduce((sum, [key]) => sum + counts[key], 0);
-    const state = counts[good] === total ? "up" : counts[good] === 0 ? "down" : "warn";
+    const sum = (keys) => [keys].flat().reduce((n, key) => n + counts[key], 0);
+    const state = sum(good) === total ? "up" : sum(good) === 0 ? "down" : "warn";
     return (
         <div data-ring={name} data-state={state} className="flex flex-col items-center gap-2 py-1">
             <StateRing
@@ -100,7 +117,7 @@ function CountsRing({name, states, counts, good, shown = good, label, words, lin
                     return [key, counts[key], stroke, {word, to, title: to ? `${t("clusterView.filtered", {state: word})}: ${counts[key]}` : undefined}];
                 })}
             >
-                <span className="text-2xl font-semibold tabular-nums">{counts[shown]}/{total}</span>
+                <span className="text-2xl font-semibold tabular-nums">{sum(shown)}/{total}</span>
                 <span className="text-ink-muted">{label}</span>
                 <span className={`font-semibold ${RING_INK[state]}`}>{t(`heartbeats.mesh.overall.${state}`)}</span>
             </StateRing>
@@ -431,7 +448,7 @@ function Fullest({items, kind}) {
  */
 export default function ClusterView() {
     const {t, i18n} = useTranslation();
-    const {objects, nodeStatus, heartbeatStatus, pools, networks, ready} = useMenuState();
+    const {objects, nodeStatus, heartbeatStatus, pools, networks, volChildren, ready} = useMenuState();
     const stores = usePolled(URL_STORE);
     const relay = usePolled(URL_RELAY_STATUS);
     const relaySlots = slotCounts(servedSlots(relay.items ?? [], Date.now()));
@@ -492,8 +509,40 @@ export default function ClusterView() {
     const snapshots = storeItems.reduce((sum, s) => sum + (s.stats?.runs ?? 0), 0);
     const unreached = storeItems.filter((s) => s.stats?.check_error).length;
 
-    const resourcesWarn = (resources.items ?? []).filter((r) => r.data?.status?.status === "warn").length;
-    const resourceCounts = {warn: resourcesWarn, other: (resources.items ?? []).length - resourcesWarn};
+    // Passive as the Resources page tells it, by the reports of the instances too, read as
+    // it reads them: those of the resources down alone, the page not rendered at each
+    // event of the others.
+    useEffect(() => {
+        const token = localStorage.getItem("authToken");
+        const release = token ? retainEventReception(token, INSTANCE_EVENTS) : null;
+        return () => release?.();
+    }, []);
+    const resourceItems = resources.items;
+    const baseLines = useMemo(
+        () => (resourceItems ?? []).map(toLine),
+        [resourceItems]
+    );
+    const downLines = useMemo(() => baseLines.filter((l) => l.status === "down"), [baseLines]);
+    // What quietReason reads of each: its availability, when it was stopped.
+    const downReports = useEventStore(useShallow((s) => downLines.flatMap((l) => {
+        const report = s.objectInstanceStatus?.[l.object]?.[l.hostNode];
+        return [report?.avail, report?.stopped_at];
+    })));
+    const reports = {};
+    downLines.forEach((l, i) => {
+        const [avail, stopped_at] = downReports.slice(2 * i, 2 * i + 2);
+        if (avail !== undefined || stopped_at !== undefined) (reports[l.object] ??= {})[l.hostNode] = {avail, stopped_at};
+    });
+    const resourceLines = baseLines.map((l) => ({...l, quiet: quietReason(l, {objects, reports, volChildren})}));
+    const resourcesDown = resourceLines.filter((l) => isProblem(l) && l.status === "down").length;
+    const resourcesQuiet = resourceLines.filter((l) => l.quiet).length;
+    const resourcesWarn = resourceLines.filter((l) => l.status === "warn").length;
+    const resourceCounts = {
+        down: resourcesDown,
+        warn: resourcesWarn,
+        quiet: resourcesQuiet,
+        ok: resourceLines.length - resourcesDown - resourcesWarn - resourcesQuiet,
+    };
 
     return (
         <div className="@container p-4">
@@ -685,12 +734,12 @@ export default function ClusterView() {
                             name="resources"
                             states={RESOURCE_STATES}
                             counts={resourceCounts}
-                            good="other"
-                            shown="warn"
+                            good={["quiet", "ok"]}
                             label={t("clusterView.resources.operational")}
                             words="clusterView.resources"
-                            // Those in warn on the resources page; the others, of any other state, no filter says.
-                            link={(state) => (state === "warn" ? "/resources?status=warn" : undefined)}
+                            // The problems on the resources page, down or in warn; those down of no issue alone, by
+                            // their reasons; the others, of many states, no filter says.
+                            link={(state) => (state === "ok" ? undefined : state === "quiet" ? QUIET_URL : `/resources?status=${state}&problems=1`)}
                         />
                     )}
                 </Card>
