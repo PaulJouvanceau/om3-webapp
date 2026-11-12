@@ -5,6 +5,7 @@
  * `core/naming/path.go` and `core/oxcmd/object_create.go`.
  */
 
+import { sectionHeaders } from "./ini";
 
 /** The kinds one creates: the cluster object exists with the cluster. */
 export const CREATABLE_KINDS = ["svc", "vol", "cfg", "sec", "usr", "nscfg"] as const;
@@ -69,7 +70,6 @@ export function objectPath(namespace: string, kind: string, name: string): strin
   return kind === "svc" ? n : `${kind}/${n}`;
 }
 
-const SECTION = /^\s*\[([^\]]+)\]\s*$/;
 const ID_LINE = /^\s*id\s*=/;
 
 /**
@@ -79,12 +79,13 @@ const ID_LINE = /^\s*id\s*=/;
  */
 export function withId(config: string, id: string): string {
   const lines = config.split("\n");
-  const at = lines.findIndex((line) => SECTION.exec(line)?.[1]?.trim() === "DEFAULT");
+  const headers = sectionHeaders(lines);
+  const at = headers.indexOf("DEFAULT");
   if (at === -1) {
     const rest = config.trim() === "" ? "" : `\n${config.replace(/^\n+/, "")}`;
     return `[DEFAULT]\nid = ${id}\n${rest}`;
   }
-  let end = lines.findIndex((line, i) => i > at && SECTION.test(line));
+  let end = headers.findIndex((name, i) => i > at && name !== null);
   if (end === -1) end = lines.length;
   const kept = lines.filter((line, i) => i <= at || i >= end || !ID_LINE.test(line));
   kept.splice(at + 1, 0, `id = ${id}`);

@@ -70,6 +70,12 @@ describe('parseConfig', () => {
             ['app#1', 'start', 0, 5],
         ]);
     });
+
+    test('a line of a value looking like a section header no heading: the keys after it of the same section', () => {
+        const lines = parseConfig('[app#1]\nstart = sh -c "\n    [ -d /srv ]\n    "\nstop = true\n[fs#1]');
+        expect(lines.filter((l) => l.heading).map((l) => l.line)).toEqual(['[app#1]', '[fs#1]']);
+        expect(lines.find((l) => l.key === 'stop').section).toBe('app#1');
+    });
 });
 
 describe('ConfigText', () => {

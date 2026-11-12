@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { lineValue } from "../ini";
+import { lineValue, sectionHeaders } from "../ini";
 
 describe("a value as om3 reads it", () => {
   test("an inline comment, after a space, left out; a '#' or a ';' in a word kept", () => {
@@ -30,5 +30,25 @@ describe("a value as om3 reads it", () => {
   test("the spaces around it trimmed", () => {
     expect(lineValue("  10.0.0.1  ")).toBe("10.0.0.1");
     expect(lineValue("")).toBe("");
+  });
+});
+
+describe("the sections of a file as om3 reads them", () => {
+  const headers = (text: string) => sectionHeaders(text.split("\n")).filter((name) => name !== null);
+
+  test("a line opening one: at the margin or indented, a key line above not continued", () => {
+    expect(headers("[DEFAULT]\nnodes = *\n[app#1]\n  [fs#1]\ntype = flag")).toEqual(["DEFAULT", "app#1", "fs#1"]);
+    // After a blank line, a comment, or a value on its line alone between quotes: no value to continue.
+    expect(headers("[a]\nk = v\n\n    [b]")).toEqual(["a", "b"]);
+    expect(headers("[a]\nk = \"v\"\n    [b]")).toEqual(["a", "b"]);
+  });
+
+  test("a line of a value none: indented under its key, in a quoted value, after a backslash", () => {
+    expect(headers("[a]\nstart = sh -c \"\n    [ -d /srv ]\n    \"\nk =\n    [1, 2]\n[b]")).toEqual(["a", "b"]);
+    expect(headers("[a]\nk = `x\n[not]\ny`\n[b]")).toEqual(["a", "b"]);
+    expect(headers('[a]\nk = """x\n[not]\n"""\n[b]')).toEqual(["a", "b"]);
+    expect(headers("[a]\nk = x \\\n[not]\n[b]")).toEqual(["a", "b"]);
+    // An inline comment no quote: the value continued.
+    expect(headers("[a]\nk = v # c\n    [1]\n[b]")).toEqual(["a", "b"]);
   });
 });

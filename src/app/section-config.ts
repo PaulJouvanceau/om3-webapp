@@ -5,7 +5,7 @@
  * operations writing it (PATCH /api/cluster/config), the section they write.
  */
 
-import { continued as continuedValue, isContinuationLine, lineValue } from "./ini";
+import { continued as continuedValue, isContinuationLine, lineValue, sectionHeaders } from "./ini";
 import { setOp } from "./keyop";
 
 /** A keyword as the daemon describes it; the fields the wizard reads. */
@@ -164,11 +164,12 @@ export function sectionPreview(section: string, name: string, type: string, valu
 const BODY_LINE = /^\s*([A-Za-z0-9_]+(?:@[A-Za-z0-9_.-]+)?)\s*=(.*)$/;
 const IGNORED_LINE = /^\s*([#;].*)?$/;
 
-/** The body of a section as written: its lines but its header. */
+/** The body of a section as written: its lines but its header, a line of a value looking like one kept. */
 export function sectionBody(section: string | null): string {
-  return (section ?? "")
-    .split("\n")
-    .filter((line) => !/^\s*\[[^\]]+\]\s*$/.test(line))
+  const lines = (section ?? "").split("\n");
+  const headers = sectionHeaders(lines);
+  return lines
+    .filter((_, i) => headers[i] === null)
     .join("\n")
     .trim();
 }

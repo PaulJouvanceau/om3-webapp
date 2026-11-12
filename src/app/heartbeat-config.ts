@@ -4,7 +4,7 @@
  * the operations writing it (PATCH /api/cluster/config), the section they write.
  */
 
-import { continued, isContinuationLine, lineValue } from "./ini";
+import { continued, isContinuationLine, lineValue, sectionHeaders } from "./ini";
 import { setOp } from "./keyop";
 
 /** The drivers of a heartbeat, its `type`. */
@@ -62,10 +62,7 @@ export function sectionValues(section: string | null): HbValues {
 
 /** The heartbeat sections of a configuration file, by name: `hb#1`, `hb#2`… */
 export function hbSections(text: string): string[] {
-  return text
-    .split("\n")
-    .map((line) => HEADER.exec(line)?.[1].trim())
-    .filter((name): name is string => name !== undefined && /^hb#\S+$/.test(name));
+  return sectionHeaders(text.split("\n")).filter((name): name is string => name !== null && /^hb#\S+$/.test(name));
 }
 
 /** The name of a new heartbeat: `hb#N`, N above the highest of those numbered. */

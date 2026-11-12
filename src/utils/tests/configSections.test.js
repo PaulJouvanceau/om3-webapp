@@ -31,3 +31,18 @@ describe('replaceSection', () => {
             .toBe('[DEFAULT]\nnodes = *\n\n[fs#1]\ntype = flag\n');
     });
 });
+
+describe('a line of a value looking like a section header', () => {
+    // As the usecases/svc/indented-brackets test object holds it.
+    const BRACKETS = '[DEFAULT]\nnodes = *\n\n[app#1]\ntype = simple\nstart = sh -c "\n    [ -d /srv ]\n    "\ncheck = echo\n    [1, 2]\nstop = true\n\n[fs#1]\ntype = flag\n';
+    const APP = '[app#1]\ntype = simple\nstart = sh -c "\n    [ -d /srv ]\n    "\ncheck = echo\n    [1, 2]\nstop = true\n';
+
+    test('the value\'s, as om3 reads it: the section whole', () => {
+        expect(extractSection(BRACKETS, 'app#1')).toBe(APP);
+    });
+
+    test('a section edited back in its place, the value kept whole, no section made of it', () => {
+        expect(replaceSection(BRACKETS, 'app#1', APP.replace('stop = true', 'stop = /bin/true')))
+            .toBe(BRACKETS.replace('stop = true', 'stop = /bin/true'));
+    });
+});
