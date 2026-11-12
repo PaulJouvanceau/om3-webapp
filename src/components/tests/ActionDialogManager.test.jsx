@@ -193,7 +193,8 @@ describe('ActionDialogManager', () => {
     test('renders without crashing when no pendingAction is provided', () => {
         render(<ActionDialogManager {...defaultProps} pendingAction={null}/>);
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-        expect(defaultProps.onClose).toHaveBeenCalled();
+        // Nothing asked, nothing closed: an action asked meanwhile is not closed unseen.
+        expect(defaultProps.onClose).not.toHaveBeenCalled();
     });
 
     test('handles null pendingAction without onClose prop', () => {
