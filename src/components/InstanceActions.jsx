@@ -80,7 +80,7 @@ export function RefreshStatusButton({path, nodes}) {
     const refresh = async () => {
         setRefreshing(true);
         setFailure(null);
-        const results = await Promise.all(nodes.map((node) => postAction({path, action: "status", node})
+        const results = await Promise.all(nodes.map((node) => postAction({path, action: "status", node}, {saysRefusal: true})
             .catch((err) => ({detail: err.message}))));
         const failures = results
             .map((r, i) => (r === null ? null : `${nodes[i]}: ${r.status ? `HTTP ${r.status}` : ""}${r.detail ? ` ${r.detail}` : ""}`.trim()))

@@ -107,6 +107,29 @@ describe('postAction', () => {
         expect(useActionTracker.getState().tracked[0].followedId).toBeUndefined();
     });
 
+    test('a clear or a status refused, or not sent: said in the tray all the same; accepted, nothing to follow', async () => {
+        useActionTracker.setState({tracked: [], revealed: 0});
+        global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({status: 403, detail: 'not an operator'}), {status: 403, headers: {'Content-Type': 'application/json'}}));
+        expect(await postAction({path: 'ns1/svc/web', action: 'clear', node: 'n1'})).toMatchObject({status: 403});
+        global.fetch = vi.fn().mockRejectedValue(new Error('network down'));
+        await postAction({path: 'ns1/svc/web', action: 'status', node: 'n2'});
+        expect(useActionTracker.getState().tracked.map(({action, state, error}) => [action, state, error])).toEqual([
+            ['status', 'refused', expect.stringMatching(/network down/)],
+            ['clear', 'refused', expect.stringMatching(/HTTP 403.*not an operator/)],
+        ]);
+        useActionTracker.setState({tracked: [], revealed: 0});
+        global.fetch = vi.fn().mockResolvedValue(new Response(null, {status: 200}));
+        await postAction({path: 'ns1/svc/web', action: 'clear', node: 'n1'});
+        expect(useActionTracker.getState().tracked).toEqual([]);
+    });
+
+    test('refused, the caller saying it itself: not in the tray', async () => {
+        useActionTracker.setState({tracked: [], revealed: 0});
+        global.fetch = vi.fn().mockResolvedValue(new Response(null, {status: 500}));
+        expect(await postAction({path: 'ns1/svc/web', action: 'status', node: 'n1'}, {saysRefusal: true})).toMatchObject({status: 500});
+        expect(useActionTracker.getState().tracked).toEqual([]);
+    });
+
     test('without one, no body, as before', async () => {
         await postAction({path: 'ns1/svc/web', action: 'start', node: 'n1', options: {}});
         expect(global.fetch).toHaveBeenCalledWith('/api/node/name/n1/instance/path/ns1/svc/web/action/start', {
