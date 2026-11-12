@@ -512,12 +512,17 @@ export const reconcileObjects = async (token) => {
             logger.warn(`Object list not reconciled: HTTP ${response.status}`);
             return;
         }
-        paths = await response.json();
+        const body = await response.json();
+        // The paths, a bare array before rc61, {kind, items} since.
+        paths = Array.isArray(body) ? body : body?.items;
     } catch (e) {
         logger.warn('Object list not reconciled:', e);
         return;
     }
-    if (!Array.isArray(paths)) return;
+    if (!Array.isArray(paths)) {
+        logger.warn('Object list not reconciled: no paths in the answer');
+        return;
+    }
     const known = new Set(paths);
     const gone = [...held].filter((name) => !known.has(name));
     if (gone.length === 0) return;

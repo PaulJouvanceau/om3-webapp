@@ -1551,6 +1551,12 @@ describe('eventSourceManager', () => {
             expect(mockStore.removeObjects).toHaveBeenCalledWith(['root/svc/gone', 'root/svc/stale']);
         });
 
+        test('the paths as om3 lists them since rc61, {kind, items}: the objects it no longer lists dropped', async () => {
+            global.fetch = answer({kind: 'ObjectPathList', items: ['root/svc/kept', 'root/svc/other']});
+            await eventSourceManager.reconcileObjects('tok');
+            expect(mockStore.removeObjects).toHaveBeenCalledWith(['root/svc/gone', 'root/svc/stale']);
+        });
+
         test('keeps an object created while the list was asked for', async () => {
             global.fetch = vi.fn(() => {
                 mockStore.objectStatus = {...mockStore.objectStatus, 'root/svc/new': {}};
@@ -1569,7 +1575,7 @@ describe('eventSourceManager', () => {
         test.each([
             ['a refused request', () => answer(null, false)],
             ['a network error', () => vi.fn(() => Promise.reject(new Error('offline')))],
-            ['an unexpected answer', () => answer({items: []})],
+            ['an answer holding no paths', () => answer({kind: 'ObjectPathList'})],
         ])('drops nothing on %s', async (_label, makeFetch) => {
             global.fetch = makeFetch();
             await eventSourceManager.reconcileObjects('tok');
