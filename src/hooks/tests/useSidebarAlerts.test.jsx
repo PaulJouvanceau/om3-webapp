@@ -15,6 +15,7 @@ import useSidebarAlerts, {
     SIDEBAR_USAGE_REFRESH_MS,
 } from '../useSidebarAlerts';
 import {URL_NETWORK, URL_POOL} from '../../config/apiPath.js';
+import {endSession} from '../../app/session-end';
 
 const {sources} = vi.hoisted(() => ({sources: []}));
 
@@ -297,6 +298,39 @@ describe('useSidebarAlerts', () => {
             vi.advanceTimersByTime(SIDEBAR_RECONNECT_MS);
         });
         expect(sources).toHaveLength(1);
+    });
+
+    test('a session ended, the menu still shown: what it read dropped, its stream closed, the next session read with its token', async () => {
+        renderHook(() => useSidebarAlerts());
+        await act(async () => {
+            await Promise.resolve();
+        });
+        act(() => {
+            sources[0].emit('ObjectStatusUpdated', {path: 'ns1/svc/secret-app', object_status: {avail: 'up'}});
+        });
+        await flush();
+        expect(Object.keys(useMenuState.getState().objects)).toEqual(['ns1/svc/secret-app']);
+        expect(useMenuState.getState().pools).toHaveLength(1);
+
+        localStorage.removeItem('authToken');
+        act(() => endSession());
+        expect(sources[0].closed).toBe(true);
+        expect(useMenuState.getState().objects).toEqual({});
+        expect(useMenuState.getState().pools).toEqual([]);
+        // An event the old stream had in flight: none applied.
+        act(() => {
+            sources[0].emit('ObjectStatusUpdated', {path: 'ns1/svc/late', object_status: {avail: 'up'}});
+        });
+        await flush();
+        expect(useMenuState.getState().objects).toEqual({});
+
+        // The next user signed in: a stream of their own, their token.
+        localStorage.setItem('authToken', 'tok2');
+        await act(async () => {
+            vi.advanceTimersByTime(SIDEBAR_RECONNECT_MS);
+        });
+        expect(sources).toHaveLength(2);
+        expect(sources[1].options.headers.Authorization).toBe('Bearer tok2');
     });
 
     test('closes the stream on unmount', () => {

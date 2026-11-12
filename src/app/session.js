@@ -5,6 +5,8 @@ import {clearEventBuffers, closeEventSource, closeLoggerEventSource} from "../ev
 import {clearObjectCache} from "../hooks/useEventStore.js";
 import {resetClusterStatus} from "../hooks/clusterStatusOnce.js";
 import {clearKeyStats} from "../hooks/useKeyStats.js";
+import useEventLogStore from "../hooks/useEventLogStore.js";
+import {endSession} from "./session-end";
 
 /** The channel the tabs of the webapp tell each other of a session renewed or ended on. */
 export const AUTH_CHANNEL = "auth-channel";
@@ -21,6 +23,9 @@ export const AUTH_CHANNEL = "auth-channel";
  * - The configuration edits in progress, holding the files in clear.
  * - The configuration last written here of each object, the cluster status read
  *   once, the keys counted.
+ * - The events logged, their payloads with them.
+ * - The menu's own stream closed, its state emptied, the next session's read anew
+ *   (onSessionEnd): the objects, nodes and pools the menu and the overview show.
  */
 export function forgetSession() {
     closeEventSource();
@@ -32,6 +37,8 @@ export function forgetSession() {
     clearConfigStamps();
     resetClusterStatus();
     clearKeyStats();
+    useEventLogStore.getState().clearLogs();
+    endSession();
 }
 
 /** Tells the other tabs the session ended here: each forgets it in turn (AuthProvider). */
