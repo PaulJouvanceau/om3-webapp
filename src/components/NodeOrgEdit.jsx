@@ -3,6 +3,7 @@ import {URL_NODE} from "../config/apiPath.js";
 import {getResponseErrorMessage} from "../services/api.jsx";
 import {trackRefused, trackResponse, trackWrite} from "../app/action-tracker";
 import {refusalReason} from "./objectActions";
+import {setOp} from "../app/keyop";
 
 /**
  * The keyword of the node configuration a property of the organisation comes from,
@@ -75,7 +76,7 @@ export function useOrgEdit(node, {reload, t}) {
         const entries = Object.entries(buffer);
         if (entries.length === 0 || applying) return;
         const query = entries
-            .map(([kw, value]) => (value.trim() === "" ? `unset=${encodeURIComponent(kw)}` : `set=${encodeURIComponent(`${kw}=${value.trim()}`)}`))
+            .map(([kw, value]) => (value.trim() === "" ? `unset=${encodeURIComponent(kw)}` : `set=${encodeURIComponent(setOp(kw, value.trim()))}`))
             .join("&");
         const write = {action: "config", label: t("nodePanel.orgEdit.tray", {count: entries.length}), subject: node};
         setApplying(true);

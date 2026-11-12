@@ -5,6 +5,7 @@
  */
 
 import { continued, isContinuationLine, lineValue } from "./ini";
+import { setOp } from "./keyop";
 
 /** The drivers of a heartbeat, its `type`. */
 export const HB_TYPES = ["unicast", "multicast", "disk", "relay"] as const;
@@ -102,7 +103,7 @@ export function hbOps(name: string, original: HbValues, values: HbValues): { rew
       if (!rewrite && key in original) unset.push(`${name}.${key}`);
       continue;
     }
-    if (rewrite || original[key] !== value) set.push(`${name}.${key}=${value}`);
+    if (rewrite || original[key] !== value) set.push(setOp(`${name}.${key}`, value));
   }
   // The type first, the driver read before its keys.
   set.sort((a, b) => Number(!a.startsWith(`${name}.type=`)) - Number(!b.startsWith(`${name}.type=`)));

@@ -18,7 +18,7 @@ const trimStart = (s: string): string => s.replace(/^[\s\u0085]+/, "");
 const trimEnd = (s: string): string => s.replace(/[\s\u0085]+$/, "");
 
 /** Whether a value is a pair of `quote` around what holds no other. */
-const surrounded = (s: string, quote: string): boolean =>
+export const surrounded = (s: string, quote: string): boolean =>
   s.length >= 2 && s.startsWith(quote) && s.endsWith(quote) && s.indexOf(quote, 1) === s.length - 1;
 
 /**

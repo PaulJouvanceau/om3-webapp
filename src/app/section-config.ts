@@ -6,6 +6,7 @@
  */
 
 import { continued as continuedValue, isContinuationLine, lineValue } from "./ini";
+import { setOp } from "./keyop";
 
 /** A keyword as the daemon describes it; the fields the wizard reads. */
 export interface Keyword {
@@ -151,7 +152,7 @@ function entries(type: string, values: SectionValues): [string, string][] {
 
 /** The operations writing a new section: its keys set, the type first, the driver read before them. */
 export function sectionOps(section: string, name: string, type: string, values: SectionValues): string[] {
-  return entries(type, values).map(([key, value]) => `${section}#${name}.${key}=${value}`);
+  return entries(type, values).map(([key, value]) => setOp(`${section}#${name}.${key}`, value));
 }
 
 /** The section as it will read once written. */
@@ -205,7 +206,7 @@ export function bodyOps(section: string, name: string, before: string, after: st
   const set = Object.entries(values)
     .filter(([key, value]) => old[key] !== value)
     .sort(([a], [b]) => Number(a !== "type") - Number(b !== "type") || a.localeCompare(b))
-    .map(([key, value]) => `${section}#${name}.${key}=${value}`);
+    .map(([key, value]) => setOp(`${section}#${name}.${key}`, value));
   const unset = Object.keys(old)
     .filter((key) => !(key in values))
     .sort()
@@ -234,13 +235,13 @@ export function editOps(
   if (rewrite) return { rewrite, set: sectionOps(section, name, type, own), unset: [] };
   const set: string[] = [];
   const unset: string[] = [];
-  if (!original.type) set.push(`${section}#${name}.type=${type}`);
+  if (!original.type) set.push(setOp(`${section}#${name}.type`, type));
   for (const [key, raw] of Object.entries(own).sort(([a], [b]) => a.localeCompare(b))) {
     const value = raw.trim();
     if (value === "") {
       if (key in original) unset.push(`${section}#${name}.${key}`);
     } else if (original[key] !== value) {
-      set.push(`${section}#${name}.${key}=${value}`);
+      set.push(setOp(`${section}#${name}.${key}`, value));
     }
   }
   return { rewrite, set, unset };

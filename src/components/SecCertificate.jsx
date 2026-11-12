@@ -15,6 +15,7 @@ import {parseObjectPath} from "../utils/objectUtils";
 import useEventStore from "../hooks/useEventStore.js";
 import {trackDone, trackRefused, trackWrite} from "../app/action-tracker";
 import {refusalReason} from "./objectActions";
+import {setOp} from "../app/keyop";
 
 /** How long a certificate is waited for: an ACME directory proving the domains takes tens of seconds. */
 export const CERTIFICATE_TIMEOUT_MS = 300_000;
@@ -161,7 +162,7 @@ export function SecCertificate({path, keyNames, disabled, onWritten}) {
             ? {action: "config", label: t("actionTray.writes.set", {keyword: "ca", value: ca}), subject: path, path}
             : {action: "config", label: t("actionTray.writes.unset", {keyword: "ca"}), subject: path, path};
         try {
-            const query = ca ? `set=${encodeURIComponent(`ca=${ca}`)}` : "unset=ca";
+            const query = ca ? `set=${encodeURIComponent(setOp("ca", ca))}` : "unset=ca";
             const response = await fetch(`${objectUrl(path)}/config?${query}`, {method: "PATCH", headers: authHeaders()});
             return await trackWrite(response, info, refusal);
         } catch (err) {

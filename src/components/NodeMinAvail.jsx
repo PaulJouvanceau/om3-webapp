@@ -8,6 +8,7 @@ import {URL_NODE} from "../config/apiPath.js";
 import {getResponseErrorMessage} from "../services/api.jsx";
 import {trackRefused, trackWrite} from "../app/action-tracker";
 import {refusalReason} from "./objectActions";
+import {setOp} from "../app/keyop";
 
 /**
  * The minimum free memory and swap of a node (`node.min_avail_mem`,
@@ -94,7 +95,7 @@ export function MinAvailDialog({node, kind, written, freePct, totalMiB, onClose,
         setSaving(true);
         setError(null);
         try {
-            const query = next === "" ? `unset=${encodeURIComponent(keyword)}` : `set=${encodeURIComponent(`${keyword}=${next}`)}`;
+            const query = next === "" ? `unset=${encodeURIComponent(keyword)}` : `set=${encodeURIComponent(setOp(keyword, next))}`;
             const response = await fetch(`${URL_NODE}/${encodeURIComponent(node)}/config?${query}`, {method: "PATCH", headers: authHeaders()});
             const ok = await trackWrite(response, write, async (r) => {
                 const detail = await getResponseErrorMessage(r);

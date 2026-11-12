@@ -11,6 +11,7 @@
  * om3 does not check a limit when the configuration is written, a typo failing
  * only when the claim is used: the wizard writes nothing it would not read back.
  */
+import { setOp } from "./keyop";
 import { parseCpuLimit, parseSize, type Claim } from "./namespace-usage";
 
 export type ClaimType = Claim["type"];
@@ -102,12 +103,12 @@ export interface ClaimWrite {
  * .../config/file): all of its section, so that an edit rewrites what it shows.
  */
 export function claimOps(claim: ClaimWrite): { set: string[]; unset: string[] } {
-  const set = [`${claim.section}.type=${claim.type}`];
-  if (isNamed(claim.type) && claim.name) set.push(`${claim.section}.name=${claim.name}`);
-  set.push(`${claim.section}.limit=${claim.limit}`);
+  const set = [setOp(`${claim.section}.type`, claim.type)];
+  if (isNamed(claim.type) && claim.name) set.push(setOp(`${claim.section}.name`, claim.name));
+  set.push(setOp(`${claim.section}.limit`, claim.limit));
   const unset: string[] = [];
   if (!isNamed(claim.type)) {
-    if (claim.defaultLimit) set.push(`${claim.section}.default=${claim.defaultLimit}`);
+    if (claim.defaultLimit) set.push(setOp(`${claim.section}.default`, claim.defaultLimit));
     else unset.push(`${claim.section}.default`);
   }
   return { set, unset };

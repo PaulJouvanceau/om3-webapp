@@ -23,6 +23,7 @@ import {newId, withId} from "../app/object-create";
 import {designChanges, designStart, parseDesign, rootOnlyKind} from "../app/object-design";
 import {ObjectDesigner} from "./ObjectDesigner";
 import {useEditDraft} from "../app/edit-drafts";
+import {opValue} from "../app/keyop";
 
 /**
  * The object configuration file, its secrets redacted unless `showSecrets`: the
@@ -590,9 +591,10 @@ const ConfigSection = ({
             return;
         }
         const {namespace, kind, name} = parseObjectPath(decodedObjectName);
-        // As om writes them: set=<keyword>=<value>, the keyword and the value each encoded.
+        // As om writes them: set=<keyword>=<value>, the keyword and the value each encoded,
+        // the value read back as is (opValue).
         const query = [
-            ...sets.map(({keyword, value}) => `set=${encodeURIComponent(keyword)}=${encodeURIComponent(value)}`),
+            ...sets.map(({keyword, value}) => `set=${encodeURIComponent(keyword)}=${encodeURIComponent(opValue(value))}`),
             // None yet: nothing to unset nor delete.
             ...(absent ? [] : unsets.map((keyword) => `unset=${encodeURIComponent(keyword)}`)),
             ...(absent ? [] : paramsToDelete.map((section) => `delete=${encodeURIComponent(section)}`)),

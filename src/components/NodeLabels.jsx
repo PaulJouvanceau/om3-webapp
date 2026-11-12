@@ -7,6 +7,7 @@ import {URL_CLUSTER, URL_NODE} from "../config/apiPath.js";
 import {getResponseErrorMessage} from "../services/api.jsx";
 import {trackRefused, trackWrite} from "../app/action-tracker";
 import {refusalReason} from "./objectActions";
+import {setOp} from "../app/keyop";
 
 const authHeaders = () => ({Authorization: `Bearer ${localStorage.getItem("authToken") ?? ""}`});
 
@@ -114,7 +115,7 @@ export function NodeLabels({node, mayEdit}) {
         const query = Object.entries(buffer)
             .map(([key, value]) => (value === null
                 ? `unset=${encodeURIComponent(`labels.${key}`)}`
-                : `set=${encodeURIComponent(`labels.${key}=${value}`)}`))
+                : `set=${encodeURIComponent(setOp(`labels.${key}`, value))}`))
             .join("&");
         const write = {action: "config", label: t("nodeLabels.tray", {count}), subject: node};
         setApplying(true);
