@@ -170,23 +170,28 @@ export function parseDesign(text: string, start: DesignSection[] = designStart()
   const lines = text.replace(/\r/g, "").split("\n");
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] as string;
-    const head = line.match(/^\s*\[([^\]]+)\]\s*$/);
-    if (head) {
-      const name = (head[1] as string).trim();
+    // A section as om reads it (util/ini parse): its name up to the last "]" of the
+    // line, a comment after it left out.
+    const trimmed = line.trimStart();
+    if (trimmed.startsWith("[")) {
+      const close = trimmed.lastIndexOf("]");
+      const name = close > 0 ? trimmed.slice(1, close).trim() : "";
+      if (name === "") continue;
       kept = KEPT_SECTIONS.includes(name);
       current = kept ? null : at(name);
       continue;
     }
     // A comment, a blank line, or an indented one no key is above: nothing of the design.
     if (/^\s*([#;]|$)/.test(line) || isContinuation(line)) continue;
-    const kv = line.match(/^([^=]+?)\s*=(.*)$/);
-    if (!kv) continue;
+    // Its key up to the first "=" or ":", as om reads it (readKeyName).
+    const delimiter = line.search(/[=:]/);
+    const key = delimiter > 0 ? line.slice(0, delimiter).trim() : "";
+    if (key === "") continue;
     // Its value, and the lines below that continue it, as om reads them.
-    const { value, taken } = readValue(kv[2] as string, lines.slice(i + 1));
+    const { value, taken } = readValue(line.slice(delimiter + 1), lines.slice(i + 1));
     i += taken;
     if (kept) continue;
     const section = current ?? at("DEFAULT");
-    const key = (kv[1] as string).trim();
     if (key === "type" && section.group !== undefined && !NEEDS_GROUPS.includes(section.group)) {
       section.type = value;
     } else if (!KEPT_KEYS.includes(`${section.name}.${key}`)) {
