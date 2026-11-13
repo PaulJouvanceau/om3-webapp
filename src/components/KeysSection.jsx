@@ -22,7 +22,7 @@ import {parseBlobContent} from "../utils/blob-content";
 import CertificateDetails from "./CertificateDetails";
 import {SecCertificate} from "./SecCertificate";
 import {Trans, useTranslation} from "react-i18next";
-import {readProblem, withWriteParams} from "../app/config-write";
+import {LAST_MODIFIED_HEADER, STATUS_MODIFIED, readProblem, withWriteParams} from "../app/config-write";
 
 const getAuthToken = () => {
     const token = localStorage.getItem("authToken");
@@ -39,6 +39,15 @@ const buildObjectUrl = (decodedObjectName) => {
 };
 
 /** A refusal in words, for the actions tray: its status, and the detail the daemon gave. */
+/** Whether two contents hold the same bytes. */
+const sameBytes = async (a, b) => {
+    const [x, y] = await Promise.all([a.arrayBuffer(), b.arrayBuffer()]);
+    if (x.byteLength !== y.byteLength) return false;
+    const u = new Uint8Array(x);
+    const v = new Uint8Array(y);
+    return u.every((byte, i) => byte === v[i]);
+};
+
 const keyRefusal = async (response) => refusalReason({status: response.status, detail: await getResponseErrorMessage(response)});
 
 const formatResponseError = async (response, defaultMessage) => {
@@ -373,6 +382,9 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey, keyOnly, onKe
     const [updateHidden, setUpdateHidden] = useState(null);
     // The last update form opened: the content read for one before it, arriving late, is dropped.
     const updateRequest = useRef(0);
+    // The content of the key the update dialog opened on, as read: none when not read
+    // (a secret, never read here; a read failed), the update then made on no content.
+    const updateRead = useRef(/** @type {Blob | null} */ (null));
     // The last key shown: the content read for one before it, arriving late, is dropped.
     const viewRequest = useRef(0);
     const maxKeySize = useMaxKeySize(createDialogOpen || updateDialogOpen);
@@ -445,8 +457,9 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey, keyOnly, onKe
                 const text = await response.text();
                 blob = new Blob([text], {type: 'text/plain'});
             }
-            // The bytes kept too, for the key to be saved as it is stored.
-            return {...(await parseBlobContent(blob)), blob};
+            // The bytes kept too, for the key to be saved as it is stored, and the time
+            // of the configuration it was read from.
+            return {...(await parseBlobContent(blob)), blob, modified: response.headers?.get(LAST_MODIFIED_HEADER) ?? null};
         } catch (err) {
             openSnackbar(t("keys.errors.generic", {message: err.message}), "error");
             return {type: 'error', content: null};
@@ -549,9 +562,23 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey, keyOnly, onKe
         // What came of it, the actions tray says.
         setActionLoading(true);
         const write = keyWrite("keyUpdate", name);
+        const read = updateRead.current;
         try {
             const baseUrl = buildObjectUrl(decodedObjectName);
-            const response = await fetch(`${baseUrl}/data/key?name=${encodeURIComponent(name)}`, {
+            const params = new URLSearchParams({name});
+            // Made on the content read when the dialog opened: the key as it is now, the
+            // same, written only if its configuration is still that one when the daemon
+            // writes it. Another's change since, not replaced without being seen.
+            if (read) {
+                const current = await fetchKeyContent(name);
+                if (current.type === "error") return;
+                if (!(await sameBytes(current.blob, read))) {
+                    setKeyFormError(t("keys.errors.conflict"));
+                    return;
+                }
+                if (current.modified) params.append("if_unmodified_since", current.modified);
+            }
+            const response = await fetch(`${baseUrl}/data/key?${params}`, {
                 method: "PUT",
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -559,7 +586,10 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey, keyOnly, onKe
                 },
                 body: contentBlob,
             });
-            if (await writeKey(response, write)) {
+            const written = await writeKey(response, write);
+            // Written between the check above and the write.
+            if (response.status === STATUS_MODIFIED) setKeyFormError(t("keys.errors.conflict"));
+            if (written) {
                 setUpdateDialogOpen(false);
                 await fetchKeys();
             }
@@ -661,6 +691,7 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey, keyOnly, onKe
 
     const openUpdateDialog = async (keyName) => {
         const request = ++updateRequest.current;
+        updateRead.current = null;
         setUpdateInitialName(keyName);
         setKeyFormError(null);
         setUpdateDialogOpen(true);
@@ -677,6 +708,7 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey, keyOnly, onKe
         setUpdateContentLoading(true);
         const result = await fetchKeyContent(keyName);
         if (request !== updateRequest.current) return;
+        if (result.blob) updateRead.current = result.blob;
         if (result.type === "text") {
             setUpdateInitialContent(result.content);
         } else if (result.type === "binary") {

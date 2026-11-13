@@ -41,6 +41,12 @@ describe("the parameters of a write", () => {
     expect(withWriteParams("/c/config/file")).toBe("/c/config/file?wait=30s");
     expect(withWriteParams("/c/config?set=a%3Db", { force: true })).toBe("/c/config?set=a%3Db&wait=30s&force=true");
   });
+
+  test("the time of the configuration it was made on, encoded; none, nothing", () => {
+    expect(withWriteParams("/c/config/file", { unmodifiedSince: "2026-11-13T10:00:00.123456789+01:00" }))
+      .toBe("/c/config/file?wait=30s&if_unmodified_since=2026-11-13T10%3A00%3A00.123456789%2B01%3A00");
+    expect(withWriteParams("/c/config/file", { unmodifiedSince: null })).toBe("/c/config/file?wait=30s");
+  });
 });
 
 describe("a wait for the nodes that expired", () => {
