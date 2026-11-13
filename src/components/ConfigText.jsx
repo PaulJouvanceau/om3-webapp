@@ -5,6 +5,7 @@ import {Dialog} from "../ui/components/Dialog";
 import {Spinner} from "../ui/components/Spinner";
 import {CrossLink} from "../app/CrossLink";
 import {KEY_SOURCE, datastorePath, isKeyName} from "../app/key-source";
+import {sectionHeaders} from "../app/ini";
 import KeysSection from "./KeysSection";
 
 /*
@@ -41,7 +42,6 @@ function loadDoc(keywordsUrl, section, option) {
 /** Forgets the documentation read, for the tests. */
 export const clearKeywordsCache = () => docCache.clear();
 
-const SECTION = /^\s*\[([^\]]+)\]\s*$/;
 // A key at the start of its line, not a comment nor the continuation of a value.
 const KEY = /^([^\s#;=[][^=]*?)\s*=/;
 // As `om <path> config show` tells them (core/rawconfig): a scope, `{a.reference}`.
@@ -52,7 +52,8 @@ const COMMENT = /^\s*[#;]/;
 const FREE_SECTIONS = new Set(["data", "env", "labels"]);
 
 /**
- * The lines of the file, a section with `heading`, a comment with `comment`; a key
+ * The lines of the file, a section with `heading` (sectionHeaders: a line of a value
+ * looking like one, none), a comment with `comment`; a key
  * line with where the key as written stands in the line, and with its section and
  * its key without the scope (`nodes@n1` is `nodes`), a key of a section of free keys
  * having none of those two. `prose`, a value said to be read, not one om takes: of a
@@ -61,10 +62,11 @@ const FREE_SECTIONS = new Set(["data", "env", "labels"]);
 export function parseConfig(text) {
     let section = "DEFAULT";
     let prose = false;
-    return text.split("\n").map((line) => {
-        const s = line.match(SECTION);
-        if (s) {
-            section = s[1].trim();
+    const lines = text.split("\n");
+    const headers = sectionHeaders(lines);
+    return lines.map((line, i) => {
+        if (headers[i] !== null) {
+            section = headers[i];
             prose = false;
             return {line, heading: true};
         }

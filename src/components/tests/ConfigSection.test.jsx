@@ -466,8 +466,9 @@ describe('ConfigSection Component', () => {
     // ── Secrets ──────────────────────────────────────────────────────────
     describe('editing the file', () => {
         // The daemon file: `stored`, redacted on demand; a PUT answers `putResponse`.
-        const mockDaemon = ({stored, putResponse = {ok: true, status: 204}, onPut} = {}) => {
+        const mockDaemon = ({stored, putResponse = {ok: true, status: 204}, onPut, modified = null} = {}) => {
             let file = stored;
+            let time = modified;
             global.fetch.mockImplementation((url, options) => {
                 if (url.includes('/config/file')) {
                     if (options?.method === 'PUT') {
@@ -479,11 +480,11 @@ describe('ConfigSection Component', () => {
                         });
                     }
                     const text = url.includes('redact-secrets=false') ? file : file.replace(/secret = .*/, 'secret = ********');
-                    return Promise.resolve({ok: true, status: 200, text: () => Promise.resolve(text)});
+                    return Promise.resolve({ok: true, status: 200, text: () => Promise.resolve(text), headers: new Headers(time ? {'OM-Last-Modified': time} : {})});
                 }
                 return defaultFetchMock(url, options);
             });
-            return {setFile: (text) => { file = text; }};
+            return {setFile: (text, at = time) => { file = text; time = at; }};
         };
         const configPuts = () => global.fetch.mock.calls.filter(([, options]) => options?.method === 'PUT');
         const startEditing = async () => {
@@ -590,6 +591,26 @@ describe('ConfigSection Component', () => {
             await act(() => user.click(screen.getByRole('button', {name: 'Start over from the current file'})));
             await waitFor(() => expect(screen.getByRole('textbox', {name: 'Configuration file'})).toHaveValue('[DEFAULT]\nnodes = node2'));
             expect(screen.queryByText(/changed by someone else/)).toBeNull();
+        });
+
+        test('written only if still the file checked: the time it was read at sent; written since (412), started over', async () => {
+            const daemon = mockDaemon({
+                stored: '[DEFAULT]\nnodes = *',
+                modified: '2026-11-13T10:00:00.1Z',
+                putResponse: {ok: false, status: 412, problem: {detail: 'the configuration of cfg1 was written by someone else since'}},
+            });
+            renderConfig();
+            const editor = await startEditing();
+            fireEvent.change(editor, {target: {value: '[DEFAULT]\nnodes = node9'}});
+            // Read again at the save, the same file, a time of its own.
+            daemon.setFile('[DEFAULT]\nnodes = *', '2026-11-13T10:00:00.2Z');
+            await act(() => user.click(screen.getByRole('button', {name: 'Save'})));
+            await waitFor(() => expect(configPuts()).toHaveLength(1));
+            expect(configPuts()[0][0]).toBe(`${URL_OBJECT}/root/cfg/cfg1/config/file?wait=30s&if_unmodified_since=2026-11-13T10%3A00%3A00.2Z`);
+            expect(await screen.findByText(/changed by someone else/)).toBeInTheDocument();
+            expect(screen.getByRole('button', {name: 'Start over from the current file'})).toBeInTheDocument();
+            expect(editor).toHaveValue('[DEFAULT]\nnodes = node9');
+            await waitFor(() => expect(tray()).toEqual([['Update the configuration', 'root/cfg/cfg1', 'refused', 'HTTP 412 the configuration of cfg1 was written by someone else since']]));
         });
 
         test('shows why the daemon refused the file, and keeps the changes', async () => {
@@ -946,6 +967,66 @@ describe('ConfigSection Component', () => {
             await waitFor(() => expect(patches()).toEqual([`${URL_OBJECT}/root/cfg/cfg1/config?set=orchestrate=no&wait=30s`]));
             await waitFor(() => expect(getDialogByTitle('Configuration design')).toBeUndefined());
             expect(tray()[0]).toEqual(['Set orchestrate = no', 'root/cfg/cfg1', 'succeeded', null]);
+        });
+
+        // The daemon file, `stored` at `modified`, changed by setFile; a PATCH answers `patchResponse`.
+        const mockDesignDaemon = ({stored, modified, patchResponse = {ok: true, status: 200}}) => {
+            let file = stored;
+            let time = modified;
+            global.fetch.mockImplementation((url, options) => {
+                if (url.includes('/config/file')) {
+                    return Promise.resolve({ok: true, status: 200, text: () => Promise.resolve(file), headers: new Headers({'OM-Last-Modified': time})});
+                }
+                if (options?.method === 'PATCH') {
+                    return Promise.resolve({json: () => Promise.resolve(patchResponse.problem ?? {}), headers: new Headers(), ...patchResponse});
+                }
+                return defaultFetchMock(url, options);
+            });
+            return {setFile: (text, at) => { file = text; time = at; }};
+        };
+        const STORED = '[DEFAULT]\nnodes = *\norchestrate = ha\n[fs#1]\nsize = 10GB';
+
+        test('written only if still the file designed on: the time it was read at sent', async () => {
+            const daemon = mockDesignDaemon({stored: STORED, modified: '2026-11-13T10:00:00.1Z'});
+            renderConfig();
+            const dialog = await openDesigner(user);
+            fireEvent.change(within(dialog).getByRole('textbox', {name: 'Value of orchestrate'}), {target: {value: 'no'}});
+            // A comment added since: the design the same, written over it.
+            daemon.setFile(`# a comment\n${STORED}`, '2026-11-13T10:00:00.2Z');
+            await act(() => user.click(within(dialog).getByRole('button', {name: 'Apply 1 change'})));
+            await waitFor(() => expect(patches()).toEqual([`${URL_OBJECT}/root/cfg/cfg1/config?set=orchestrate=no&wait=30s&if_unmodified_since=2026-11-13T10:00:00.2Z`]));
+        });
+
+        test('the design changed by someone else since it opened: nothing written, started over on the file as it is', async () => {
+            const daemon = mockDesignDaemon({stored: STORED, modified: '2026-11-13T10:00:00.1Z'});
+            renderConfig();
+            const dialog = await openDesigner(user);
+            fireEvent.change(within(dialog).getByRole('textbox', {name: 'Value of orchestrate'}), {target: {value: 'no'}});
+            daemon.setFile(STORED.replace('nodes = *', 'nodes = n2'), '2026-11-13T10:00:00.2Z');
+            await act(() => user.click(within(dialog).getByRole('button', {name: 'Apply 1 change'})));
+            expect(await within(dialog).findByText(/changed by someone else since the design opened/)).toBeInTheDocument();
+            expect(patches()).toEqual([]);
+            expect(within(dialog).getByRole('textbox', {name: 'Value of orchestrate'})).toHaveValue('no');
+
+            await act(() => user.click(within(dialog).getByRole('button', {name: 'Start over from the current file'})));
+            await waitFor(() => expect(within(dialog).getByRole('textbox', {name: 'Value of nodes'})).toHaveValue('n2'));
+            expect(within(dialog).getByRole('textbox', {name: 'Value of orchestrate'})).toHaveValue('ha');
+            expect(within(dialog).queryByText(/changed by someone else/)).toBeNull();
+        });
+
+        test('written by someone else between the check and the write (412): nothing written, started over on demand', async () => {
+            mockDesignDaemon({
+                stored: STORED,
+                modified: '2026-11-13T10:00:00.1Z',
+                patchResponse: {ok: false, status: 412, problem: {title: 'Config modified', detail: 'written by someone else since'}},
+            });
+            renderConfig();
+            const dialog = await openDesigner(user);
+            fireEvent.change(within(dialog).getByRole('textbox', {name: 'Value of orchestrate'}), {target: {value: 'no'}});
+            await act(() => user.click(within(dialog).getByRole('button', {name: 'Apply 1 change'})));
+            expect(await within(dialog).findByText(/changed by someone else since the design opened/)).toBeInTheDocument();
+            expect(within(dialog).getByRole('button', {name: 'Start over from the current file'})).toBeInTheDocument();
+            expect(within(dialog).queryByRole('button', {name: /Force/i})).toBeNull();
         });
 
         test('a keyword removed unset, a resource removed deleted, in the same request', async () => {

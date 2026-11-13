@@ -345,10 +345,11 @@ const ActionDialogManager = ({
         },
     }), [checkboxState, handleConfirm, pendingAction, target, names, instances, onClose, options]);
     useEffect(() => {
+        // None asked, none to close: closing here would race an action asked meanwhile, this
+        // effect of a render before it run once it is, and close its dialog unseen.
         if (pendingAction === null) {
             setLastAction(null);
             setOptions({});
-            if (onClose) onClose();
             return;
         }
         if (!pendingAction?.action || typeof pendingAction.action !== 'string') {

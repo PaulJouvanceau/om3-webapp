@@ -4,7 +4,8 @@
  * the operations writing it (PATCH /api/cluster/config), the section they write.
  */
 
-import { continued, isContinuationLine } from "./ini";
+import { continued, isContinuationLine, lineValue, sectionHeaders } from "./ini";
+import { setOp } from "./keyop";
 
 /** The drivers of a heartbeat, its `type`. */
 export const HB_TYPES = ["unicast", "multicast", "disk", "relay"] as const;
@@ -37,11 +38,12 @@ export const HB_FIELDS: Record<HbType, HbField[]> = {
 export type HbValues = Record<string, string>;
 
 const HEADER = /^\s*\[([^\]]+)\]\s*$/;
-const KEY = /^\s*([^#;=\s][^=]*?)\s*=\s*(.*?)\s*$/;
+const KEY = /^\s*([^#;=\s][^=]*?)\s*=(.*)$/;
 
 /**
- * The keys of a section as om3 writes it, its header first; comments left out. A
- * value continued on the lines under its key holds them, as om3 reads it.
+ * The keys of a section as om3 writes it, its header first; comments left out, an
+ * inline one too (lineValue). A value continued on the lines under its key holds
+ * them, as om3 reads it.
  */
 export function sectionValues(section: string | null): HbValues {
   const values: HbValues = {};
@@ -53,17 +55,14 @@ export function sectionValues(section: string | null): HbValues {
     }
     const match = HEADER.test(line) ? null : KEY.exec(line);
     last = match ? match[1] : null;
-    if (match) values[match[1]] = match[2];
+    if (match) values[match[1]] = lineValue(match[2]);
   }
   return values;
 }
 
 /** The heartbeat sections of a configuration file, by name: `hb#1`, `hb#2`… */
 export function hbSections(text: string): string[] {
-  return text
-    .split("\n")
-    .map((line) => HEADER.exec(line)?.[1].trim())
-    .filter((name): name is string => name !== undefined && /^hb#\S+$/.test(name));
+  return sectionHeaders(text.split("\n")).filter((name): name is string => name !== null && /^hb#\S+$/.test(name));
 }
 
 /** The name of a new heartbeat: `hb#N`, N above the highest of those numbered. */
@@ -101,7 +100,7 @@ export function hbOps(name: string, original: HbValues, values: HbValues): { rew
       if (!rewrite && key in original) unset.push(`${name}.${key}`);
       continue;
     }
-    if (rewrite || original[key] !== value) set.push(`${name}.${key}=${value}`);
+    if (rewrite || original[key] !== value) set.push(setOp(`${name}.${key}`, value));
   }
   // The type first, the driver read before its keys.
   set.sort((a, b) => Number(!a.startsWith(`${name}.type=`)) - Number(!b.startsWith(`${name}.type=`)));

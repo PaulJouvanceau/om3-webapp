@@ -7,6 +7,7 @@ import KeysSection from '../KeysSection';
 import {resetMaxKeySize} from '../../hooks/useMaxKeySize';
 import {CA_PEM, LEAF_PEM} from '../../utils/tests/certificates.fixture';
 import {useActionTracker} from '../../app/action-tracker';
+import {URL_OBJECT} from '../../config/apiPath.js';
 
 // ── Mocks ──────────────────────────────────────────────────────────────
 vi.mock('../../hooks/useEventStore.js', () => ({default: vi.fn()}));
@@ -678,6 +679,67 @@ describe('KeysSection', () => {
         expect(within(dialog).getByRole('status', {name: 'Loading key content'})).toBeInTheDocument();
         await act(async () => resolveBlob(makeMockBlob(encodeText('hi'))));
         await waitFor(() => expect(queryLoading(within(dialog))).not.toBeInTheDocument());
+    });
+
+    describe('update: made on the content read', () => {
+        // The key as the daemon holds it, `content` at `at`, read each time anew; a PUT answers `put`.
+        const keyDaemon = ({put = {ok: true, json: () => Promise.resolve({})}} = {}) => {
+            const key = {content: 'hello', at: '2026-11-13T10:00:00.1Z'};
+            mockFetch({
+                keys: [{name: 'key1', node: 'n1', size: 5}],
+                methods: {
+                    GET: (url) => url.includes('/data/key?name=') ? Promise.resolve({
+                        ok: true,
+                        headers: new Headers({'OM-Last-Modified': key.at}),
+                        blob: () => Promise.resolve(makeMockBlob(encodeText(key.content))),
+                    }) : undefined,
+                    PUT: () => Promise.resolve(put),
+                },
+            });
+            return key;
+        };
+        const puts = () => global.fetch.mock.calls.filter(([, o]) => o?.method === 'PUT').map(([url]) => url);
+        const editAndUpdate = async (dialog) => {
+            const content = within(dialog).getByRole('textbox', {name: 'Key Content'});
+            await waitFor(() => expect(content).toHaveValue('hello'));
+            fireEvent.change(content, {target: {value: 'hello you'}});
+            await act(async () => {
+                await user.click(within(dialog).getByRole('button', {name: 'Update'}));
+            });
+        };
+
+        test('the key read again the same: written only if still that one, the time of the read sent', async () => {
+            const key = keyDaemon();
+            await renderAndWait('root/cfg/cfg1', 1);
+            const dialog = await openDialog('edit', 'key1');
+            // Another key of the object written since: this one the same, written over it.
+            key.at = '2026-11-13T10:00:00.2Z';
+            await editAndUpdate(dialog);
+            await waitFor(() => expect(puts()).toEqual([
+                `${URL_OBJECT}/root/cfg/cfg1/data/key?name=key1&if_unmodified_since=2026-11-13T10%3A00%3A00.2Z`,
+            ]));
+        });
+
+        test('the key changed by someone else since it was opened: nothing written, said', async () => {
+            const key = keyDaemon();
+            await renderAndWait('root/cfg/cfg1', 1);
+            const dialog = await openDialog('edit', 'key1');
+            key.content = 'hello there';
+            await editAndUpdate(dialog);
+            expect(await within(dialog).findByText(/changed by someone else since you opened it/)).toBeInTheDocument();
+            expect(puts()).toEqual([]);
+            expect(within(dialog).getByRole('textbox', {name: 'Key Content'})).toHaveValue('hello you');
+        });
+
+        test('written by someone else between the check and the write (412): said, the dialog kept', async () => {
+            keyDaemon({put: {ok: false, status: 412, json: () => Promise.resolve({title: 'Config modified', detail: 'written since'})}});
+            await renderAndWait('root/cfg/cfg1', 1);
+            const dialog = await openDialog('edit', 'key1');
+            await editAndUpdate(dialog);
+            expect(await within(dialog).findByText(/changed by someone else since you opened it/)).toBeInTheDocument();
+            expect(puts()).toHaveLength(1);
+            expect(screen.getByRole('dialog', {name: /Update Key/i})).toBeInTheDocument();
+        });
     });
 
     test('update binary: said in place, the update waits for new content', async () => {

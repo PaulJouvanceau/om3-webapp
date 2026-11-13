@@ -8,6 +8,7 @@ import {URL_NETWORK, URL_NODE_EVENT, URL_POOL} from "../config/apiPath.js";
 import logger from "../utils/logger.js";
 import {childrenDown} from "../app/statusboard";
 import useEventStore from "./useEventStore.js";
+import {onSessionEnd} from "../app/session-end";
 
 /** Pools and networks have no events: their usage is polled at this period. */
 export const SIDEBAR_USAGE_REFRESH_MS = 15000;
@@ -111,6 +112,10 @@ export function applySidebarEvent(state, type, data) {
 function useSidebarEventState(enabled) {
     const [state, setState] = useState(emptyState);
 
+    // A session ended (logged out, its token refused): nothing of it left to the next
+    // user, the menu shown or not.
+    useEffect(() => onSessionEnd(() => setState(emptyState())), []);
+
     useEffect(() => {
         // No menu, the sign-in screens: nothing to read.
         if (!enabled) return undefined;
@@ -135,7 +140,9 @@ function useSidebarEventState(enabled) {
             setState(snapshot);
         };
 
-        const onEvent = (type) => (event) => {
+        const onEvent = (type, from) => (event) => {
+            // Of a stream closed since, a session ended: not of this one.
+            if (from !== source) return;
             let data;
             try {
                 data = JSON.parse(event.data);
@@ -172,7 +179,7 @@ function useSidebarEventState(enabled) {
                 withCredentials: true,
             });
             for (const type of SIDEBAR_EVENTS) {
-                source.addEventListener(type, onEvent(type));
+                source.addEventListener(type, onEvent(type, source));
             }
             source.onerror = (error) => {
                 logger.warn("Sidebar event stream error, reconnecting", error?.status ?? "");
@@ -183,8 +190,21 @@ function useSidebarEventState(enabled) {
         }
 
         connect();
+        // A session ended, the menu still shown: its stream closed, what it read dropped,
+        // the next session's read from scratch once its token is there.
+        const stopListening = onSessionEnd(() => {
+            source?.close();
+            source = null;
+            clearTimeout(flushTimer);
+            flushTimer = null;
+            clearTimeout(reconnectTimer);
+            reconnectTimer = null;
+            working = emptyState();
+            scheduleReconnect();
+        });
         return () => {
             closed = true;
+            stopListening();
             clearTimeout(reconnectTimer);
             clearTimeout(flushTimer);
             source?.close();
@@ -198,6 +218,12 @@ function useSidebarEventState(enabled) {
 function useUsageLists(enabled) {
     const [pools, setPools] = useState([]);
     const [networks, setNetworks] = useState([]);
+
+    // A session ended: its lists dropped, the next session's read at the next poll.
+    useEffect(() => onSessionEnd(() => {
+        setPools([]);
+        setNetworks([]);
+    }), []);
 
     useEffect(() => {
         // No menu, the sign-in screens: nothing to read.

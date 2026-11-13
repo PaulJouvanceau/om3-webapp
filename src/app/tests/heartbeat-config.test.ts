@@ -29,6 +29,12 @@ describe("heartbeat config", () => {
     expect(sectionValues(null)).toEqual({});
   });
 
+  test("an inline comment no part of the value, as om3 reads it", () => {
+    const original = sectionValues("[hb#1]\ntype = unicast # lab\naddr@n1 = 10.0.0.1 ; n1 side\nport = 10011\n");
+    expect(original).toEqual({ type: "unicast", "addr@n1": "10.0.0.1", port: "10011" });
+    expect(hbOps("hb#1", original, { ...original, "addr@n1": "10.0.0.9" }).set).toEqual(["hb#1.addr@n1=10.0.0.9"]);
+  });
+
   test("a value continued on the lines under its key, as om3 reads one; an \"=\" in them no key of its own", () => {
     expect(sectionValues("[hb#1]\ntype = unicast\nnodes = n1\n  n2\n\tport = 1\nport = 10011\n# end\n  not a value\n")).toEqual({
       type: "unicast",

@@ -915,10 +915,13 @@ const Objects = () => {
         return () => clearTimeout(timer);
     }, [selectedGlobalStates, selectedNamespaces, selectedKinds, searchQuery, navigate, location.pathname, location.search]);
 
+    // The address changed (a link, Back): its filters. Those the same kept as they are, a
+    // row opened (sel=) or a panel tab changing the address alone: the rows drawn kept.
     useEffect(() => {
-        setSelectedGlobalStates(rawGlobalStates);
-        setSelectedNamespaces(rawNamespaces);
-        setSelectedKinds(rawKinds);
+        const keep = (next) => (prev) => (prev.join(",") === next.join(",") ? prev : next);
+        setSelectedGlobalStates(keep(rawGlobalStates));
+        setSelectedNamespaces(keep(rawNamespaces));
+        setSelectedKinds(keep(rawKinds));
         setSearchQuery(rawSearchQuery);
     }, [location.search]);
 

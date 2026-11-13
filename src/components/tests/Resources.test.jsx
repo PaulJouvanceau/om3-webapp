@@ -2,7 +2,8 @@ import React from 'react';
 import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {MemoryRouter, useLocation} from 'react-router-dom';
 import {vi} from 'vitest';
-import Resources, {resourceColumns, resourceLayout, toLine} from '../Resources';
+import Resources, {resourceColumns, resourceLayout} from '../Resources';
+import {toLine} from '../../app/resource-lines';
 import useEventStore from '../../hooks/useEventStore.js';
 import {useMenuState} from '../../hooks/useSidebarAlerts';
 
@@ -59,7 +60,7 @@ describe('Resources', () => {
             return new Response(JSON.stringify(answer.body), {status: answer.status});
         });
         useEventStore.setState({objectInstanceStatus: {}});
-        useMenuState.setState({objects: {}});
+        useMenuState.setState({objects: {}, volChildren: {}});
     });
 
     afterEach(() => {
@@ -270,6 +271,60 @@ describe('Resources', () => {
         // The instance on n2 reporting up, its object's active one: its resource down a problem again.
         act(() => useEventStore.setState({objectInstanceStatus: {'ns1/svc/web': {n2: {avail: 'up'}}}}));
         await waitFor(() => expect(rows().map((r) => `${r[1]} ${r[2]}`)).toEqual(['n2 fs#1', 'n2 ip#0']));
+    });
+
+    test('down but optional, or on a passive node whose instance reports its standby resources up: gray, said why; no problem', async () => {
+        const optional = item('ns1/svc/web', 'n1', 'app#1', 'down', {type: 'app.simple'});
+        optional.data.status.optional = true;
+        answers = [{status: 200, body: {kind: 'ResourceList', items: [...ITEMS, optional]}}];
+        useMenuState.setState({objects: {'ns1/svc/web': {avail: 'up'}, 'system/svc/dns': {avail: 'warn'}}});
+        // web active on n1, up there; passive on n2, its standby resources up.
+        useEventStore.setState({objectInstanceStatus: {'ns1/svc/web': {n1: {avail: 'up'}, n2: {avail: 'stdby up'}}}});
+        renderView();
+        await waitFor(() => expect(rows()).toHaveLength(5));
+        const row = (node, rid) => within(table()).getAllByRole('row').find((r) => r.textContent.includes(node) && r.textContent.includes(rid));
+        expect(row('n1', 'app#1')).toHaveTextContent('down· optional');
+        expect(row('n1', 'app#1').querySelector('[data-muted]')).not.toBeNull();
+        expect(row('n2', 'fs#1')).toHaveTextContent('down· passive');
+        expect(row('n2', 'fs#1').querySelector('[data-muted]')).not.toBeNull();
+        fireEvent.click(screen.getByRole('checkbox', {name: 'Problems only'}));
+        expect(rows().map((r) => `${r[0]} ${r[1]} ${r[2]}`)).toEqual(['system/svc/dns n2 ip#0']);
+    });
+
+    test('down of an instance stopped on purpose, or of a vol nothing uses: gray, said why; no problem', async () => {
+        const vol = item('ns1/vol/data', 'n1', 'disk#1', 'down', {type: 'disk.loop'});
+        answers = [{status: 200, body: {kind: 'ResourceList', items: [...ITEMS, vol]}}];
+        useMenuState.setState({
+            objects: {'ns1/svc/web': {avail: 'down'}, 'ns1/vol/data': {avail: 'down'}, 'system/svc/dns': {avail: 'warn'}},
+            volChildren: {'ns1/vol/data': {n1: {'ns1/svc/web': 'down'}}},
+        });
+        useEventStore.setState({objectInstanceStatus: {'ns1/svc/web': {n2: {avail: 'down', stopped_at: '2026-11-10T10:00:00Z'}}}});
+        renderView();
+        await waitFor(() => expect(rows()).toHaveLength(5));
+        const row = (node, rid) => within(table()).getAllByRole('row').find((r) => r.textContent.includes(node) && r.textContent.includes(rid));
+        expect(row('n2', 'fs#1')).toHaveTextContent('down· stopped on purpose');
+        expect(row('n1', 'disk#1')).toHaveTextContent('down· volume unused');
+        expect(row('n1', 'disk#1').querySelector('[data-muted]')).not.toBeNull();
+        fireEvent.click(screen.getByRole('checkbox', {name: 'Problems only'}));
+        expect(rows().map((r) => `${r[0]} ${r[1]} ${r[2]}`)).toEqual(['system/svc/dns n2 ip#0']);
+    });
+
+    test('filtered by why down, as the cluster overview links those of no issue: a problem down left out', async () => {
+        const problem = item('ns1/svc/web', 'n1', 'app#1', 'down', {type: 'app.simple'});
+        answers = [{status: 200, body: {kind: 'ResourceList', items: [...ITEMS, problem]}}];
+        // web up on n1: its fs#1 down on n2 passive, no issue; its app#1 down on n1 a problem.
+        useMenuState.setState({objects: {'ns1/svc/web': {avail: 'up'}, 'system/svc/dns': {avail: 'warn'}}});
+        useEventStore.setState({objectInstanceStatus: {'ns1/svc/web': {n1: {avail: 'up'}}}});
+        render(<MemoryRouter initialEntries={['/resources?status=down&reason=optional,disabled,stopped,passive,unused']}><Resources/><Search/></MemoryRouter>);
+        await waitFor(() => expect(rows()).toHaveLength(1));
+        expect(rows().map((r) => `${r[1]} ${r[2]}`)).toEqual(['n2 fs#1']);
+        // Every reason offered, those of no line too, kept from the address: each to untick.
+        expect(within(screen.getByRole('group', {name: 'Why down'})).getAllByRole('checkbox')).toHaveLength(6);
+        // The problems alone: none, a problem.
+        for (const r of ['optional', 'disabled', 'stopped on purpose', 'passive', 'volume unused']) pick('Why down', r);
+        pick('Why down', 'none, a problem');
+        await waitFor(() => expect(rows().map((r) => `${r[1]} ${r[2]}`)).toEqual(['n1 app#1']));
+        await waitFor(() => expect(screen.getByTestId('search')).toHaveTextContent(/^\?status=down&reason=none$/));
     });
 
     test('filtered from the address, as the cluster overview links it; the filters written back to it', async () => {

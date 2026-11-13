@@ -112,6 +112,14 @@ describe("network config", () => {
     expect(bodyOps("seg", "", "x y").invalid).toEqual(["x y"]);
   });
 
+  test("an inline comment no part of the value, as om3 reads it: an edit of the value sets it alone", () => {
+    const before = "type = lan\ndev = eth1 # the uplink\nnetwork = `10.0.0.0/24` # lab";
+    expect(parseBody(before).values).toEqual({ type: "lan", dev: "eth1", network: "10.0.0.0/24" });
+    expect(bodyOps("seg", before, before.replace("eth1", "bond0"))).toEqual({ set: ["network#seg.dev=bond0"], unset: [], invalid: [] });
+    // The comment alone changed: the value the same, nothing set.
+    expect(bodyOps("seg", before, before.replace("the uplink", "uplink")).set).toEqual([]);
+  });
+
   test("a value continued on the lines under its key, as om3 reads one: its lines, their indent kept", () => {
     const body = "type = lan\ndns = 10.0.0.1\n  10.0.0.2\n\t10.0.0.3 = x\nnetwork = 10.0.0.0/24\n# a comment\n  not continued\n";
     // An indented line under a key continues it, an "=" in it or not; under a comment, it is none.

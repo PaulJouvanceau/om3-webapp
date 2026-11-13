@@ -4,6 +4,7 @@ import '@testing-library/jest-dom';
 import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 import {MemoryRouter, useLocation} from 'react-router-dom';
 import ClusterView from '../ClusterView';
+import useEventStore from '../../hooks/useEventStore.js';
 import {useMenuState} from '../../hooks/useSidebarAlerts';
 import {resetPgUsage} from '../../hooks/usePgUsage';
 
@@ -83,7 +84,9 @@ describe('ClusterView', () => {
             }
             if (u.startsWith('/api/resource')) {
                 if (resourcesFail) return json({detail: 'boom'}, 500);
-                return json({items: [{data: {status: {status: 'up'}}}, {data: {status: {status: 'up'}}}, {data: {status: {status: 'down'}}}, {data: {status: {status: 'warn'}}}, {data: {}}]});
+                const r = (object, node, status) => ({meta: {object, node, rid: 'fs#1'}, data: status ? {status: {status}} : {}});
+                // Down on dev n2 of ns1/svc/web, up on n1: passive, no problem; down of ns1/svc/db, down: one.
+                return json({items: [r('ns1/svc/web', 'n1', 'up'), r('svc1', 'n1', 'up'), r('ns1/svc/web', 'n2', 'down'), r('ns1/svc/db', 'n1', 'down'), r('ns1/vol/data', 'n1', 'warn'), r('ns2/svc/api', 'n1')]});
             }
             const pg = u.match(/^\/api\/node\/name\/([^/]+)\/metrics\/pg$/);
             if (pg) {
@@ -321,18 +324,18 @@ describe('ClusterView', () => {
 
     test('the namespaces, the busiest; the pools and networks, the fullest, the full ones counted', () => {
         render(<ClusterView/>, {wrapper: MemoryRouter});
-        // ns1 its three, root its bare service and its configuration; the cluster object of none.
+        // ns1 its three, root its bare service, its configuration and the cluster object, as the objects list counts them.
         const busiest = within(card('namespaces')).getByRole('list', {name: 'The busiest'});
-        expect(busiest).toHaveTextContent(/^ns13 objectsroot2 objectsns21 object$/);
+        expect(busiest).toHaveTextContent(/^ns13 objectsroot3 objectsns21 object$/);
         // The count of a namespace, its objects on the objects page.
-        expect(within(busiest).getByRole('link', {name: '3 objects'})).toHaveAttribute('href', '/objects?list=any&namespace=ns1');
+        expect(within(busiest).getAllByRole('link', {name: '3 objects'})[0]).toHaveAttribute('href', '/objects?list=any&namespace=ns1');
         expect(card('pools')).toHaveTextContent('1 full');
         const fullest = within(card('pools')).getByRole('list', {name: 'The fullest'});
         expect(within(fullest).getAllByRole('listitem').map((li) => li.textContent.slice(0, 7))).toEqual(['tank100', 'default']);
         expect(within(card('networks')).getByRole('list', {name: 'The fullest'})).toHaveTextContent(/^backend/);
     });
 
-    test('a namespace configuration, "ns/", of the namespace it names; one holding only it counted', () => {
+    test('a namespace configuration, "ns/", of the namespace it names, no object of it, the cluster one of root, as the objects list counts them; one holding only it counted', () => {
         useMenuState.setState({
             objects: {
                 'ns1/svc/web': {avail: 'up'},
@@ -345,28 +348,51 @@ describe('ClusterView', () => {
         });
         render(<ClusterView/>, {wrapper: MemoryRouter});
         expect(within(card('namespaces')).getByRole('list', {name: 'The busiest'}))
-            .toHaveTextContent(/^ns12 objectsroot2 objectsns31 object$/);
+            .toHaveTextContent(/^root2 objectsns11 objectns30 objects$/);
         expect(within(card('namespaces')).getByRole('heading', {level: 2})).toHaveTextContent(/3$/);
     });
 
-    test('the stores, their snapshots, the unreached said; the resources, a ring of those in warn and the others; a list unread said so', async () => {
+    test('the stores, their snapshots, the unreached said; the resources, a ring of the problems, down or in warn, and the others; a list unread said so', async () => {
         const {unmount} = render(<ClusterView/>, {wrapper: MemoryRouter});
         await waitFor(() => expect(card('stores')).toHaveTextContent('17 snapshots · 1 not reached'));
         expect(within(card('stores')).getByRole('button', {name: 'tar2'})).toBeInTheDocument();
-        await waitFor(() => expect(card('resources').querySelector('[data-ring=resources]')).toHaveTextContent('1/5resources in warndegraded'));
+        await waitFor(() => expect(card('resources').querySelector('[data-ring=resources]')).toHaveTextContent('4/6resources without a problemdegraded'));
         // The services and volumes alone, as the Resources page reads them: a data object breaks the read.
         expect(global.fetch.mock.calls.map(([u]) => String(u)).filter((u) => u.startsWith('/api/resource'))[0])
             .toBe('/api/resource?path=*%2Fsvc%2F*%2C*%2Fvol%2F*');
         const ring = card('resources').querySelector('[data-ring=resources]');
-        expect([...ring.querySelectorAll('[data-arc]')].map((a) => a.getAttribute('data-arc'))).toEqual(['warn', 'other']);
-        expect(labels(ring)).toEqual(['warn 1', 'other 4']);
-        // Those in warn on the resources page filtered so; the others, which no filter says, no badge.
-        expect(within(ring).getByRole('link', {name: 'Open the page filtered on warn: 1'})).toHaveAttribute('href', '/resources?status=warn');
-        expect(within(ring).getAllByRole('link')).toHaveLength(1);
+        expect([...ring.querySelectorAll('[data-arc]')].map((a) => a.getAttribute('data-arc'))).toEqual(['down', 'warn', 'quiet', 'ok']);
+        // The resource down on a passive node apart, gray, as Problems only leaves it out: every one down counted.
+        expect(labels(ring)).toEqual(['down 1', 'warn 1', 'down, no issue 1', 'ok 3']);
+        // The problems on the resources page filtered so; every one down, of no issue among them; the others, which no filter says, no badge.
+        expect(within(ring).getByRole('link', {name: 'Open the page filtered on down: 1'})).toHaveAttribute('href', '/resources?status=down&problems=1');
+        expect(within(ring).getByRole('link', {name: 'Open the page filtered on warn: 1'})).toHaveAttribute('href', '/resources?status=warn&problems=1');
+        expect(within(ring).getByRole('link', {name: 'Open the page filtered on down, no issue: 1'})).toHaveAttribute('href', '/resources?status=down&reason=optional%2Cdisabled%2Cstopped%2Cpassive%2Cunused');
+        expect(within(ring).getAllByRole('link')).toHaveLength(3);
         unmount();
 
         resourcesFail = true;
         render(<ClusterView/>, {wrapper: MemoryRouter});
         await waitFor(() => expect(card('resources')).toHaveTextContent('Could not read the resources'));
+    });
+
+    test('a resource down of an instance stopped on purpose: no problem, as the status board tells it', async () => {
+        useEventStore.setState({objectInstanceStatus: {'ns1/svc/db': {n1: {avail: 'down', stopped_at: '2026-11-10T10:00:00Z'}}}});
+        try {
+            render(<ClusterView/>, {wrapper: MemoryRouter});
+            await waitFor(() => expect(labels(card('resources').querySelector('[data-ring=resources]'))).toEqual(['warn 1', 'down, no issue 2', 'ok 3']));
+        } finally {
+            useEventStore.setState({objectInstanceStatus: {}});
+        }
+    });
+
+    test('a resource down on a node whose instance reports up: a problem, as the Resources page tells it', async () => {
+        useEventStore.setState({objectInstanceStatus: {'ns1/svc/web': {n2: {avail: 'up'}}}});
+        try {
+            render(<ClusterView/>, {wrapper: MemoryRouter});
+            await waitFor(() => expect(labels(card('resources').querySelector('[data-ring=resources]'))).toEqual(['down 2', 'warn 1', 'ok 3']));
+        } finally {
+            useEventStore.setState({objectInstanceStatus: {}});
+        }
     });
 });

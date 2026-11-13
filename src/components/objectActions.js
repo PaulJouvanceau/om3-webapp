@@ -96,7 +96,7 @@ export function actionRequest({path, action, node, rid, options}) {
     };
 }
 
-/** Actions with nothing to follow: a refresh of the status, a clear of a failed monitor. */
+/** Actions with nothing to follow once accepted: a refresh of the status, a clear of a failed monitor. Refused, said all the same. */
 const UNTRACKED = ["status", CLEAR_ACTION.name];
 
 /** What an action acts on, in words, for the actions tray. */
@@ -113,10 +113,11 @@ export const refusalReason = ({status, detail}) => [status ? `HTTP ${status}` : 
 /**
  * Posts an action, with its `options` if any (actionRequest); resolves to null when
  * the daemon accepted it, to the reason it gave otherwise ({status, detail}).
- * Accepted, it is followed to its end in the actions tray; refused, or not sent, it
- * is said there too.
+ * Accepted, it is followed to its end in the actions tray, but for those with nothing
+ * to follow (UNTRACKED); refused, or not sent, it is said there too, whatever the
+ * action, unless the caller says it itself (`saysRefusal`).
  */
-export async function postAction(target) {
+export async function postAction(target, {saysRefusal = false} = {}) {
     const tracked = !UNTRACKED.includes(target.action);
     const subject = actionSubject(target);
     const {url, body} = actionRequest(target);
@@ -129,7 +130,7 @@ export async function postAction(target) {
             ...(body === undefined ? {} : {body}),
         });
     } catch (err) {
-        if (tracked) trackRefused({action: target.action, subject, reason: err.message});
+        if (!saysRefusal) trackRefused({action: target.action, subject, reason: err.message});
         return {detail: err.message};
     }
     if (response.ok) {
@@ -141,7 +142,7 @@ export async function postAction(target) {
     // Refused by the instance monitor, the id it recorded the refusal under, and its node: its logs then shown.
     const problem = typeof response.clone === "function" ? await response.clone().json().catch(() => null) : null;
     const refusal = {status: response.status, detail: await getResponseErrorMessage(response)};
-    if (tracked) {
+    if (!saysRefusal) {
         trackRefused({
             action: target.action, subject, reason: refusalReason(refusal),
             orchestrationId: problem?.orchestration_id, node: problem?.node,

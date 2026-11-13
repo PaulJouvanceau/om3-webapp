@@ -5,7 +5,8 @@
  * operations writing it (PATCH /api/cluster/config), the section they write.
  */
 
-import { continued as continuedValue, isContinuationLine } from "./ini";
+import { continued as continuedValue, isContinuationLine, lineValue, sectionHeaders } from "./ini";
+import { setOp } from "./keyop";
 
 /** A keyword as the daemon describes it; the fields the wizard reads. */
 export interface Keyword {
@@ -151,7 +152,7 @@ function entries(type: string, values: SectionValues): [string, string][] {
 
 /** The operations writing a new section: its keys set, the type first, the driver read before them. */
 export function sectionOps(section: string, name: string, type: string, values: SectionValues): string[] {
-  return entries(type, values).map(([key, value]) => `${section}#${name}.${key}=${value}`);
+  return entries(type, values).map(([key, value]) => setOp(`${section}#${name}.${key}`, value));
 }
 
 /** The section as it will read once written. */
@@ -160,21 +161,23 @@ export function sectionPreview(section: string, name: string, type: string, valu
 }
 
 /** A line of a section: `key = value`, the key scoped to a node or not (`subnet@n1`). */
-const BODY_LINE = /^\s*([A-Za-z0-9_]+(?:@[A-Za-z0-9_.-]+)?)\s*=\s*(.*?)\s*$/;
+const BODY_LINE = /^\s*([A-Za-z0-9_]+(?:@[A-Za-z0-9_.-]+)?)\s*=(.*)$/;
 const IGNORED_LINE = /^\s*([#;].*)?$/;
 
-/** The body of a section as written: its lines but its header. */
+/** The body of a section as written: its lines but its header, a line of a value looking like one kept. */
 export function sectionBody(section: string | null): string {
-  return (section ?? "")
-    .split("\n")
-    .filter((line) => !/^\s*\[[^\]]+\]\s*$/.test(line))
+  const lines = (section ?? "").split("\n");
+  const headers = sectionHeaders(lines);
+  return lines
+    .filter((_, i) => headers[i] === null)
     .join("\n")
     .trim();
 }
 
 /**
- * The keys of a body and their values; the lines that are none, blank and comments
- * aside. A value continued on the lines under its key holds them, one a line.
+ * The keys of a body and their values, as om3 reads them (lineValue): an inline
+ * comment not in the value; the lines that are none, blank and comments aside. A value
+ * continued on the lines under its key holds them, one a line.
  */
 export function parseBody(body: string): { values: SectionValues; invalid: string[] } {
   const values: SectionValues = {};
@@ -187,7 +190,7 @@ export function parseBody(body: string): { values: SectionValues; invalid: strin
     }
     const match = BODY_LINE.exec(line);
     continued = match ? match[1] : null;
-    if (match) values[match[1]] = match[2];
+    if (match) values[match[1]] = lineValue(match[2]);
     else if (!IGNORED_LINE.test(line)) invalid.push(line.trim());
   }
   return { values, invalid };
@@ -204,7 +207,7 @@ export function bodyOps(section: string, name: string, before: string, after: st
   const set = Object.entries(values)
     .filter(([key, value]) => old[key] !== value)
     .sort(([a], [b]) => Number(a !== "type") - Number(b !== "type") || a.localeCompare(b))
-    .map(([key, value]) => `${section}#${name}.${key}=${value}`);
+    .map(([key, value]) => setOp(`${section}#${name}.${key}`, value));
   const unset = Object.keys(old)
     .filter((key) => !(key in values))
     .sort()
@@ -233,13 +236,13 @@ export function editOps(
   if (rewrite) return { rewrite, set: sectionOps(section, name, type, own), unset: [] };
   const set: string[] = [];
   const unset: string[] = [];
-  if (!original.type) set.push(`${section}#${name}.type=${type}`);
+  if (!original.type) set.push(setOp(`${section}#${name}.type`, type));
   for (const [key, raw] of Object.entries(own).sort(([a], [b]) => a.localeCompare(b))) {
     const value = raw.trim();
     if (value === "") {
       if (key in original) unset.push(`${section}#${name}.${key}`);
     } else if (original[key] !== value) {
-      set.push(`${section}#${name}.${key}=${value}`);
+      set.push(setOp(`${section}#${name}.${key}`, value));
     }
   }
   return { rewrite, set, unset };

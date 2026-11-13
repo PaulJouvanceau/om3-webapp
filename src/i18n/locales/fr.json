@@ -457,7 +457,8 @@
       "applying": "Application",
       "loading": "Lecture de la configuration",
       "changes": "Changements",
-      "noChange": "Aucun changement"
+      "noChange": "Aucun changement",
+      "conflict": "La configuration a été modifiée par quelqu'un d'autre depuis l'ouverture de la conception. Vos modifications ne sont pas enregistrées : recommencez sur la configuration telle qu'elle est maintenant."
     }
   },
   "volumeFiles": {
@@ -1007,7 +1008,8 @@
       "noToken": "Jeton d'authentification introuvable.",
       "fetchKeys": "Échec de la récupération des clés : {{status}}",
       "fetchContent": "Échec de la récupération du contenu de la clé : {{status}}",
-      "generic": "Erreur : {{message}}"
+      "generic": "Erreur : {{message}}",
+      "conflict": "La clé a été modifiée par quelqu'un d'autre depuis que vous l'avez ouverte. Votre contenu n'est pas enregistré : fermez la clé et ouvrez-la à nouveau."
     },
     "selectKey": "Sélectionner la clé {{key}}",
     "selectionHelp": "Cochez des clés pour les sélectionner.",
@@ -2931,9 +2933,12 @@
     "noMatch": "Aucune ressource ne correspond.",
     "notProvisioned": "non provisionnée",
     "passive": "passif",
+    "unused": "volume inutilisé",
     "passiveHint": "Son objet tourne sur un autre nœud : celui-ci attend, comme prévu. Pas de problème.",
+    "reason": "Pourquoi down",
+    "reasonNone": "aucune, un problème",
     "problemsOnly": "Problèmes seulement",
-    "problemsOnlyHint": "Ne garder que les ressources down (hors nœuds passifs) et celles en warn",
+    "problemsOnlyHint": "Ne garder que les ressources en warn, et celles down sans raison valable (hors optionnelles, désactivées, arrêtées, nœuds passifs, volumes inutilisés)",
     "restarts_one": "{{count}} redémarrage restant",
     "restarts_other": "{{count}} redémarrages restants",
     "columns": {
@@ -3223,9 +3228,11 @@
     },
     "resources": {
       "unread": "Impossible de lire les ressources : {{message}}",
-      "operational": "ressources en warn",
+      "operational": "ressources sans problème",
+      "down": "down",
       "warn": "warn",
-      "other": "autres"
+      "quiet": "down, sans problème",
+      "ok": "ok"
     },
     "reading": "Lecture…",
     "links": {

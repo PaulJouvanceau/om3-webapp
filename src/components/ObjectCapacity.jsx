@@ -12,6 +12,7 @@ import {Spinner} from "../ui/components/Spinner";
 import {Table, HeaderRow, HeaderCell, Row, Cell} from "../ui/components/Table";
 import {Section} from "./NodePanel";
 import {cn} from "../ui/cn";
+import {setOp} from "../app/keyop";
 
 /*
  * The capacity of an object, a tab of its panel: the size of a volume, resized
@@ -234,7 +235,7 @@ function CapForm({path, nodes}) {
 
     const sets = (keywords ?? [])
         .filter((k) => (values[k.option] ?? "").trim() !== "")
-        .map((k) => `${address(k.option)}=${values[k.option].trim()}`);
+        .map((k) => setOp(address(k.option), values[k.option].trim()));
 
     const submit = async () => {
         if (submitting) return;

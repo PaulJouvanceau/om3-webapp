@@ -337,6 +337,15 @@ const renderComponent = (objectName) => {
 };
 
 const renderSvc = (objectName = 'root/svc/svc1') => renderComponent(objectName);
+// The page drawn again, the store mocked anew (setStoreState) read as it is now.
+const rerenderSvc = (rerender, objectName = 'root/svc/svc1') =>
+    rerender(
+        <MemoryRouter initialEntries={[`/object/${encodeURIComponent(objectName)}`]}>
+            <Routes>
+                <Route path="/object/:objectName" element={<ObjectDetail/>}/>
+            </Routes>
+        </MemoryRouter>
+    );
 const waitForNode = (name) => screen.findByText(name, {}, {timeout: 10000});
 const renderReadySvc = async () => {
     renderSvc();
@@ -728,6 +737,62 @@ describe('ObjectDetail Component', () => {
         });
     });
 
+    test('batch node actions: an instance gone since its node was ticked, unticked and sent nothing', async () => {
+        setStoreState(buildState());
+        const {rerender} = renderSvc();
+        await waitForNode('node2');
+        await user.click(screen.getByLabelText(/select node node1/i));
+        await user.click(screen.getByLabelText(/select node node2/i));
+        expect(screen.getByRole('button', {name: /Actions on selected nodes/i})).toHaveTextContent('2');
+
+        const state = buildState();
+        delete state.objectInstanceStatus['root/svc/svc1'].node2;
+        setStoreState(state);
+        rerenderSvc(rerender);
+        await waitFor(() => expect(screen.queryByText('node2')).not.toBeInTheDocument());
+        const batchBtn = screen.getByRole('button', {name: /Actions on selected nodes/i});
+        expect(batchBtn).toHaveTextContent('1');
+
+        await user.click(batchBtn);
+        await user.click(getMenuItemByLabel('Start', screen.getAllByRole('menu')[0]));
+        await confirmDialog(await findActionDialog());
+        await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
+            expect.stringMatching(/\/node\/name\/node1\/instance\/.*\/action\/start/),
+            expect.objectContaining({method: 'POST'}),
+        ));
+        expect(global.fetch).not.toHaveBeenCalledWith(
+            expect.stringMatching(/\/node\/name\/node2\//),
+            expect.objectContaining({method: 'POST'}),
+        );
+    });
+
+    test('batch node actions: busy until the last of them answered', async () => {
+        setStoreState(buildState());
+        const answers = {};
+        global.fetch = vi.fn((url, options) => {
+            const node = options?.method === 'POST' && url.match(/\/node\/name\/(node\d)\/instance\/.*\/action\//)?.[1];
+            if (!node) return defaultFetchMock(url, options);
+            return new Promise((resolve) => {
+                answers[node] = () => resolve({ok: true, status: 200, text: () => Promise.resolve('ok')});
+            });
+        });
+        renderSvc();
+        await waitForNode('node2');
+        await user.click(screen.getByLabelText(/select node node1/i));
+        await user.click(screen.getByLabelText(/select node node2/i));
+        await user.click(screen.getByRole('button', {name: /Actions on selected nodes/i}));
+        await user.click(getMenuItemByLabel('Start', screen.getAllByRole('menu')[0]));
+        await confirmDialog(await findActionDialog());
+        const nodeMenu = () => screen.getByRole('button', {name: /Node node1 actions/i});
+        await waitFor(() => expect(Object.keys(answers)).toHaveLength(2));
+        expect(nodeMenu()).toBeDisabled();
+
+        await act(async () => answers.node1());
+        expect(nodeMenu()).toBeDisabled();
+        await act(async () => answers.node2());
+        await waitFor(() => expect(nodeMenu()).not.toBeDisabled());
+    });
+
     // ── Routing by endpoint ───────────────────────────────────────────────
     test('svc-only enable action posts to the object endpoint, outside /action', async () => {
         await renderReadySvc();
@@ -1036,15 +1101,13 @@ describe('ObjectDetail Component', () => {
 
     // ── Feedback message ─────────────────────────────────────────────────
     test('feedback message hides itself after 5 seconds', async () => {
-        let instanceConfigCallback;
-        vi.mocked(useEventStore.subscribe).mockImplementation((selector, callback) => {
-            instanceConfigCallback = callback;
-            return vi.fn();
-        });
-        await renderReadySvc();
+        setStoreState(buildState());
+        const {rerender} = renderSvc();
+        await waitForNode('node1');
         vi.useFakeTimers();
         try {
-            act(() => instanceConfigCallback({'root/svc/svc1': {node1: {resources: {}}}}));
+            setStoreState(buildState({instanceConfig: {'root/svc/svc1': {node1: {resources: {}}}}}));
+            rerenderSvc(rerender);
             expect(feedbackWith('Instance configuration updated')).toBeInTheDocument();
             act(() => vi.advanceTimersByTime(4900));
             expect(feedbackWith('Instance configuration updated')).toBeInTheDocument();
@@ -1194,95 +1257,40 @@ describe('ObjectDetail Component', () => {
         });
     });
 
-    // ── instanceConfig subscription ──────────────────────────────────────
+    // ── instanceConfig updated ───────────────────────────────────────────
     test.each([
         [
-            'triggers snackbar when configNode is set',
-            {
-                objectStatus: {},
-                instanceMonitor: {},
-                objectInstanceStatus: {'root/svc/svc1': {node1: {avail: 'up', resources: {}}}},
-                instanceConfig: {'root/svc/svc1': {node1: {resources: {res1: {is_monitored: true}}}}},
-                ...BASE_FNS(),
-            },
+            'said once the configuration read is updated',
+            buildState(),
             'root/svc/svc1',
-            () => waitForNode('node1'),
             {'root/svc/svc1': {node1: {resources: {res1: {is_monitored: false}}}}},
             true,
         ],
         [
-            'does not trigger snackbar when configNode is null',
-            {
-                objectStatus: {},
-                instanceMonitor: {},
-                objectInstanceStatus: {'root/svc/svc-empty': {}},
-                instanceConfig: {},
-                ...BASE_FNS(),
-            },
+            'not said at its first reading',
+            buildState({instanceConfig: {}}),
+            'root/svc/svc1',
+            {'root/svc/svc1': {node1: {resources: {res1: {is_monitored: true}}}}},
+            false,
+        ],
+        [
+            'not said with no instance to read it on',
+            {...emptyState(), objectInstanceStatus: {'root/svc/svc-empty': {}}, instanceConfig: {'root/svc/svc-empty': {}}},
             'root/svc/svc-empty',
-            () => screen.findByText(/No information available/i),
             {'root/svc/svc-empty': {node1: {resources: {res1: {is_monitored: true}}}}},
             false,
         ],
-    ])('instanceConfig subscription %s', async (label, state, objectName, waitForReady, updatedConfig, shouldFire) => {
+    ])('instanceConfig %s', async (label, state, objectName, updatedConfig, shouldShow) => {
         setStoreState(state);
-        let instanceConfigCallback;
-        vi.mocked(useEventStore.subscribe).mockImplementation((selector, callback) => {
-            if (selector.toString().includes('instanceConfig')) instanceConfigCallback = callback;
-            return vi.fn();
-        });
-        renderComponent(objectName);
-        await waitForReady();
-        act(() => instanceConfigCallback(updatedConfig));
-
-        if (shouldFire) {
-            await waitFor(() => {
-                expect(feedbackWith('Instance configuration updated')).toBeInTheDocument();
-            });
+        const {rerender} = renderComponent(objectName);
+        await screen.findAllByText(new RegExp(objectName));
+        setStoreState({...state, instanceConfig: updatedConfig});
+        rerenderSvc(rerender, objectName);
+        if (shouldShow) {
+            await waitFor(() => expect(feedbackWith('Instance configuration updated')).toBeInTheDocument());
         } else {
-            await waitFor(() => {
-                expect(feedbackWith('Instance configuration updated')).toBeUndefined();
-            });
+            expect(feedbackWith('Instance configuration updated')).toBeUndefined();
         }
-    });
-
-    test.each([
-        [
-            'subscription error triggers logger.warn',
-            () => {
-                throw new Error('Subscription failed');
-            },
-            '[ObjectDetail] Failed to subscribe to instanceConfig:',
-            expect.any(Error),
-        ],
-        [
-            'non-function return triggers logger.warn',
-            () => 'not-a-function',
-            '[ObjectDetail] Subscription is not a function:',
-            'not-a-function',
-        ],
-    ])('instanceConfig: %s', async (label, subscribeFn, warnMsg, warnArg) => {
-        const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {
-        });
-        vi.mocked(useEventStore.subscribe).mockImplementation(subscribeFn);
-        renderSvc();
-        await screen.findAllByText(/root\/svc\/svc1/i);
-        await waitFor(() => expect(warnSpy).toHaveBeenCalledWith(warnMsg, warnArg));
-        warnSpy.mockRestore();
-    });
-
-    test('instanceConfig selector body executes and returns the expected slice', async () => {
-        let capturedSelector;
-        vi.mocked(useEventStore.subscribe).mockImplementation((selector) => {
-            capturedSelector = selector;
-            return vi.fn();
-        });
-        renderSvc();
-        await waitForNode('node1');
-
-        expect(typeof capturedSelector).toBe('function');
-        const sampleState = {instanceConfig: {'root/svc/svc1': {node1: {resources: {}}}}, other: 'ignored'};
-        expect(capturedSelector(sampleState)).toBe(sampleState.instanceConfig);
     });
 
     // ── batch menu mixed frozen state ────────────────────────────────────

@@ -1,16 +1,18 @@
 /*
- * The sections of a configuration file, as om3 writes it: a `[name]` line opens a
- * section, which runs to the next one or to the end of the file.
+ * The sections of a configuration file, as om3 reads it: a `[name]` line opens a
+ * section, which runs to the next one or to the end of the file; a line of a value
+ * looking like one, an indented "[1, 2]" under its key, none (sectionHeaders).
  */
 
-const HEADER = /^\s*\[([^\]]+)\]\s*$/;
+import {sectionHeaders} from "../app/ini";
 
 /** The lines of the section `name`, from its header to the next one excluded; null when absent. */
 const sectionRange = (lines, name) => {
-    const start = lines.findIndex((line) => HEADER.exec(line)?.[1].trim() === name);
+    const headers = sectionHeaders(lines);
+    const start = headers.indexOf(name);
     if (start === -1) return null;
     let end = start + 1;
-    while (end < lines.length && !HEADER.test(lines[end])) end++;
+    while (end < lines.length && headers[end] === null) end++;
     return {start, end};
 };
 

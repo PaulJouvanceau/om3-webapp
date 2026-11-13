@@ -457,7 +457,8 @@
       "applying": "Applying",
       "loading": "Reading the configuration",
       "changes": "Changes",
-      "noChange": "No change"
+      "noChange": "No change",
+      "conflict": "The configuration was changed by someone else since the design opened. Your changes are not saved: start over on the configuration as it is now."
     }
   },
   "volumeFiles": {
@@ -1007,7 +1008,8 @@
       "noToken": "Auth token not found.",
       "fetchKeys": "Failed to fetch keys: {{status}}",
       "fetchContent": "Failed to fetch key content: {{status}}",
-      "generic": "Error: {{message}}"
+      "generic": "Error: {{message}}",
+      "conflict": "The key was changed by someone else since you opened it. Your content is not saved: close and open the key again."
     },
     "selectKey": "Select key {{key}}",
     "selectionHelp": "Check keys to select them.",
@@ -2931,9 +2933,12 @@
     "noMatch": "No resource matches.",
     "notProvisioned": "not provisioned",
     "passive": "passive",
+    "unused": "volume unused",
     "passiveHint": "Its object runs on another node: this one waits, as it should. No issue.",
+    "reason": "Why down",
+    "reasonNone": "none, a problem",
     "problemsOnly": "Problems only",
-    "problemsOnlyHint": "Keep the resources down, but not on a passive node, and those in warn",
+    "problemsOnlyHint": "Keep the resources in warn, and those down but not for a reason that is none (optional, disabled, stopped, passive node, unused volume)",
     "restarts_one": "{{count}} restart left",
     "restarts_other": "{{count}} restarts left",
     "columns": {
@@ -3223,9 +3228,11 @@
     },
     "resources": {
       "unread": "Could not read the resources: {{message}}",
-      "operational": "resources in warn",
+      "operational": "resources without a problem",
+      "down": "down",
       "warn": "warn",
-      "other": "other"
+      "quiet": "down, no issue",
+      "ok": "ok"
     },
     "reading": "Reading…",
     "links": {

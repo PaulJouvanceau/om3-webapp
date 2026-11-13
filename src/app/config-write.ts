@@ -10,10 +10,19 @@
  *   would leak by, as a new mount point or the removal of its section (403), a
  *   value another object's resources hold on the same node (409, "Held by
  *   another object"). A creation forced replaces an object that exists (409).
+ * - unmodified since, of an edit: the write made on the configuration read at that
+ *   time (OM-Last-Modified), refused (412) if someone wrote it since, the read and
+ *   the write one step for the daemon.
  */
 
 /** How long a write waits for the configuration to reach the nodes, the request held meanwhile. */
 export const CONFIG_WAIT = "30s";
+
+/** The header the daemon tells the time of a configuration read in. */
+export const LAST_MODIFIED_HEADER = "OM-Last-Modified";
+
+/** The status of a write refused, the configuration written since the one read (if_unmodified_since). */
+export const STATUS_MODIFIED = 412;
 
 /** The title of the refusal of a value another object's resources hold (api.ProblemTitleHeld). */
 export const PROBLEM_TITLE_HELD = "Held by another object";
@@ -51,16 +60,23 @@ export function forceLifts(problem: Problem, { creating = false } = {}): "root" 
   return null;
 }
 
-/** The query parameters of a write: its wait, always, and its force. */
-export function writeParams({ force }: { force?: boolean } = {}): URLSearchParams {
+/** What a write asks besides its wait: force, and the time of the configuration it was made on. */
+export interface WriteOptions {
+  force?: boolean;
+  unmodifiedSince?: string | null;
+}
+
+/** The query parameters of a write: its wait, always, its force, and the time of its read. */
+export function writeParams({ force, unmodifiedSince }: WriteOptions = {}): URLSearchParams {
   const params = new URLSearchParams();
   params.append("wait", CONFIG_WAIT);
   if (force) params.append("force", "true");
+  if (unmodifiedSince) params.append("if_unmodified_since", unmodifiedSince);
   return params;
 }
 
 /** `url` with the parameters of the write appended to its own. */
-export function withWriteParams(url: string, write: { force?: boolean } = {}): string {
+export function withWriteParams(url: string, write: WriteOptions = {}): string {
   const extra = writeParams(write).toString();
   return `${url}${url.includes("?") ? "&" : "?"}${extra}`;
 }

@@ -13,7 +13,7 @@ import {ConfigText} from "./ConfigText";
 import {CopyButton} from "../ui/components/CopyButton";
 import {extractSection, replaceSection} from "../utils/configSections";
 import {trackRefused, trackWrite} from "../app/action-tracker";
-import {PROBLEM_TITLE_HELD, forceLifts, readProblem, withWriteParams} from "../app/config-write";
+import {LAST_MODIFIED_HEADER, PROBLEM_TITLE_HELD, STATUS_MODIFIED, forceLifts, readProblem, withWriteParams} from "../app/config-write";
 import {useIsRoot} from "../hooks/useGrants";
 import {ForceRefusal} from "./ConfigWriteControls";
 import ConfigEvalDialog from "./ConfigEvalDialog";
@@ -23,6 +23,7 @@ import {newId, withId} from "../app/object-create";
 import {designChanges, designStart, parseDesign, rootOnlyKind} from "../app/object-design";
 import {ObjectDesigner} from "./ObjectDesigner";
 import {useEditDraft} from "../app/edit-drafts";
+import {opValue} from "../app/keyop";
 
 /**
  * The object configuration file, its secrets redacted unless `showSecrets`: the
@@ -129,7 +130,11 @@ const useConfig = (decodedObjectName, configNode, setConfigNode, refreshTrigger,
     return {...state, fetchConfig};
 };
 
-/** The configuration file of an object as stored, its secrets in clear, for editing. */
+/**
+ * The configuration file of an object as stored, its secrets in clear, for editing,
+ * and the time it was read at (OM-Last-Modified): a write made on it given that time
+ * lands only if nobody wrote the file since.
+ */
 const fetchRawConfigFile = async (decodedObjectName) => {
     const {namespace, kind, name} = parseObjectPath(decodedObjectName);
     const token = localStorage.getItem("authToken") || "";
@@ -138,7 +143,7 @@ const fetchRawConfigFile = async (decodedObjectName) => {
         cache: "no-cache",
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.text();
+    return {text: await response.text(), modified: response.headers?.get(LAST_MODIFIED_HEADER) ?? null};
 };
 
 /** What the daemon says of a refused request: the detail of its problem, else the status. */
@@ -259,6 +264,7 @@ const DesignConfigDialog = ({
                                 changes,
                                 actionLoading,
                                 onSubmit,
+                                onStartOver,
                                 refused,
                                 isRoot,
                             }) => {
@@ -297,9 +303,21 @@ const DesignConfigDialog = ({
         >
             <div className="space-y-3">
                 {loading && <Spinner label={t("config.design.loading")}/>}
+                {/* Written by someone else since it opened: opened anew, on the file as it now is. */}
+                {refused?.conflict && (
+                    <Alert
+                        action={
+                            <Button size="sm" onClick={onStartOver} disabled={actionLoading || loading}>
+                                {t("config.view.startOver")}
+                            </Button>
+                        }
+                    >
+                        {refused.messages[0]}
+                    </Alert>
+                )}
                 {/* Refused, nothing written: why, the design kept, forced on demand when force lifts it. */}
                 <ForceRefusal
-                    messages={refused?.messages}
+                    messages={refused?.conflict ? null : refused?.messages}
                     lifts={refused?.lifts}
                     isRoot={isRoot}
                     onForce={() => onSubmit(true)}
@@ -416,7 +434,7 @@ const ConfigSection = ({
         }
         setEditLoading(true);
         try {
-            const file = await fetchRawConfigFile(decodedObjectName);
+            const {text: file} = await fetchRawConfigFile(decodedObjectName);
             const text = section === null ? file : extractSection(file, section) ?? `[${section}]\n`;
             setEdit({file, base: text, text});
         } catch (err) {
@@ -447,14 +465,15 @@ const ConfigSection = ({
         setActionLoading(true);
         try {
             // The daemon writes the whole file: a change landed since the edit
-            // started would be undone without a word.
-            const current = absent ? "" : await fetchRawConfigFile(decodedObjectName);
-            if (current !== edit.file) {
+            // started would be undone without a word. The file as it is now, the
+            // one edited, written only if still that one when the daemon writes it.
+            const current = absent ? {text: "", modified: null} : await fetchRawConfigFile(decodedObjectName);
+            if (current.text !== edit.file) {
                 setEditConflict(true);
                 setEditError(t("config.feedback.conflict"));
                 return;
             }
-            const response = await fetch(withWriteParams(`${URL_OBJECT}/${namespace}/${kind}/${name}/config/file`, {force}), {
+            const response = await fetch(withWriteParams(`${URL_OBJECT}/${namespace}/${kind}/${name}/config/file`, {force, unmodifiedSince: current.modified}), {
                 // None yet: created with the file, an id of its own.
                 method: absent ? "POST" : "PUT",
                 headers: {
@@ -469,6 +488,13 @@ const ConfigSection = ({
             // A wait that expired (408) is a write done: said so in the actions tray.
             if (!response.ok && response.status !== 408) {
                 const problem = await readProblem(response);
+                // Written by someone else between the check above and the write: started over.
+                if (response.status === STATUS_MODIFIED) {
+                    setEditConflict(true);
+                    trackRefused({action: "config", label, subject: decodedObjectName, reason: await refusal(response)});
+                    setEditError(t("config.feedback.conflict"));
+                    return;
+                }
                 // Changed meanwhile: started over. Held by another object: forced, if at all.
                 if (response.status === 409 && problem.title !== PROBLEM_TITLE_HELD) setEditConflict(true);
                 setEditLifts(forceLifts(problem, {creating: absent}));
@@ -510,7 +536,7 @@ const ConfigSection = ({
         }
         setDesignLoading(true);
         try {
-            const seeded = parseDesign(await fetchRawConfigFile(decodedObjectName), start);
+            const seeded = parseDesign((await fetchRawConfigFile(decodedObjectName)).text, start);
             setDesignBase(seeded);
             setDesign(seeded);
         } catch (err) {
@@ -590,9 +616,10 @@ const ConfigSection = ({
             return;
         }
         const {namespace, kind, name} = parseObjectPath(decodedObjectName);
-        // As om writes them: set=<keyword>=<value>, the keyword and the value each encoded.
+        // As om writes them: set=<keyword>=<value>, the keyword and the value each encoded,
+        // the value read back as is (opValue).
         const query = [
-            ...sets.map(({keyword, value}) => `set=${encodeURIComponent(keyword)}=${encodeURIComponent(value)}`),
+            ...sets.map(({keyword, value}) => `set=${encodeURIComponent(keyword)}=${encodeURIComponent(opValue(value))}`),
             // None yet: nothing to unset nor delete.
             ...(absent ? [] : unsets.map((keyword) => `unset=${encodeURIComponent(keyword)}`)),
             ...(absent ? [] : paramsToDelete.map((section) => `delete=${encodeURIComponent(section)}`)),
@@ -609,12 +636,31 @@ const ConfigSection = ({
         const base = `${URL_OBJECT}/${namespace}/${kind}/${name}`;
         setParamsRefused(null);
         setActionLoading(true);
+        // Written by someone else since the designer opened: nothing written, opened anew.
+        const conflict = () => setParamsRefused({messages: [t("config.design.conflict")], lifts: null, conflict: true});
         try {
-            const response = await fetch(withWriteParams(`${base}/${absent ? "config/file" : "config"}?${query}`, {force}), absent
+            // The changes are of the design read when the designer opened: the file as it
+            // is now, the same design, written only if still that file when the daemon
+            // writes it.
+            let unmodifiedSince = null;
+            if (!absent) {
+                const current = await fetchRawConfigFile(decodedObjectName);
+                const start = designStart(["svc", "vol"].includes(kind));
+                if (JSON.stringify(parseDesign(current.text, start)) !== JSON.stringify(designBase)) {
+                    conflict();
+                    return;
+                }
+                unmodifiedSince = current.modified;
+            }
+            const response = await fetch(withWriteParams(`${base}/${absent ? "config/file" : "config"}?${query}`, {force, unmodifiedSince}), absent
                 ? {method: "POST", headers: {Authorization: `Bearer ${token}`, "Content-Type": "application/octet-stream"}, body: withId("", newId())}
                 : {method: "PATCH", headers: {Authorization: `Bearer ${token}`}});
             const problem = response.ok || response.status === 408 ? null : await readProblem(response);
             if (!(await trackWrite(response, info, refusal))) {
+                if (problem.status === STATUS_MODIFIED) {
+                    conflict();
+                    return;
+                }
                 setParamsRefused({
                     messages: [problem.detail || `HTTP ${problem.status}`],
                     lifts: forceLifts(problem, {creating: absent}),
@@ -848,6 +894,7 @@ const ConfigSection = ({
                 changes={designChanged}
                 actionLoading={actionLoading}
                 onSubmit={handleManageParamsSubmit}
+                onStartOver={openDesign}
                 refused={paramsRefused}
                 isRoot={isRoot}
             />

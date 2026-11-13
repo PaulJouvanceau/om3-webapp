@@ -283,16 +283,20 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
         }
     }, [objectInstanceStatus, configNode]);
 
-    const prevInstanceConfigRef = useRef(instanceConfig);
-    useEffect(() => {
-        if (instanceConfig === prevInstanceConfigRef.current) return;
-        prevInstanceConfigRef.current = instanceConfig;
-        setConfigRefreshTrigger((n) => n + 1);
-    }, [instanceConfig]);
-
     const openSnackbar = useCallback((msg, sev = "success") => {
         setSnackbar({open: true, message: msg, severity: sev});
     }, []);
+
+    // The configuration of an instance changed: read again, and said where it was
+    // already read, its first reading no update.
+    const prevInstanceConfigRef = useRef(instanceConfig);
+    useEffect(() => {
+        const prev = prevInstanceConfigRef.current;
+        if (instanceConfig === prev) return;
+        prevInstanceConfigRef.current = instanceConfig;
+        setConfigRefreshTrigger((n) => n + 1);
+        if (prev && instanceConfig && configNode) openSnackbar(t("objectDetails.feedback.configUpdated"), "info");
+    }, [instanceConfig, configNode, openSnackbar, t]);
     const closeSnackbar = useCallback(() => setSnackbar((s) => ({...s, open: false})), []);
 
     useEffect(() => {
@@ -303,13 +307,17 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
 
     // An action with the options set in its dialog, posted as the other views post
     // theirs (postAction): what comes of it, accepted or refused, the actions tray says.
+    // Busy as long as one is still posting, those of a batch posted together.
+    const actionsPosting = useRef(0);
     const runAction = useCallback(async (target) => {
         if (!localStorage.getItem("authToken")) return openSnackbar(t("objectDetails.feedback.authTokenNotFound"), "error");
+        actionsPosting.current++;
         setActionInProgress(true);
         try {
             await postAction({path: decodedObjectName, ...target});
         } finally {
-            setActionInProgress(false);
+            actionsPosting.current--;
+            if (actionsPosting.current === 0) setActionInProgress(false);
         }
     }, [decodedObjectName, openSnackbar, t]);
 
@@ -327,14 +335,18 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
             return;
         }
         if (pendingAction.batch === "nodes") {
-            selectedNodes.forEach(node => {
-                if (!node) return;
+            // Only to the instances still listed: one gone since its node was ticked, not.
+            selectedNodes.filter((node) => nodesList.includes(node)).forEach(node => {
                 postNodeAction({node, action: pendingAction.action, options}).catch((err) => {
                     logger.error("[ObjectDetail] postNodeAction failed:", err);
                 });
             });
             setSelectedNodes([]);
         } else if (pendingAction.node && !pendingAction.rid) {
+            if (!nodesList.includes(pendingAction.node)) {
+                setPendingAction(null);
+                return;
+            }
             postNodeAction({node: pendingAction.node, action: pendingAction.action, options}).catch((err) => {
                 logger.error("[ObjectDetail] postNodeAction failed:", err);
             });
@@ -344,7 +356,16 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
             });
         }
         setPendingAction(null);
-    }, [pendingAction, selectedNodes, postNodeAction, postObjectAction]);
+    }, [pendingAction, selectedNodes, nodesList, postNodeAction, postObjectAction]);
+
+    // An instance gone (deleted, its node dropped): unticked, the batch menu counting
+    // only those listed.
+    useEffect(() => {
+        setSelectedNodes((prev) => {
+            const kept = prev.filter((node) => nodesList.includes(node));
+            return kept.length === prev.length ? prev : kept;
+        });
+    }, [nodesList]);
 
     const toggleNode = useCallback((node) => {
         setSelectedNodes(prev => prev.includes(node) ? prev.filter(n => n !== node) : [...prev, node]);
@@ -398,31 +419,6 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
 
     // Freeze and unfreeze both, as on an object: either is harmless where it changes nothing.
     const batchFilteredActions = INSTANCE_ACTIONS;
-
-    useEffect(() => {
-        let unsubscribe = null;
-        try {
-            const maybeUnsubscribe = useEventStore.subscribe(
-                (state) => state.instanceConfig,
-                (newConfig) => {
-                    const config = newConfig[decodedObjectName];
-                    if (config && configNode) {
-                        openSnackbar(t("objectDetails.feedback.configUpdated"), "info");
-                    }
-                }
-            );
-            if (typeof maybeUnsubscribe === 'function') {
-                unsubscribe = maybeUnsubscribe;
-            } else {
-                logger.warn("[ObjectDetail] Subscription is not a function:", maybeUnsubscribe);
-            }
-        } catch (err) {
-            logger.warn("[ObjectDetail] Failed to subscribe to instanceConfig:", err);
-        }
-        return () => {
-            if (typeof unsubscribe === 'function') unsubscribe();
-        };
-    }, [decodedObjectName, configNode, openSnackbar, t]);
 
     const showKeys = KEY_KINDS.includes(kind);
 

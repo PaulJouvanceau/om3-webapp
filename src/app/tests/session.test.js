@@ -5,6 +5,8 @@ import {configStamp, recordConfigWrite} from "../config-stamps";
 import useEventStore from "../../hooks/useEventStore.js";
 import {readClusterStatus, resetClusterStatus} from "../../hooks/clusterStatusOnce.js";
 import {clearEventBuffers, closeEventSource, closeLoggerEventSource} from "../../eventSourceManager";
+import useEventLogStore from "../../hooks/useEventLogStore.js";
+import {onSessionEnd} from "../session-end";
 
 vi.mock("../../eventSourceManager", () => ({
     closeEventSource: vi.fn(),
@@ -43,6 +45,17 @@ describe("forgetSession", () => {
         forgetSession();
         vi.runAllTimers();
         expect(localStorage.getItem("om3-event-storage")).toBeNull();
+    });
+
+    test("empties the event log, the payloads of the events with it; tells the menu's stream to forget its own", () => {
+        useEventLogStore.getState().addEventLog("ObjectStatusUpdated", {path: "root/svc/a"});
+        expect(useEventLogStore.getState().eventLogs).toHaveLength(1);
+        const forgot = vi.fn();
+        const stop = onSessionEnd(forgot);
+        forgetSession();
+        stop();
+        expect(useEventLogStore.getState().eventLogs).toEqual([]);
+        expect(forgot).toHaveBeenCalledTimes(1);
     });
 
     test("empties the action tray, its polling ending with its entries", () => {

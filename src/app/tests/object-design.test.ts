@@ -134,6 +134,35 @@ describe("object design", () => {
     expect(parseDesign("", designStart(false))).toEqual([{ name: "DEFAULT", entries: [] }]);
   });
 
+  test("a key ending at its first \"=\" or \":\", a section header commented after its \"]\": as om reads them", () => {
+    const text = [
+      "[DEFAULT]",
+      "nodes = n1",
+      "[app#1]",
+      "start_timeout: 1m",
+      "start = /bin/x --opt=1",
+      "stop: /bin/x --opt=1",
+      "[fs#1]   # the data",
+      "type = flag",
+      "mnt = /srv",
+    ].join("\n");
+    expect(parseDesign(text)).toEqual([
+      { name: "DEFAULT", entries: [{ key: "nodes", value: "n1" }] },
+      { name: "env", entries: [] },
+      {
+        name: "app#1",
+        group: "app",
+        type: "",
+        entries: [
+          { key: "start_timeout", value: "1m" },
+          { key: "start", value: "/bin/x --opt=1" },
+          { key: "stop", value: "/bin/x --opt=1" },
+        ],
+      },
+      { name: "fs#1", group: "fs", type: "flag", entries: [{ key: "mnt", value: "/srv" }] },
+    ]);
+  });
+
   // Each written by writeValue, created on a cluster, and read back by the daemon
   // (om config get) as the value, but the last, which no quoting can hold.
   const VALUES: [string, string][] = [

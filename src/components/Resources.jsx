@@ -14,7 +14,8 @@ import {MenuButton} from "../ui/components/MenuButton";
 import {Spinner} from "../ui/components/Spinner";
 import {StatusMark} from "../ui/components/StatusMark";
 import {MoreRows, useRowsOnDemand} from "../ui/components/RowsOnDemand";
-import {isQuietDown, toObjectState} from "../ui/components/status";
+import {toObjectState} from "../ui/components/status";
+import {DOWN_REASONS, downReason, isProblem, quietReason, toLine} from "../app/resource-lines";
 import {BoltIcon, RefreshIcon} from "../ui/icons";
 import {actionLabel} from "../constants/actions";
 import {actionDescription, explainedMenu} from "../app/action-menu";
@@ -35,20 +36,30 @@ import {rangeSelect, withShift} from "../app/range-select";
  * The resources of the cluster, every object on every node, as `om <selector>
  * resource ls` lists them (GET /resource): a line per resource of an instance, its
  * object, its node and its resource each a badge opening its record, the resource
- * on that instance alone. Filtered by words, by status, by node and by driver
- * group, several values of each kept at once, each value counted: on a wide screen,
- * facets beside the table, narrower, popovers over it, as on the other lists
- * (FilterRail); in the address too (status, node, group, comma-separated), for a link
- * to open the list filtered. Read again as the instances report.
+ * on that instance alone. Filtered by words, by status, by node, by driver
+ * group and by why down, several values of each kept at once, each value counted: on
+ * a wide screen, facets beside the table, narrower, popovers over it, as on the other
+ * lists (FilterRail); in the address too (status, node, group, reason, comma-separated),
+ * for a link to open the list filtered. Read again as the instances report.
  * Selected, every one the filters keep or some, the resources are acted on together:
  * an action every one of them takes, posted once per instance.
- * A resource down on a passive node, its object up on another, no issue: its mark
- * gray, said passive, as the objects' node columns draw it (isQuietDown); kept out by
- * Problems only, which keeps the resources down elsewhere and those in warn.
+ * A resource down for a reason that is no issue (quietReason): optional or disabled,
+ * its instance doing without it; its instance stopped on purpose; on a passive node,
+ * its object up on another; of a vol nothing uses. Its mark gray, the reason said;
+ * kept out by Problems only, which keeps the other resources down and those in warn.
  * The table scaled down to its room a step at a time, the least missed first: the
  * flags dropped; the label dropped; the type a badge by the resource; the node a
  * badge by the object.
  */
+
+/** The words of why a resource down is no issue (quietReason). */
+const QUIET_WORDS = {
+    optional: "resources.flags.optional",
+    disabled: "resources.flags.disabled",
+    stopped: "statusBoard.marks.stopped",
+    passive: "resources.passive",
+    unused: "resources.unused",
+};
 
 /** A burst of instance reports reads the list once. */
 const REREAD_DELAY_MS = 2000;
@@ -76,39 +87,6 @@ export const resourceColumns = (layout) => [
     ...(layout.label ? [{key: "label", labelKey: "resources.columns.label"}] : []),
 ];
 
-/** The flags of a resource on a node, in words, as the status board marks them. */
-const FLAGS = [
-    ["disabled", (r) => r.config?.is_disabled || r.status?.disable],
-    ["standby", (r) => r.config?.is_standby || r.status?.standby],
-    ["monitored", (r) => r.config?.is_monitored || r.status?.monitor],
-    ["optional", (r) => r.status?.optional],
-    ["encap", (r) => r.status?.encap],
-];
-
-/** A line of the list: what is shown and sorted of a resource item. */
-export const toLine = (item) => {
-    const meta = item?.meta ?? {};
-    const data = item?.data ?? {};
-    const node = meta.encap_node || meta.node || "";
-    return {
-        key: `${meta.object}|${meta.node}|${meta.encap_node ?? ""}|${meta.rid}`,
-        object: meta.object ?? "",
-        node,
-        hostNode: meta.node ?? "",
-        rid: meta.rid ?? "",
-        group: String(meta.rid ?? "").split("#")[0],
-        type: data.status?.type ?? "",
-        status: data.status?.status ?? "",
-        label: data.status?.label ?? "",
-        flags: FLAGS.filter(([, test]) => test(data)).map(([name]) => name),
-        restarts: data.monitor?.restart?.remaining,
-        notProvisioned: data.status?.provisioned?.state === "false",
-    };
-};
-
-/** A resource worth a look: down but on a passive node, or in warn. */
-const isProblem = (l) => (l.status === "down" && !l.passive) || l.status === "warn";
-
 const byText = (key) => (a, b) => String(a[key]).localeCompare(String(b[key]));
 const SORTS = {
     object: (a, b) => byText("object")(a, b) || byText("node")(a, b) || byText("rid")(a, b),
@@ -133,13 +111,14 @@ const Resources = () => {
     const [status, setStatus] = useState(() => fromAddress("status"));
     const [node, setNode] = useState(() => fromAddress("node"));
     const [group, setGroup] = useState(() => fromAddress("group"));
-    // The problems alone: down but on a passive node, or in warn.
+    const [reason, setReason] = useState(() => fromAddress("reason"));
+    // The problems alone: down for a reason that is one (quietReason), or in warn.
     const [problemsOnly, setProblemsOnly] = useState(() => params.get("problems") === "1");
     // Then written back as they change, the other parameters kept: a panel open, say.
     useEffect(() => {
         setParams((prev) => {
             const next = new URLSearchParams(prev);
-            for (const [key, values] of [["status", status], ["node", node], ["group", group]]) {
+            for (const [key, values] of [["status", status], ["node", node], ["group", group], ["reason", reason]]) {
                 if (values.length > 0) next.set(key, values.join(","));
                 else next.delete(key);
             }
@@ -147,7 +126,7 @@ const Resources = () => {
             else next.delete("problems");
             return next.toString() === prev.toString() ? prev : next;
         }, {replace: true});
-    }, [status, node, group, problemsOnly, setParams]);
+    }, [status, node, group, reason, problemsOnly, setParams]);
     const hasRail = useMediaQuery(LIST_RAIL_QUERY);
     const [sortColumn, setSortColumn] = useState("object");
     const [sortDirection, setSortDirection] = useState("asc");
@@ -200,17 +179,16 @@ const Resources = () => {
     // live; the instance, once it reports: one up there, its object's active one, a
     // resource of it down is a problem.
     const objectStatus = useMenuState((s) => s.objects);
-    const lines = useMemo(() => (items ?? []).map(toLine).map((l) => {
-        const objectAvail = objectStatus?.[l.object]?.avail;
-        const instanceAvail = reports?.[l.object]?.[l.hostNode]?.avail;
-        return {
-            ...l,
-            passive: l.status === "down" && isQuietDown(instanceAvail ?? "down", objectAvail),
-        };
-    }), [items, reports, objectStatus]);
+    const volChildren = useMenuState((s) => s.volChildren);
+    const lines = useMemo(
+        () => (items ?? []).map(toLine).map((l) => ({...l, quiet: quietReason(l, {objects: objectStatus, reports, volChildren})})),
+        [items, reports, objectStatus, volChildren]
+    );
     const nodes = useMemo(() => [...new Set(lines.map((l) => l.node))].sort(), [lines]);
     const statuses = useMemo(() => [...new Set(lines.map((l) => l.status))].filter(Boolean).sort(), [lines]);
     const groups = useMemo(() => [...new Set(lines.map((l) => l.group))].filter(Boolean).sort(), [lines]);
+    // The reasons some line is down for, and those kept: one of none, from the address, still to untick.
+    const reasons = useMemo(() => DOWN_REASONS.filter((r) => reason.includes(r) || lines.some((l) => downReason(l) === r)), [lines, reason]);
     const shown = useMemo(() => {
         const sort = SORTS[sortColumn] ?? SORTS.object;
         const keeps = (selected, value) => selected.length === 0 || selected.includes(value);
@@ -219,9 +197,10 @@ const Resources = () => {
                 && (!problemsOnly || isProblem(l))
                 && keeps(node, l.node)
                 && keeps(group, l.group)
+                && keeps(reason, downReason(l))
                 && matches(filter, l.object, l.rid, l.type, l.label, l.node))
             .sort((a, b) => (sortDirection === "asc" ? sort(a, b) : -sort(a, b)));
-    }, [lines, status, node, group, problemsOnly, filter, sortColumn, sortDirection]);
+    }, [lines, status, node, group, reason, problemsOnly, filter, sortColumn, sortDirection]);
     // Each value of the filters counted under the others, in the rail or the popovers.
     const counts = useMemo(() => facetCounts(lines, {
         match: (l) => (!problemsOnly || isProblem(l)) && matches(filter, l.object, l.rid, l.type, l.label, l.node),
@@ -229,10 +208,11 @@ const Resources = () => {
             status: {selected: status, valuesOf: (l) => (l.status ? [l.status] : [])},
             node: {selected: node, valuesOf: (l) => [l.node]},
             group: {selected: group, valuesOf: (l) => (l.group ? [l.group] : [])},
+            reason: {selected: reason, valuesOf: (l) => (downReason(l) ? [downReason(l)] : [])},
         },
-    }), [lines, filter, problemsOnly, status, node, group]);
+    }), [lines, filter, problemsOnly, status, node, group, reason]);
     // The rows drawn as the end of the table nears; a filter or the sort changed, the first ones again.
-    const drawn = useRowsOnDemand(shown.length, [status, node, group, problemsOnly, filter, sortColumn, sortDirection]);
+    const drawn = useRowsOnDemand(shown.length, [status, node, group, reason, problemsOnly, filter, sortColumn, sortDirection]);
 
     // The resources selected, by their line; one a filter hides, or gone, leaves the selection.
     const [selected, setSelected] = useState(() => new Set());
@@ -312,9 +292,9 @@ const Resources = () => {
         }
     };
 
-    const facet = (key, label, selected, set, options, mark) => ({
+    const facet = (key, label, selected, set, options, mark, text = (value) => value) => ({
         label,
-        options: options.map((value) => ({value, text: value, mark: mark?.(value)})),
+        options: options.map((value) => ({value, text: text(value), mark: mark?.(value)})),
         selected,
         counts: counts[key] ?? {},
         onToggle: (value) => set((prev) => toggled(prev, value)),
@@ -325,6 +305,8 @@ const Resources = () => {
             (value) => <StatusMark state={toObjectState(value)} label={value}/>),
         facet("node", t("common.node"), node, setNode, nodes),
         facet("group", t("resources.group"), group, setGroup, groups),
+        facet("reason", t("resources.reason"), reason, setReason, reasons, undefined,
+            (value) => (value === "none" ? t("resources.reasonNone") : t(QUIET_WORDS[value]))),
     ];
     const refresh = (
         <Button
@@ -440,9 +422,9 @@ const Resources = () => {
                             {layout.typeColumn && <Cell className="text-ink-muted">{l.type}</Cell>}
                             <Cell className="whitespace-nowrap">
                                     <span className="inline-flex items-center gap-1.5">
-                                        <StatusMark state={toObjectState(l.status)} label={l.status || t("instance.unknown")} muted={l.passive}/>
-                                        <span className={l.passive ? "text-ink-muted" : undefined}>{l.status || "-"}</span>
-                                        {l.passive && <span className="text-ink-muted">· {t("resources.passive")}</span>}
+                                        <StatusMark state={toObjectState(l.status)} label={l.status || t("instance.unknown")} muted={l.quiet !== null}/>
+                                        <span className={l.quiet ? "text-ink-muted" : undefined}>{l.status || "-"}</span>
+                                        {l.quiet && <span className="text-ink-muted">· {t(QUIET_WORDS[l.quiet])}</span>}
                                         {l.notProvisioned && <span className="text-state-warn">{t("resources.notProvisioned")}</span>}
                                     </span>
                             </Cell>

@@ -2057,6 +2057,20 @@ describe('Objects Component', () => {
             expect(selectAll()).not.toBeChecked();
         });
 
+        test('the address changed but not its filters, a row opened (sel=): the rows drawn kept', async () => {
+            const {rerender} = setup(makeMany(160), '?list=any', {isWideScreen: true, isMobile: false});
+            await waitForLoad();
+            fireEvent.click(screen.getByRole('button', {name: 'Show 60 more'}));
+            expect(dataRows()).toHaveLength(160);
+            vi.mocked(useLocation).mockReturnValue({search: '?list=any&sel=object%3Atest-ns%2Fsvc%2Fobj150', pathname: '/objects'});
+            rerender(<MemoryRouter><Objects/></MemoryRouter>);
+            expect(dataRows()).toHaveLength(160);
+            // A filter changed, every object still kept: from the first rows again.
+            vi.mocked(useLocation).mockReturnValue({search: '?list=any&name=obj', pathname: '/objects'});
+            rerender(<MemoryRouter><Objects/></MemoryRouter>);
+            await waitFor(() => expect(dataRows()).toHaveLength(100));
+        });
+
         test('a filter changed starts the list over from its first page', async () => {
             vi.useFakeTimers();
             try {
