@@ -1872,7 +1872,9 @@
       "unprovisioned": "Non provisionné",
       "rail": "Filtres",
       "clear": "Effacer",
-      "clearOf": "Effacer le filtre {{filter}}"
+      "clearOf": "Effacer le filtre {{filter}}",
+      "active_one": "{{count}} actif",
+      "active_other": "{{count}} actifs"
     },
     "feedback": {
       "authTokenNotFound": "Jeton d'authentification introuvable"
