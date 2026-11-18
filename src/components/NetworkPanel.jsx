@@ -88,14 +88,11 @@ export function NetworkOverview({name}) {
     const [network, setNetwork] = useState(undefined);
     const [addresses, setAddresses] = useState(null);
     const [error, setError] = useState(null);
-    const {section, reload: reloadSection} = useNetworkSection(name);
+    // Read again by itself as the cluster configuration changes (useClusterSection).
+    const {section} = useNetworkSection(name);
     const storeNodes = useClusterNodes();
     const [clusterNodes, setClusterNodes] = useState(null);
     const changes = useNetworkChanges();
-
-    useEffect(() => {
-        if (changes > 0) reloadSection();
-    }, [changes, reloadSection]);
 
     useEffect(() => {
         let live = true;
