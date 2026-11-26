@@ -121,7 +121,9 @@ export function GlobalSearch({ loadIndex }: { loadIndex: () => Promise<SearchInd
         onClick={() => {
           setOpen(true);
         }}
-        className="flex h-7 w-64 items-center gap-2 rounded-(--radius-control) border border-line px-2 text-ink-muted hover:bg-surface-sunken hover:text-ink max-md:w-7 max-md:justify-center max-md:px-0"
+        // As wide as its label, in French as in English, 16rem at least, 20rem at most:
+        // cut, it read as a search of something else ("Rechercher dans le cl…").
+        className="flex h-7 items-center gap-2 rounded-(--radius-control) border border-line px-2 text-ink-muted hover:bg-surface-sunken hover:text-ink max-md:w-7 max-md:justify-center max-md:px-0 md:w-max md:max-w-80 md:min-w-64"
       >
         <SearchIcon className="h-4 w-4 shrink-0" />
         <span className="truncate max-md:sr-only">{t("search.title")}</span>
