@@ -1071,7 +1071,8 @@
       "instanceNotFound": "Instance logs endpoint not found for {{instance}} on node {{node}}",
       "nodeNotFound": "Node logs endpoint not found for node {{node}}",
       "fetchFailed": "Failed to fetch logs: {{message}}",
-      "reconnecting": "The log stream of {{node}} was lost: reconnecting…"
+      "reconnecting": "The log stream of {{node}} was lost: reconnecting…",
+      "ofNode": "{{node}}: {{message}}"
     },
     "following": "Following",
     "follow": "Follow",

@@ -63,7 +63,9 @@ const LogsViewer = ({
     const [loadingOlder, setLoadingOlder] = useState(false);
     const [noOlder, setNoOlder] = useState(false);
     const [isConnected, setIsConnected] = useState(false);
-    const [errorMessage, setErrorMessage] = useState("");
+    // What went wrong, by node, "" for what is of no node: one node's stream opening
+    // clears its own alone, the others' kept until theirs open.
+    const [errors, setErrors] = useState({});
     const [isLoading, setIsLoading] = useState(false);
     const [selectedLogId, setSelectedLogId] = useState(null);
     const [shouldScrollToLog, setShouldScrollToLog] = useState(false);
@@ -227,6 +229,21 @@ const LogsViewer = ({
     }, [merged, countNew]);
 
     /** The stream of a node open or not, said by the reading still current alone. */
+    /**
+     * What went wrong with `node` ("" for what is of no node), or nothing any more;
+     * said by the reading still current alone (`signal`, none for one of no reading).
+     */
+    const setError = useCallback((signal, node, message) => {
+        if (signal && abortControllerRef.current?.signal !== signal) return;
+        setErrors((prev) => {
+            if ((prev[node] ?? "") === message) return prev;
+            const next = {...prev};
+            if (message) next[node] = message; else delete next[node];
+            return next;
+        });
+    }, []);
+    const errorMessages = Object.values(errors);
+
     const markStream = useCallback((signal, nodename, open) => {
         if (abortControllerRef.current?.signal !== signal) return;
         if (open) streamingRef.current.add(nodename);
@@ -238,22 +255,25 @@ const LogsViewer = ({
         async (signal, nodename, attempt = 0) => {
             if (isPausedRef.current || !nodename) return;
             // The stream lost, said and read again, the reading not stopped meanwhile.
+            // What went wrong with this node: named, its logs merged with others'.
+            const fail = (message) => setError(signal, nodename, nodesRef.current.length > 1
+                ? t("logs.errors.ofNode", {node: nodename, message}) : message);
             const reconnect = (next) => {
                 markStream(signal, nodename, false);
                 if (signal.aborted) return;
-                setErrorMessage(t("logs.errors.reconnecting", {node: nodename}));
+                setError(signal, nodename, t("logs.errors.reconnecting", {node: nodename}));
                 const timer = setTimeout(() => {
                     if (!signal.aborted) void fetchLogsRef.current(signal, nodename, next);
                 }, Math.min(RECONNECT_BASE_MS * 2 ** Math.min(next, 5), RECONNECT_MAX_MS));
                 signal.addEventListener("abort", () => clearTimeout(timer), {once: true});
             };
             if (type === "instance" && (!instanceName || instanceName.trim() === "")) {
-                setErrorMessage(t("logs.errors.instanceRequired"));
+                setError(signal, "", t("logs.errors.instanceRequired"));
                 return;
             }
             const token = localStorage.getItem("authToken");
             if (!token) {
-                setErrorMessage(t("logs.errors.tokenNotFound"));
+                setError(signal, "", t("logs.errors.tokenNotFound"));
                 markStream(signal, nodename, false);
                 return;
             }
@@ -270,17 +290,18 @@ const LogsViewer = ({
                     signal,
                 });
                 if (!response.ok) {
-                    setErrorMessage(t("logs.errors.http", {status: response.status}));
+                    fail(t("logs.errors.http", {status: response.status}));
                     markStream(signal, nodename, false);
                     return;
                 }
                 if (!response.body) {
-                    setErrorMessage(t("logs.errors.noStream"));
+                    fail(t("logs.errors.noStream"));
                     markStream(signal, nodename, false);
                     return;
                 }
                 markStream(signal, nodename, true);
-                setErrorMessage("");
+                // Its own error alone cleared: another node's still said.
+                setError(signal, nodename, "");
                 setIsLoading(false);
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
@@ -333,21 +354,21 @@ const LogsViewer = ({
                 }
                 markStream(signal, nodename, false);
                 if (error.message.includes("401")) {
-                    setErrorMessage(t("logs.errors.authFailed"));
+                    fail(t("logs.errors.authFailed"));
                 } else if (error.message.includes("404")) {
                     if (type === "instance") {
-                        setErrorMessage(t("logs.errors.instanceNotFound", {instance: instanceName, node: nodename}));
+                        setError(signal, nodename, t("logs.errors.instanceNotFound", {instance: instanceName, node: nodename}));
                     } else {
-                        setErrorMessage(t("logs.errors.nodeNotFound", {node: nodename}));
+                        setError(signal, nodename, t("logs.errors.nodeNotFound", {node: nodename}));
                     }
                 } else {
-                    setErrorMessage(t("logs.errors.fetchFailed", {message: error.message}));
+                    fail(t("logs.errors.fetchFailed", {message: error.message}));
                 }
             } finally {
                 setIsLoading(false);
             }
         },
-        [type, instanceName, buildLogUrl, parseLogMessage, updateLogs, markStream, t]
+        [type, instanceName, buildLogUrl, parseLogMessage, updateLogs, markStream, setError, t]
     );
     fetchLogsRef.current = fetchLogs;
 
@@ -356,7 +377,7 @@ const LogsViewer = ({
             abortControllerRef.current.abort();
         }
         setIsLoading(true);
-        setErrorMessage("");
+        setErrors({});
         const controller = new AbortController();
         abortControllerRef.current = controller;
         streamingRef.current = new Set();
@@ -405,11 +426,11 @@ const LogsViewer = ({
             follow(false);
             setLogs((prev) => [...older, ...prev].sort(byTime).slice(-keepRef.current));
         } catch (error) {
-            setErrorMessage(t("logs.errors.fetchFailed", {message: error.message}));
+            setError(null, "", t("logs.errors.fetchFailed", {message: error.message}));
         } finally {
             setLoadingOlder(false);
         }
-    }, [nodes, readOnce, follow, t]);
+    }, [nodes, readOnce, follow, setError, t]);
 
     const isFiltered = useMemo(() => {
         return levelFilter.length > 0 || searchTerm !== "";
@@ -469,14 +490,14 @@ const LogsViewer = ({
     useEffect(() => {
         if (nodes.length === 0) return;
         if (type === "instance" && (!instanceName || instanceName.trim() === "")) {
-            setErrorMessage(t("logs.errors.instanceRequired"));
+            setError(null, "", t("logs.errors.instanceRequired"));
             return;
         }
         if (!isPaused) startStreaming();
         return () => {
             if (abortControllerRef.current) abortControllerRef.current.abort();
         };
-    }, [nodes, type, instanceName, startStreaming, isPaused, t]);
+    }, [nodes, type, instanceName, startStreaming, isPaused, setError, t]);
 
     useEffect(() => {
         if (isPaused) {
@@ -536,7 +557,7 @@ const LogsViewer = ({
     };
 
     const handleManualReconnect = () => {
-        setErrorMessage("");
+        setErrors({});
         setLogs([]);
         seenLogsRef.current.clear();
         startStreaming();
@@ -592,7 +613,7 @@ const LogsViewer = ({
                     </IconButton>
                 </div>
             </div>
-            {errorMessage && (
+            {errorMessages.length > 0 && (
                 <Alert
                     tone="error"
                     action={
@@ -601,10 +622,13 @@ const LogsViewer = ({
                         </Button>
                     }
                 >
-                    {errorMessage}
+                    {/* Each node's on its line, as many nodes as went wrong. */}
+                    {errorMessages.length === 1 ? errorMessages[0] : (
+                        <ul>{errorMessages.map((message) => <li key={message}>{message}</li>)}</ul>
+                    )}
                 </Alert>
             )}
-            {isLoading && !errorMessage && <Alert tone="info">{t("logs.loadingEllipsis")}</Alert>}
+            {isLoading && errorMessages.length === 0 && <Alert tone="info">{t("logs.loadingEllipsis")}</Alert>}
             {/* Filters, as the oc3 list toolbar */}
             <div className="flex flex-wrap items-center gap-3">
                 <label className="flex min-w-[200px] flex-1 items-center gap-1 text-ink-muted">

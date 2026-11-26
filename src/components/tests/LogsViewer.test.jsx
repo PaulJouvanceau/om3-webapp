@@ -851,6 +851,26 @@ describe('LogsViewer', () => {
             expect(lines[1]).toHaveClass('border-line/40');
         });
 
+        test('one node\'s error kept, named, when another connects after it; cleared by its own stream alone', async () => {
+            // n1 refused at once; n2 answering after it, its stream opening once n1 failed.
+            let open;
+            const n2 = new Promise((resolve) => {
+                open = () => resolve({ok: true, status: 200, body: new MockReadableStream([`data: ${JSON.stringify({__REALTIME_TIMESTAMP: '1000', MESSAGE: 'n2 one'})}\n\n`], 0)});
+            });
+            global.fetch = vi.fn((url) => {
+                if (url.startsWith('/api/cluster/status')) {
+                    return Promise.resolve({ok: true, status: 200, json: () => Promise.resolve({cluster: {config: {nodes: ['n1', 'n2']}}})});
+                }
+                return url.includes('/n1/') ? Promise.resolve({ok: false, status: 500}) : n2;
+            });
+            render(<LogsViewer nodenames={['n1', 'n2']}/>);
+            await screen.findByText('n1: HTTP error! status: 500');
+            open();
+            await waitFor(() => expect(findLogsContainer()).toHaveTextContent('n2 one'));
+            expect(screen.getByText('n1: HTTP error! status: 500')).toBeInTheDocument();
+            expect(screen.getByText('Disconnected')).toBeInTheDocument();
+        });
+
         test('the time, the level and the node in columns shared; the message on two lines, its prefixes small badges, then its text', async () => {
             mockSuccessfulFetch([{__REALTIME_TIMESTAMP: String(Date.now() * 1000), MESSAGE: 'daemon: imon: kvm/svc/vm1: started'}]);
             renderComponent();

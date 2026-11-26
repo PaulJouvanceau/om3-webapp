@@ -1071,7 +1071,8 @@
       "instanceNotFound": "Point d'accès des journaux d'instance introuvable pour {{instance}} sur le nœud {{node}}",
       "nodeNotFound": "Point d'accès des journaux introuvable pour le nœud {{node}}",
       "fetchFailed": "Échec de la récupération des journaux : {{message}}",
-      "reconnecting": "Le flux des journaux de {{node}} a été perdu : reconnexion…"
+      "reconnecting": "Le flux des journaux de {{node}} a été perdu : reconnexion…",
+      "ofNode": "{{node}} : {{message}}"
     },
     "following": "Suivi",
     "follow": "Suivre",
