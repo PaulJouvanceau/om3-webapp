@@ -1,6 +1,31 @@
 /**
+ * How a text is written, beside its characters: `bom`, a byte order mark first;
+ * `eol`, its line ends, "lf", "crlf", "mixed" (both), or "none" (a single line).
+ * What a text field does not keep, a textarea giving its lines ended by LF alone.
+ */
+export const textFormat = (text) => {
+    const lf = (text.match(/\n/g) ?? []).length;
+    const crlf = (text.match(/\r\n/g) ?? []).length;
+    const eol = lf === 0 ? "none" : crlf === lf ? "crlf" : crlf === 0 ? "lf" : "mixed";
+    return {bom: false, eol};
+};
+
+/** The plain format: no byte order mark, the lines ended as typed. */
+export const PLAIN_FORMAT = {bom: false, eol: "none"};
+
+/**
+ * A text written back as it was read (textFormat): its lines ended by CRLF if they
+ * were, its byte order mark first if it had one; lines mixed, or none, as they are.
+ */
+export const encodeText = (text, format = PLAIN_FORMAT) => {
+    const body = format.eol === "crlf" ? text.replace(/\r?\n/g, "\r\n") : text;
+    return format.bom ? `\uFEFF${body}` : body;
+};
+
+/**
  * The content of a key or a file, as its dialog shows it: text, when it is UTF-8 with
- * no control character but tab and line ends, an empty one too, edited as any text;
+ * no control character but tab and line ends, an empty one too, edited as any text,
+ * its byte order mark out of it and said with its line ends (`format`, textFormat);
  * else binary, shown as a hex dump of `hexLimit` bytes at most (all of them by default).
  */
 export const parseBlobContent = async (blob, {hexLimit = Infinity} = {}) => {
@@ -15,7 +40,8 @@ export const parseBlobContent = async (blob, {hexLimit = Infinity} = {}) => {
     let isText = true;
     let textContent = "";
     try {
-        textContent = new TextDecoder('utf-8', {fatal: true}).decode(uint8Array);
+        // The byte order mark kept by the decoder, to be said and written back.
+        textContent = new TextDecoder('utf-8', {fatal: true, ignoreBOM: true}).decode(uint8Array);
         for (let i = 0; i < textContent.length; i++) {
             const code = textContent.charCodeAt(i);
             if (code < 32 && code !== 9 && code !== 10 && code !== 13) {
@@ -28,7 +54,9 @@ export const parseBlobContent = async (blob, {hexLimit = Infinity} = {}) => {
     }
 
     if (isText) {
-        return {type: "text", content: textContent};
+        const bom = textContent.startsWith("\uFEFF");
+        const content = bom ? textContent.slice(1) : textContent;
+        return {type: "text", content, format: {...textFormat(content), bom}};
     } else {
         const hexLines = [];
         for (let i = 0; i < Math.min(uint8Array.length, hexLimit); i += 16) {

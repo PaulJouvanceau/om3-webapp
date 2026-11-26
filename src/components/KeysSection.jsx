@@ -18,7 +18,7 @@ import {KEY_KINDS} from "../constants/actions";
 import {trackRefused, trackWrite} from "../app/action-tracker";
 import {refusalReason} from "./objectActions";
 import {hasPemCertificate} from "../utils/x509";
-import {parseBlobContent} from "../utils/blob-content";
+import {PLAIN_FORMAT, encodeText, parseBlobContent} from "../utils/blob-content";
 import CertificateDetails from "./CertificateDetails";
 import {SecCertificate} from "./SecCertificate";
 import {Trans, useTranslation} from "react-i18next";
@@ -77,9 +77,9 @@ const downloadKey = (name, blob) => {
     URL.revokeObjectURL(url);
 };
 
-/** A file as a key holds it: its text, when it reads as text, else the file itself, sent as is. */
+/** A file as a key holds it: its text and how it is written, when it reads as text, else the file itself, sent as is. */
 const readKeyFile = async (file) => {
-    if (file.size === 0) return {text: ""};
+    if (file.size === 0) return {text: "", format: PLAIN_FORMAT};
     // Read by a FileReader where a file has no arrayBuffer of its own.
     const bytes = typeof file.arrayBuffer === "function"
         ? await file.arrayBuffer()
@@ -90,7 +90,7 @@ const readKeyFile = async (file) => {
             reader.readAsArrayBuffer(file);
         });
     const parsed = await parseBlobContent({arrayBuffer: async () => bytes});
-    return parsed.type === "text" ? {text: parsed.content} : {file};
+    return parsed.type === "text" ? {text: parsed.content, format: parsed.format} : {file};
 };
 
 /**
@@ -104,6 +104,10 @@ const readKeyFile = async (file) => {
  * not be read. The update then waits for new content: an empty form never empties
  * a key it does not show. `maxSize`, the largest key the API takes, in bytes: a
  * larger one is said, and not sent.
+ *
+ * A text is saved written as it was read (`initialFormat`, or that of the file read):
+ * its byte order mark, its lines ended by CRLF, kept, and said; lines ended both ways,
+ * which a text field cannot keep once edited, saved ended by LF, said so.
  */
 const KeyFormDialog = ({
                            open,
@@ -112,6 +116,7 @@ const KeyFormDialog = ({
                            mode,
                            initialName = "",
                            initialContent = "",
+                           initialFormat = PLAIN_FORMAT,
                            hidden = null,
                            title,
                            loading = false,
@@ -123,6 +128,9 @@ const KeyFormDialog = ({
     const {t, i18n} = useTranslation();
     const [name, setName] = useState(initialName);
     const [text, setText] = useState(initialContent);
+    // How the text read is written, and the text as read: edited, a field gives its lines ended by LF.
+    const [format, setFormat] = useState(initialFormat);
+    const [readText, setReadText] = useState(initialContent);
     const [file, setFile] = useState(null);
     const [dragOver, setDragOver] = useState(false);
     const [fullscreen, setFullscreen] = useState(false);
@@ -133,28 +141,36 @@ const KeyFormDialog = ({
         if (open) {
             setName(initialName);
             setText(initialContent);
+            setFormat(initialFormat);
+            setReadText(initialContent);
             setFile(null);
             setDragOver(false);
             setFullscreen(false);
         }
-    }, [open, initialName, initialContent]);
+    }, [open, initialName, initialContent, initialFormat]);
 
     const load = async (picked) => {
         if (!picked) return;
         if (mode === "create" && !name) setName(picked.name);
         const read = await readKeyFile(picked);
         setFile(read.file ?? null);
-        if (read.text !== undefined) setText(read.text);
+        if (read.text !== undefined) {
+            setText(read.text);
+            setFormat(read.format);
+            setReadText(read.text);
+        }
     };
 
-    const size = file ? file.size : new TextEncoder().encode(text).length;
+    // The text as it is saved: written as it was read.
+    const encoded = encodeText(text, format);
+    const size = file ? file.size : new TextEncoder().encode(encoded).length;
     const tooLarge = maxSize !== null && size > maxSize;
     // The content of the key not shown: new content, typed or from a file, to update it.
     const waiting = hidden !== null && file === null && text === "";
 
     const handleSubmit = () => {
         if (!name || tooLarge || waiting) return;
-        const contentBlob = file ?? new Blob([text], {type: "application/octet-stream"});
+        const contentBlob = file ?? new Blob([encoded], {type: "application/octet-stream"});
         onSubmit({name, contentBlob});
     };
 
@@ -167,6 +183,12 @@ const KeyFormDialog = ({
         ? t("keys.form.hiddenSecret")
         : hidden === "binary" ? t("keys.form.hiddenBinary")
             : hidden === "unread" ? t("keys.form.hiddenUnread") : t("keys.form.contentPlaceholder");
+
+    // What of the text read is kept beyond its characters, or lost by an edit, said.
+    const kept = [format.eol === "crlf" && t("keys.form.keptCrlf"), format.bom && t("keys.form.keptBom")].filter(Boolean);
+    const formatNote = file ? null : format.eol === "mixed" && text !== readText
+        ? <p className="text-data text-state-warn">{t("keys.form.mixedEolLost")}</p>
+        : kept.length > 0 && <p className="text-data text-ink-muted">{t("keys.form.keptAsRead", {what: kept.join(", ")})}</p>;
 
     const sizeLine = (
         <p className={tooLarge ? "text-data text-state-down" : "text-data text-ink-muted"} aria-live="polite">
@@ -301,6 +323,7 @@ const KeyFormDialog = ({
                         </p>
                         {sizeLine}
                     </div>
+                    {formatNote}
                     {/* Refused, said here: the form kept as typed, to fix and send again. */}
                     {error && <Alert>{error}</Alert>}
                     <input
@@ -378,6 +401,7 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey, keyOnly, onKe
 
     const [updateInitialName, setUpdateInitialName] = useState("");
     const [updateInitialContent, setUpdateInitialContent] = useState("");
+    const [updateInitialFormat, setUpdateInitialFormat] = useState(PLAIN_FORMAT);
     // Why the content of the key to update is not in its form: "secret", "binary" or "unread".
     const [updateHidden, setUpdateHidden] = useState(null);
     // The last update form opened: the content read for one before it, arriving late, is dropped.
@@ -613,7 +637,9 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey, keyOnly, onKe
             setRename(null);
             return;
         }
-        const {from, to} = rename;
+        // The name as checked, its spaces around it not sent.
+        const {from} = rename;
+        const to = rename.to.trim();
         const write = {...keyWrite("keyRename", from), label: t("actionTray.writes.keyRename", {key: from, to})};
         setActionLoading(true);
         setRename((r) => ({...r, error: null}));
@@ -696,6 +722,7 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey, keyOnly, onKe
         setKeyFormError(null);
         setUpdateDialogOpen(true);
         setUpdateInitialContent("");
+        setUpdateInitialFormat(PLAIN_FORMAT);
         setUpdateHidden(null);
 
         if (isSecret) {
@@ -711,6 +738,7 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey, keyOnly, onKe
         if (result.blob) updateRead.current = result.blob;
         if (result.type === "text") {
             setUpdateInitialContent(result.content);
+            setUpdateInitialFormat(result.format);
         } else if (result.type === "binary") {
             setUpdateHidden("binary");
         } else {
@@ -952,6 +980,7 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey, keyOnly, onKe
                 mode="update"
                 initialName={updateInitialName}
                 initialContent={updateInitialContent}
+                initialFormat={updateInitialFormat}
                 hidden={updateHidden}
                 title={t("keys.form.updateTitle")}
                 loading={actionLoading}

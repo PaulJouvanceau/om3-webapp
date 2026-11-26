@@ -742,6 +742,71 @@ describe('KeysSection', () => {
         });
     });
 
+    describe('update: the text written as it was read', () => {
+        // The key `bytes` as the daemon holds them; the body of the PUT, its bytes.
+        const keyOf = (bytes) => mockFetch({
+            keys: [{name: 'key1', node: 'n1', size: bytes.length}],
+            methods: {
+                GET: (url) => url.includes('/data/key?name=') ? Promise.resolve({
+                    ok: true, headers: new Headers(), blob: () => Promise.resolve(makeMockBlob(bytes)),
+                }) : undefined,
+                PUT: () => Promise.resolve({ok: true, json: () => Promise.resolve({})}),
+            },
+        });
+        const putBytes = async () => {
+            const [, options] = global.fetch.mock.calls.find(([, o]) => o?.method === 'PUT');
+            // Read by a FileReader: the Blob of the test environment has no arrayBuffer.
+            const buffer = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.readAsArrayBuffer(options.body);
+            });
+            return [...new Uint8Array(buffer)];
+        };
+        // A textarea gives its lines ended by LF: the edit typed so.
+        const edit = async (dialog, value, {before = () => {}} = {}) => {
+            const content = within(dialog).getByRole('textbox', {name: 'Key content'});
+            await waitFor(() => expect(content.value).not.toBe(''));
+            fireEvent.change(content, {target: {value}});
+            // What the form says once edited, before it is saved and closed.
+            before();
+            await act(async () => {
+                await user.click(within(dialog).getByRole('button', {name: 'Update'}));
+            });
+            await waitFor(() => expect(global.fetch.mock.calls.some(([, o]) => o?.method === 'PUT')).toBe(true));
+        };
+
+        test('its byte order mark and its lines ended by CRLF kept, and said', async () => {
+            keyOf(new Uint8Array([0xef, 0xbb, 0xbf, ...encodeText('a=1\r\nb=2\r\n')]));
+            await renderAndWait('root/cfg/cfg1', 1);
+            const dialog = await openDialog('edit', 'key1');
+            expect(await within(dialog).findByText('Saved as read: its lines ended by CRLF, its byte order mark.')).toBeInTheDocument();
+            await edit(dialog, 'a=1\nb=3\n');
+            expect(await putBytes()).toEqual([0xef, 0xbb, 0xbf, ...encodeText('a=1\r\nb=3\r\n')]);
+        });
+
+        test('its lines ended both ways: edited, saved ended by LF, said so', async () => {
+            keyOf(encodeText('a=1\r\nb=2\n'));
+            await renderAndWait('root/cfg/cfg1', 1);
+            const dialog = await openDialog('edit', 'key1');
+            const content = within(dialog).getByRole('textbox', {name: 'Key content'});
+            await waitFor(() => expect(content.value).not.toBe(''));
+            expect(within(dialog).queryByText(/ended by both CRLF and LF/)).toBeNull();
+            await edit(dialog, 'a=1\nb=3\n', {
+                before: () => expect(within(dialog).getByText(/ended by both CRLF and LF: edited, it is saved with every line ended by LF/)).toBeInTheDocument(),
+            });
+            expect(await putBytes()).toEqual([...encodeText('a=1\nb=3\n')]);
+        });
+
+        test('a key of LF lines: none said, saved as typed', async () => {
+            keyOf(encodeText('a=1\n'));
+            await renderAndWait('root/cfg/cfg1', 1);
+            const dialog = await openDialog('edit', 'key1');
+            await edit(dialog, 'a=2\n', {before: () => expect(within(dialog).queryByText(/Saved as read/)).toBeNull()});
+            expect(await putBytes()).toEqual([...encodeText('a=2\n')]);
+        });
+    });
+
     test('update binary: said in place, the update waits for new content', async () => {
         mockFetch({keys: [{name: 'b', node: 'n', size: 2}], keyBlob: makeMockBlob(new Uint8Array([0x00, 0x01]))});
         await renderAndWait('root/cfg/cfg1', 1);

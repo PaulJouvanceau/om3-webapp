@@ -9,7 +9,7 @@ import {Spinner} from "../ui/components/Spinner";
 import {DownloadIcon} from "../ui/icons";
 import {formatBytes} from "../ui/lib/format";
 import {downloadFile, readFileHead, uploadFile} from "../services/volume-files.js";
-import {parseBlobContent} from "../utils/blob-content";
+import {encodeText, parseBlobContent} from "../utils/blob-content";
 import {hasPemCertificate} from "../utils/x509";
 import CertificateDetails from "./CertificateDetails";
 import {CrossLink} from "../app/CrossLink";
@@ -112,9 +112,11 @@ export function VolumeFileDialog({path, node, dir, name, origin = null, stamp = 
     const save = async () => {
         setSaving(true);
         const written = withEnding(editing, noTrailingLineFeed);
+        // Its byte order mark, read out of the text, written back first.
+        const bytes = encodeText(written, {bom: read.format?.bom ?? false, eol: "lf"});
         try {
-            await uploadFile(path, node, new File([written], name), undefined, {replace: true, dir}).done;
-            setRead((r) => ({...r, content: written, total: new Blob([written]).size}));
+            await uploadFile(path, node, new File([bytes], name), undefined, {replace: true, dir}).done;
+            setRead((r) => ({...r, content: written, total: new Blob([bytes]).size}));
             setEditing(null);
             onSaved?.();
         } catch (err) {

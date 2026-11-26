@@ -1010,7 +1010,11 @@
       "tooLarge": "{{size}}: too large, a key holds up to {{max}}",
       "hiddenSecret": "The content of a secret is hidden: type, paste or drop new content to replace it.",
       "hiddenBinary": "The content is binary: drop or browse a file to replace it, or type new content.",
-      "hiddenUnread": "The content could not be read: type, paste or drop new content to replace it."
+      "hiddenUnread": "The content could not be read: type, paste or drop new content to replace it.",
+      "keptAsRead": "Saved as read: {{what}}.",
+      "keptCrlf": "its lines ended by CRLF",
+      "keptBom": "its byte order mark",
+      "mixedEolLost": "Its lines were ended by both CRLF and LF: edited, it is saved with every line ended by LF."
     },
     "errors": {
       "noToken": "Auth token not found.",

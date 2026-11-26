@@ -1010,7 +1010,11 @@
       "tooLarge": "{{size}} : trop volumineux, une clé contient au plus {{max}}",
       "hiddenSecret": "Le contenu d'un secret est masqué : saisissez, collez ou déposez un nouveau contenu pour le remplacer.",
       "hiddenBinary": "Le contenu est binaire : déposez ou choisissez un fichier pour le remplacer, ou saisissez un nouveau contenu.",
-      "hiddenUnread": "Le contenu n'a pas pu être lu : saisissez, collez ou déposez un nouveau contenu pour le remplacer."
+      "hiddenUnread": "Le contenu n'a pas pu être lu : saisissez, collez ou déposez un nouveau contenu pour le remplacer.",
+      "keptAsRead": "Enregistré tel que lu : {{what}}.",
+      "keptCrlf": "ses lignes terminées par CRLF",
+      "keptBom": "son indicateur d'ordre des octets (BOM)",
+      "mixedEolLost": "Ses lignes étaient terminées à la fois par CRLF et par LF : modifié, il est enregistré avec toutes ses lignes terminées par LF."
     },
     "errors": {
       "noToken": "Jeton d'authentification introuvable.",
