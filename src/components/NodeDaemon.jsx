@@ -330,7 +330,7 @@ export function NodeDaemon({node}) {
             key: "dns",
             label: t("nodeDaemon.views.dns"),
             mark: dns.data ? <CategoryCount count={dnsRecords.length}/> : null,
-            description: t("nodeDaemon.summary.dns", {count: dnsRecords.length, names: dnsNames}),
+            description: t("nodeDaemon.summary.dns", {count: dnsRecords.length, names: t("nodeDaemon.summary.dnsNames", {count: dnsNames})}),
             tone: dns.error ? "error" : "muted",
         },
         {

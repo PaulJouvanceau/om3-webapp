@@ -1768,7 +1768,7 @@ describe('Objects Component', () => {
             // Offered, a service of the selection taking it.
             await clickMenuItem('Start');
             // Counted without the volume.
-            expect(await screen.findByRole('dialog')).toHaveTextContent('start on 1 objects');
+            expect(await screen.findByRole('dialog')).toHaveTextContent(/start on 1 object(?!s)/);
             await confirmDialog();
             await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
                 '/api/object/path/test-ns/svc/test1/action/start', expect.any(Object)));

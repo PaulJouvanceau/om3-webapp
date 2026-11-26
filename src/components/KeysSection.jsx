@@ -171,10 +171,10 @@ const KeyFormDialog = ({
     const sizeLine = (
         <p className={tooLarge ? "text-data text-state-down" : "text-data text-ink-muted"} aria-live="polite">
             {tooLarge
-                ? t("keys.form.tooLarge", {size: t("keys.bytes", {size}), max: formatKeyLimit(maxSize, i18n.language)})
+                ? t("keys.form.tooLarge", {size: t("keys.bytes", {count: size}), max: formatKeyLimit(maxSize, i18n.language)})
                 : maxSize !== null
-                    ? t("keys.form.sizeOfMax", {size: t("keys.bytes", {size}), max: formatKeyLimit(maxSize, i18n.language)})
-                    : t("keys.bytes", {size})}
+                    ? t("keys.form.sizeOfMax", {size: t("keys.bytes", {count: size}), max: formatKeyLimit(maxSize, i18n.language)})
+                    : t("keys.bytes", {count: size})}
         </p>
     );
 
@@ -200,7 +200,7 @@ const KeyFormDialog = ({
             {file ? (
                 <div className="flex min-h-24 items-center gap-2 rounded-(--radius-control) border border-line bg-surface-sunken px-3">
                     <span className="font-mono">{file.name}</span>
-                    <span className="text-ink-muted">· {t("keys.bytes", {size: file.size})} · {t("keys.form.binary")}</span>
+                    <span className="text-ink-muted">· {t("keys.bytes", {count: file.size})} · {t("keys.form.binary")}</span>
                     <IconButton
                         size="sm"
                         className="ml-auto"
@@ -1075,7 +1075,7 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey, keyOnly, onKe
                             <th scope="row" className="px-2 py-1 text-left font-normal">
                                 {key.name}
                             </th>
-                            <Cell numeric className="whitespace-nowrap">{t("keys.bytes", {size: key.size})}</Cell>
+                            <Cell numeric className="whitespace-nowrap">{t("keys.bytes", {count: key.size})}</Cell>
                         </Row>
                     ))}
                     </tbody>

@@ -671,7 +671,8 @@
         "down": "en échec",
         "stopped": "arrêtés"
       },
-      "nodeStopped": "{{node}} : {{count}} routines arrêtées, les ouvrir",
+      "nodeStopped_one": "{{node}} : {{count}} routine arrêtée, l'ouvrir",
+      "nodeStopped_other": "{{node}} : {{count}} routines arrêtées, les ouvrir",
       "clickHint_one": "Cliquer pour voir le flux",
       "clickHint_other": "Cliquer pour voir les {{count}} flux",
       "nodeClickHint_one": "{{node}} : cliquer pour voir la routine arrêtée",
@@ -935,7 +936,8 @@
     "empty": "Aucune clé disponible.",
     "tableAria": "tableau des clés",
     "size": "Taille",
-    "bytes": "{{size}} octets",
+    "bytes_one": "{{count}} octet",
+    "bytes_other": "{{count}} octets",
     "editAction": "Modifier la clé {{key}}",
     "deleteAction": "Supprimer la clé {{key}}",
     "view": {
@@ -1471,7 +1473,8 @@
     },
     "sketch": {
       "title": "Schéma",
-      "label": "Schéma du réseau {{name}} sur {{count}} nœuds",
+      "label_one": "Schéma du réseau {{name}} sur {{count}} nœud",
+      "label_other": "Schéma du réseau {{name}} sur {{count}} nœuds",
       "computed": "choisi par le démon",
       "routed": "Routé entre les nœuds",
       "addresses_one": "{{count}} adresse",
@@ -1821,7 +1824,8 @@
     },
     "stepsLabel": "Étapes",
     "commentsDropped": "La conception ne garde pas les commentaires : ils sont retirés de la configuration.",
-    "copyRead": "{{path}} lu, {{count}} lignes : modifié ensuite.",
+    "copyRead_one": "{{path}} lu, {{count}} ligne : modifié ensuite.",
+    "copyRead_other": "{{path}} lu, {{count}} lignes : modifié ensuite.",
     "discardQuestion": "Abandonner ce nouvel objet ?",
     "discard": "Abandonner",
     "keepEditing": "Continuer"
@@ -2014,7 +2018,8 @@
     },
     "sketch": {
       "title": "Schéma",
-      "label": "Schéma du pool {{name}} sur {{count}} nœuds",
+      "label_one": "Schéma du pool {{name}} sur {{count}} nœud",
+      "label_other": "Schéma du pool {{name}} sur {{count}} nœuds",
       "volumes_one": "{{count}} volume",
       "volumes_other": "{{count}} volumes",
       "sharedOn_one": "{{count}} partagé",
@@ -2486,9 +2491,14 @@
     },
     "summary": {
       "overview": "{{up}} composants sur {{components}} en marche, {{beating}} flux de heartbeat sur {{streams}} actifs",
-      "executions": "{{count}} exécutions, {{running}} en cours",
-      "orchestrations": "{{count}} orchestrations, {{running}} en cours",
-      "dns": "{{count}} enregistrements pour {{names}} noms",
+      "executions_one": "{{count}} exécution, {{running}} en cours",
+      "executions_other": "{{count}} exécutions, {{running}} en cours",
+      "orchestrations_one": "{{count}} orchestration, {{running}} en cours",
+      "orchestrations_other": "{{count}} orchestrations, {{running}} en cours",
+      "dns_one": "{{count}} enregistrement pour {{names}}",
+      "dns_other": "{{count}} enregistrements pour {{names}}",
+      "dnsNames_one": "{{count}} nom",
+      "dnsNames_other": "{{count}} noms",
       "running_one": "{{count}} en cours",
       "running_other": "{{count}} en cours",
       "audit": "Les journaux du démon jusqu'au debug et au trace, à la demande"
@@ -4248,9 +4258,9 @@
         "unprovision_instance": "Déprovisionner {{path}} sur {{node}}",
         "unprovision_object": "Déprovisionner {{path}} sur tous les nœuds",
         "update_instance_caps": "Appliquer les plafonds de {{path}} sur {{node}}",
-        "config_update": "Modifier la configuration de {{path}} : {{sets}} affectations, {{unsets}} clés retirées, {{deletes}} sections supprimées",
-        "node_config_update": "Modifier la configuration du nœud {{node}} : {{sets}} affectations, {{unsets}} clés retirées, {{deletes}} sections supprimées",
-        "object_create": "Créer {{path}}, un {{kind}} à {{sections}} sections"
+        "config_update": "Modifier la configuration de {{path}} : affectations : {{sets}}, clés retirées : {{unsets}}, sections supprimées : {{deletes}}",
+        "node_config_update": "Modifier la configuration du nœud {{node}} : affectations : {{sets}}, clés retirées : {{unsets}}, sections supprimées : {{deletes}}",
+        "object_create": "Créer {{path}}, un {{kind}}, sections : {{sections}}"
       },
       "suffix": {
         "rids": " ({{rids}})",

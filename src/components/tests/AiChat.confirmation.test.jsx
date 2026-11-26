@@ -87,7 +87,7 @@ describe('the confirmation card', () => {
     test('shows the keys a configuration update changes, the sections it deletes and hides the secrets', async () => {
         mocks.client.run.mockImplementationOnce(replayRun('confirmation_preview_config'));
         const card = await ask('Add b to env.list of web');
-        expect(within(card).getByText('Update the configuration of test/svc/web: 2 set, 1 unset, 1 sections deleted')).toBeInTheDocument();
+        expect(within(card).getByText('Update the configuration of test/svc/web: 2 set, 1 unset, sections deleted: 1')).toBeInTheDocument();
         const rows = within(within(card).getByRole('table')).getAllByRole('row');
         expect(within(rows[0]).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['Key', 'Current value', 'Operation', 'Proposed value*']);
         const row = (key) => rows.find((item) => within(item).queryByRole('rowheader')?.textContent.startsWith(key));
@@ -108,7 +108,7 @@ describe('the confirmation card', () => {
     test('numbers the lines of the file a creation writes, without current values', async () => {
         mocks.client.run.mockImplementationOnce(replayRun('confirmation_preview_create'));
         const card = await ask('Create new with a flag');
-        expect(within(card).getByText('Create test/svc/new, a svc of 2 sections')).toBeInTheDocument();
+        expect(within(card).getByText('Create test/svc/new, a svc, sections: 2')).toBeInTheDocument();
         const file = within(card).getByRole('group', {name: 'Configuration file'});
         expect(within(file).getAllByTestId('config-line-number').map((cell) => cell.textContent).slice(0, 5)).toEqual(['1', '2', '3', '4', '5']);
         expect(file).toHaveTextContent('[fs#1]');

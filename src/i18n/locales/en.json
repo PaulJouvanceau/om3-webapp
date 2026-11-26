@@ -591,7 +591,7 @@
       "unsubscribeAll": "Unsubscribe from all",
       "pageEvents": "Page events ({{total}})",
       "additionalEvents": "Additional events ({{total}})",
-      "received_one": "{{count}} events received",
+      "received_one": "{{count}} event received",
       "received_other": "{{count}} events received",
       "noneSelected": "No event types selected. You won't receive any events.",
       "apply": "Apply subscriptions ({{total}})"
@@ -671,7 +671,8 @@
         "down": "failing",
         "stopped": "stopped"
       },
-      "nodeStopped": "{{node}}: {{count}} routines stopped, open them",
+      "nodeStopped_one": "{{node}}: {{count}} routine stopped, open it",
+      "nodeStopped_other": "{{node}}: {{count}} routines stopped, open them",
       "clickHint_one": "Click to see the stream",
       "clickHint_other": "Click to see the {{count}} streams",
       "nodeClickHint_one": "{{node}}: click to see the stopped routine",
@@ -935,7 +936,8 @@
     "empty": "No keys available.",
     "tableAria": "keys table",
     "size": "Size",
-    "bytes": "{{size}} bytes",
+    "bytes_one": "{{count}} byte",
+    "bytes_other": "{{count}} bytes",
     "editAction": "Edit key {{key}}",
     "deleteAction": "Delete key {{key}}",
     "view": {
@@ -1471,7 +1473,8 @@
     },
     "sketch": {
       "title": "Sketch",
-      "label": "Sketch of the network {{name}} over {{count}} nodes",
+      "label_one": "Sketch of the network {{name}} over {{count}} node",
+      "label_other": "Sketch of the network {{name}} over {{count}} nodes",
       "computed": "chosen by the daemon",
       "routed": "Routed between the nodes",
       "addresses_one": "{{count}} address",
@@ -1510,7 +1513,7 @@
     "loading": "Loading nodes",
     "target": {
       "node": "node {{node}}",
-      "selected_one": "{{count}} nodes",
+      "selected_one": "{{count}} node",
       "selected_other": "{{count}} nodes"
     },
     "feedback": {
@@ -1821,7 +1824,8 @@
     },
     "stepsLabel": "Steps",
     "commentsDropped": "Comments are not kept by the design: they are dropped from the configuration.",
-    "copyRead": "{{path}} read, {{count}} lines: edited next.",
+    "copyRead_one": "{{path}} read, {{count}} line: edited next.",
+    "copyRead_other": "{{path}} read, {{count}} lines: edited next.",
     "discardQuestion": "Discard this new object?",
     "discard": "Discard",
     "keepEditing": "Keep editing"
@@ -1916,7 +1920,7 @@
     },
     "dialogTarget": {
       "object": "object {{name}}",
-      "objects_one": "{{count}} objects",
+      "objects_one": "{{count}} object",
       "objects_other": "{{count}} objects"
     },
     "header": {
@@ -2014,7 +2018,8 @@
     },
     "sketch": {
       "title": "Sketch",
-      "label": "Sketch of the pool {{name}} over {{count}} nodes",
+      "label_one": "Sketch of the pool {{name}} over {{count}} node",
+      "label_other": "Sketch of the pool {{name}} over {{count}} nodes",
       "volumes_one": "{{count}} volume",
       "volumes_other": "{{count}} volumes",
       "sharedOn_one": "{{count}} shared",
@@ -2486,9 +2491,14 @@
     },
     "summary": {
       "overview": "{{up}} of {{components}} components running, {{beating}} of {{streams}} heartbeat streams beating",
-      "executions": "{{count}} executions, {{running}} running",
-      "orchestrations": "{{count}} orchestrations, {{running}} in progress",
-      "dns": "{{count}} records of {{names}} names",
+      "executions_one": "{{count}} execution, {{running}} running",
+      "executions_other": "{{count}} executions, {{running}} running",
+      "orchestrations_one": "{{count}} orchestration, {{running}} in progress",
+      "orchestrations_other": "{{count}} orchestrations, {{running}} in progress",
+      "dns_one": "{{count}} record of {{names}}",
+      "dns_other": "{{count}} records of {{names}}",
+      "dnsNames_one": "{{count}} name",
+      "dnsNames_other": "{{count}} names",
       "running_one": "{{count}} running",
       "running_other": "{{count}} running",
       "audit": "The logs of the daemon up to debug and trace, streamed on demand"
@@ -4248,9 +4258,9 @@
         "unprovision_instance": "Unprovision {{path}} on {{node}}",
         "unprovision_object": "Unprovision {{path}} on every node",
         "update_instance_caps": "Apply the caps of {{path}} on {{node}}",
-        "config_update": "Update the configuration of {{path}}: {{sets}} set, {{unsets}} unset, {{deletes}} sections deleted",
-        "node_config_update": "Update the configuration of the node {{node}}: {{sets}} set, {{unsets}} unset, {{deletes}} sections deleted",
-        "object_create": "Create {{path}}, a {{kind}} of {{sections}} sections"
+        "config_update": "Update the configuration of {{path}}: {{sets}} set, {{unsets}} unset, sections deleted: {{deletes}}",
+        "node_config_update": "Update the configuration of the node {{node}}: {{sets}} set, {{unsets}} unset, sections deleted: {{deletes}}",
+        "object_create": "Create {{path}}, a {{kind}}, sections: {{sections}}"
       },
       "suffix": {
         "rids": " ({{rids}})",
@@ -4369,7 +4379,7 @@
         "down": "down",
         "warn": "warn",
         "na": "n/a",
-      "unknown": "unknown"
+        "unknown": "unknown"
       },
       "waiting": "Waiting for the agent…"
     },
