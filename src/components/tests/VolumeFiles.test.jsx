@@ -316,6 +316,35 @@ describe("VolumeFiles", () => {
             expect(within(dialog).getByRole("button", {name: "Edit"})).toBeInTheDocument();
         });
 
+        test("its node no longer the one shown, an availability changing: the dialog kept on it, the edit too, saved there", async () => {
+            readFileHead.mockResolvedValue({blob: text("global\n"), total: 7, partial: false});
+            up({n1: "up", n2: "up"});
+            render(<VolumeFiles path={PATH}/>, {at: "/objects?view=etc"});
+            await userEvent.click(await screen.findByRole("button", {name: "haproxy.cfg"}));
+            const dialog = await screen.findByRole("dialog", {name: "haproxy.cfg"});
+            await within(dialog).findByDisplayValue(/global/);
+            await userEvent.click(within(dialog).getByRole("button", {name: "Edit"}));
+            await userEvent.type(within(dialog).getByRole("textbox", {name: "File content"}), "defaults");
+            // n1 warn: n2 shown in the tab; the dialog still n1's.
+            act(() => up({n1: "warn", n2: "up"}));
+            await waitFor(() => expect(listFiles).toHaveBeenCalledWith(PATH, "n2", "etc"));
+            const kept = screen.getByRole("dialog", {name: "haproxy.cfg"});
+            expect(within(kept).getByRole("textbox", {name: "File content"})).toHaveValue("global\ndefaults");
+            await userEvent.click(within(kept).getByRole("button", {name: "Save"}));
+            await waitFor(() => expect(uploadFile).toHaveBeenCalledWith(PATH, "n1", expect.objectContaining({name: "haproxy.cfg"}), undefined, {replace: true, dir: "etc"}));
+            expect(readFileHead.mock.calls.every(([, node]) => node === "n1")).toBe(true);
+        });
+
+        test("its only node no longer available: the tab says so, the dialog kept open, the edit too", async () => {
+            const dialog = await open("haproxy.cfg", {blob: text("global\n"), total: 7, partial: false});
+            await within(dialog).findByDisplayValue(/global/);
+            await userEvent.click(within(dialog).getByRole("button", {name: "Edit"}));
+            await userEvent.type(within(dialog).getByRole("textbox", {name: "File content"}), "defaults");
+            act(() => up({n1: "down"}));
+            expect(await screen.findByText(/not up on any node/)).toBeInTheDocument();
+            expect(within(screen.getByRole("dialog", {name: "haproxy.cfg"})).getByRole("textbox", {name: "File content"})).toHaveValue("global\ndefaults");
+        });
+
         test("changed by another since it was read: not written over, said, the edit kept", async () => {
             const dialog = await open("haproxy.cfg", {blob: text("global\n"), total: 7, partial: false});
             await within(dialog).findByDisplayValue(/global/);

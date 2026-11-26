@@ -96,7 +96,9 @@ export function VolumeFiles({path}) {
     const [replacing, setReplacing] = useState(null);
     // A key a file is installed from, shown in place.
     const [keyShown, setKeyShown] = useState(null);
-    // A file shown in its dialog, by name.
+    // A file shown in its dialog: its name, and the node and the directory it was opened
+    // on, kept as the node shown changes, an availability changing, another node picked;
+    // an edit in it kept, saved there, or said why not.
     const [viewing, setViewing] = useState(null);
     // A directory to create: its name as typed, and why it was refused.
     const [creating, setCreating] = useState(null);
@@ -218,255 +220,269 @@ export function VolumeFiles({path}) {
         }
     };
 
+    // The file of the dialog as the listing shown tells it, the listing its node's and
+    // directory's; another shown, what was told of it when opened.
+    const viewedFile = viewing && shownListing && viewing.node === node && viewing.dir === dir
+        ? files?.find((f) => f.name === viewing.name) : undefined;
+    const fileDialog = viewing !== null && (
+        <VolumeFileDialog
+            key={`${viewing.node}:${viewing.dir}:${viewing.name}`}
+            path={path}
+            node={viewing.node}
+            dir={viewing.dir}
+            name={viewing.name}
+            origin={viewedFile ? fileOrigin(viewedFile) : viewing.origin}
+            stamp={viewedFile ? stampOf(viewedFile) : viewing.stamp}
+            onKey={(origin) => {
+                setViewing(null);
+                setKeyShown(origin);
+            }}
+            onClose={() => setViewing(null)}
+            onSaved={() => void refresh()}
+            onDelete={() => {
+                setViewing(null);
+                setDeleteAsked({name: viewing.name, type: "file", origin: viewedFile ? fileOrigin(viewedFile) : viewing.origin, node: viewing.node, dir: viewing.dir});
+            }}
+        />
+    );
+
     if (nodes.length === 0) {
-        return <Alert tone="info">{t("volumeFiles.notAvailable")}</Alert>;
+        // No node of it available: the file open kept open, an edit not lost; in the same
+        // place as beside the listing, for it not to be drawn anew, its edit gone.
+        return (
+            <>
+                <Alert tone="info">{t("volumeFiles.notAvailable")}</Alert>
+                {fileDialog}
+            </>
+        );
     }
     const parts = dir ? dir.split("/") : [];
     // An entry of no type, from a node telling none, a file.
     const entries = files ? files.map((f) => ({type: "file", ...f})).sort(byKind) : null;
     return (
-        <Section
-            id="volume-files"
-            title={t("volumeFiles.title")}
-            count={files?.length}
-            tools={
-                <>
-                    {nodes.length > 1 && (
-                        <Select aria-label={t("volumeFiles.node")} className="h-7" value={node} onChange={(e) => setPicked(e.target.value)}>
-                            {nodes.map((n) => <option key={n} value={n}>{n}</option>)}
-                        </Select>
-                    )}
-                    <input
-                        ref={input}
-                        type="file"
-                        aria-label={t("volumeFiles.choose")}
-                        className="sr-only"
-                        onChange={(e) => e.target.files?.[0] && send(e.target.files[0])}
-                    />
-                    <Button size="sm" variant="create" disabled={sending !== null} onClick={() => input.current?.click()}>
-                        {t("volumeFiles.upload")}
-                    </Button>
-                    <Button size="sm" variant="create" onClick={() => setCreating({name: "", error: ""})}>
-                        {t("volumeFiles.mkdir.open")}
-                    </Button>
-                </>
-            }
-        >
-            <p className="text-ink-muted">{t("volumeFiles.hint")}</p>
-            {/* Where the list stands, as a path: the top of the volume "/", the object named by the
-                panel already, then each directory down to the one shown. */}
-            <nav aria-label={t("volumeFiles.where")} className="flex flex-wrap items-center gap-1 font-mono text-data">
-                {[{label: "/", to: ""}, ...parts.map((part, i) => ({label: part, to: parts.slice(0, i + 1).join("/")}))].map((crumb, i, all) => (
-                    <React.Fragment key={crumb.to}>
-                        {i > 1 && <span aria-hidden="true" className="text-ink-muted">/</span>}
-                        {i === all.length - 1 ? (
-                            <span aria-current="page" className="font-semibold">{crumb.label}</span>
-                        ) : (
-                            <button type="button" onClick={() => open(crumb.to)} className="text-accent hover:underline">{crumb.label}</button>
+        <>
+            <Section
+                id="volume-files"
+                title={t("volumeFiles.title")}
+                count={files?.length}
+                tools={
+                    <>
+                        {nodes.length > 1 && (
+                            <Select aria-label={t("volumeFiles.node")} className="h-7" value={node} onChange={(e) => setPicked(e.target.value)}>
+                                {nodes.map((n) => <option key={n} value={n}>{n}</option>)}
+                            </Select>
                         )}
-                    </React.Fragment>
-                ))}
-            </nav>
-            {error && (
-                <Alert tone="error">
-                    {error}
-                    {certificateUrl && (
+                        <input
+                            ref={input}
+                            type="file"
+                            aria-label={t("volumeFiles.choose")}
+                            className="sr-only"
+                            onChange={(e) => e.target.files?.[0] && send(e.target.files[0])}
+                        />
+                        <Button size="sm" variant="create" disabled={sending !== null} onClick={() => input.current?.click()}>
+                            {t("volumeFiles.upload")}
+                        </Button>
+                        <Button size="sm" variant="create" onClick={() => setCreating({name: "", error: ""})}>
+                            {t("volumeFiles.mkdir.open")}
+                        </Button>
+                    </>
+                }
+            >
+                <p className="text-ink-muted">{t("volumeFiles.hint")}</p>
+                {/* Where the list stands, as a path: the top of the volume "/", the object named by the
+                    panel already, then each directory down to the one shown. */}
+                <nav aria-label={t("volumeFiles.where")} className="flex flex-wrap items-center gap-1 font-mono text-data">
+                    {[{label: "/", to: ""}, ...parts.map((part, i) => ({label: part, to: parts.slice(0, i + 1).join("/")}))].map((crumb, i, all) => (
+                        <React.Fragment key={crumb.to}>
+                            {i > 1 && <span aria-hidden="true" className="text-ink-muted">/</span>}
+                            {i === all.length - 1 ? (
+                                <span aria-current="page" className="font-semibold">{crumb.label}</span>
+                            ) : (
+                                <button type="button" onClick={() => open(crumb.to)} className="text-accent hover:underline">{crumb.label}</button>
+                            )}
+                        </React.Fragment>
+                    ))}
+                </nav>
+                {error && (
+                    <Alert tone="error">
+                        {error}
+                        {certificateUrl && (
+                            <>
+                                {" "}
+                                <Trans
+                                    i18nKey="console.certificateHint"
+                                    values={{url: certificateUrl}}
+                                    components={{
+                                        certLink: <a
+                                            href={certificateUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="break-all text-accent underline"
+                                        />,
+                                    }}
+                                />
+                            </>
+                        )}
+                    </Alert>
+                )}
+                {sending && (
+                    <div className="flex items-center gap-2">
+                        <progress
+                            aria-label={t("volumeFiles.sending", {name: sending.name})}
+                            className="h-2 flex-1"
+                            max={1}
+                            value={sending.part}
+                        />
+                        <span className="text-data text-ink-muted tabular-nums">{formatPercent(sending.part * 100, i18n.language, 0)}</span>
+                        <Button size="sm" onClick={() => upload.current?.abort()}>{t("volumeFiles.cancel")}</Button>
+                    </div>
+                )}
+                {entries === null && !error && <Spinner/>}
+                {entries?.length === 0 && !error && <p className="text-ink-muted">{t(dir ? "volumeFiles.emptyDir" : "volumeFiles.none")}</p>}
+                {shownListing?.truncated && <Alert tone="info">{t("volumeFiles.truncated", {count: files.length})}</Alert>}
+                {entries?.length > 0 && (
+                    <Table>
+                        <thead>
+                            <HeaderRow>
+                                <HeaderCell>{t("volumeFiles.name")}</HeaderCell>
+                                <HeaderCell>{t("volumeFiles.size")}</HeaderCell>
+                                <HeaderCell>{t("volumeFiles.origin")}</HeaderCell>
+                                <HeaderCell/>
+                            </HeaderRow>
+                        </thead>
+                        <tbody>
+                            {entries.map((f) => {
+                                const origin = f.type === "file" ? fileOrigin(f) : null;
+                                return (
+                                    <Row key={f.name}>
+                                        <Cell className="font-mono" data-entry={f.type}>
+                                            {f.type === "dir" ? (
+                                                <button type="button" onClick={() => open(join(dir, f.name))} className="inline-flex items-center gap-1.5 text-left text-accent hover:underline">
+                                                    <FolderIcon className="h-3.5 w-3.5 shrink-0"/>
+                                                    {f.name}/
+                                                </button>
+                                            ) : f.type === "link" ? (
+                                                <span className="inline-flex flex-wrap items-center gap-1.5">
+                                                    <LinkIcon className="h-3.5 w-3.5 shrink-0 text-ink-muted"/>
+                                                    {f.name}
+                                                    {f.target && <span className="text-ink-muted">→ {f.target}</span>}
+                                                </span>
+                                            ) : (
+                                                <button type="button" onClick={() => setViewing({name: f.name, node, dir, stamp: stampOf(f), origin: fileOrigin(f)})} className="text-left hover:text-accent hover:underline">
+                                                    {f.name}
+                                                </button>
+                                            )}
+                                        </Cell>
+                                        <Cell className="whitespace-nowrap tabular-nums">{f.type === "file" ? formatBytes(f.size, i18n.language) || "0 B" : ""}</Cell>
+                                        <Cell data-origin={origin?.kind ?? "unknown"}>
+                                            {f.type !== "file" ? null : origin?.kind === "installed" ? (
+                                                <span className="inline-flex flex-wrap items-center gap-x-1.5">
+                                                    <span className={cn(BADGE, "border-line-strong")}>{t("volumeFiles.installed.badge")}</span>
+                                                    <span className="text-ink-muted">
+                                                        <InstalledFrom origin={origin} onKey={setKeyShown}/>
+                                                        {origin.changed && ` · ${t("volumeFiles.changedSince")}`}
+                                                    </span>
+                                                </span>
+                                            ) : origin ? (
+                                                <span className="inline-flex flex-wrap items-center gap-x-1.5">
+                                                    <span className={cn(BADGE, "border-accent text-accent")}>{t("volumeFiles.uploaded")}</span>
+                                                    <span className="text-ink-muted">
+                                                        {t(origin.by ? "volumeFiles.uploadedByAt" : "volumeFiles.uploadedAt", {by: origin.by, at: formatDateTime(origin.at, i18n.language)})}
+                                                        {origin.changed && ` · ${t("volumeFiles.changedSince")}`}
+                                                    </span>
+                                                </span>
+                                            ) : <span className="text-ink-muted">{t("volumeFiles.notUploaded")}</span>}
+                                        </Cell>
+                                        <Cell className="w-8 text-right">
+                                            <IconButton
+                                                size="sm"
+                                                label={t("volumeFiles.deleteOne", {name: f.name})}
+                                                disabled={deleting === f.name}
+                                                onClick={() => setDeleteAsked({name: f.name, type: f.type, origin, node, dir})}
+                                            >
+                                                <TrashIcon className="h-3.5 w-3.5"/>
+                                            </IconButton>
+                                        </Cell>
+                                    </Row>
+                                );
+                            })}
+                        </tbody>
+                    </Table>
+                )}
+                {keyShown && (
+                    <KeysSection
+                        key={`${keyShown.from}:${keyShown.key}`}
+                        decodedObjectName={keyShown.from}
+                        keyOnly={keyShown.key}
+                        onKeyClosed={() => setKeyShown(null)}
+                        openSnackbar={(message) => setError(message)}
+                    />
+                )}
+                <Dialog
+                    open={deleteAsked !== null}
+                    onClose={() => setDeleteAsked(null)}
+                    title={t("volumeFiles.deleteQuestion", {name: deleteAsked?.name ?? ""})}
+                    footer={(
                         <>
-                            {" "}
-                            <Trans
-                                i18nKey="console.certificateHint"
-                                values={{url: certificateUrl}}
-                                components={{
-                                    certLink: <a
-                                        href={certificateUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="break-all text-accent underline"
-                                    />,
-                                }}
-                            />
+                            <Button onClick={() => setDeleteAsked(null)}>{t("volumeFiles.cancel")}</Button>
+                            <Button variant="delete" disabled={deleting !== ""} onClick={() => remove(deleteAsked)}>
+                                {deleting !== "" ? t("volumeFiles.deleting") : t("volumeFiles.delete")}
+                            </Button>
                         </>
                     )}
-                </Alert>
-            )}
-            {sending && (
-                <div className="flex items-center gap-2">
-                    <progress
-                        aria-label={t("volumeFiles.sending", {name: sending.name})}
-                        className="h-2 flex-1"
-                        max={1}
-                        value={sending.part}
-                    />
-                    <span className="text-data text-ink-muted tabular-nums">{formatPercent(sending.part * 100, i18n.language, 0)}</span>
-                    <Button size="sm" onClick={() => upload.current?.abort()}>{t("volumeFiles.cancel")}</Button>
-                </div>
-            )}
-            {entries === null && !error && <Spinner/>}
-            {entries?.length === 0 && !error && <p className="text-ink-muted">{t(dir ? "volumeFiles.emptyDir" : "volumeFiles.none")}</p>}
-            {shownListing?.truncated && <Alert tone="info">{t("volumeFiles.truncated", {count: files.length})}</Alert>}
-            {entries?.length > 0 && (
-                <Table>
-                    <thead>
-                        <HeaderRow>
-                            <HeaderCell>{t("volumeFiles.name")}</HeaderCell>
-                            <HeaderCell>{t("volumeFiles.size")}</HeaderCell>
-                            <HeaderCell>{t("volumeFiles.origin")}</HeaderCell>
-                            <HeaderCell/>
-                        </HeaderRow>
-                    </thead>
-                    <tbody>
-                        {entries.map((f) => {
-                            const origin = f.type === "file" ? fileOrigin(f) : null;
-                            return (
-                                <Row key={f.name}>
-                                    <Cell className="font-mono" data-entry={f.type}>
-                                        {f.type === "dir" ? (
-                                            <button type="button" onClick={() => open(join(dir, f.name))} className="inline-flex items-center gap-1.5 text-left text-accent hover:underline">
-                                                <FolderIcon className="h-3.5 w-3.5 shrink-0"/>
-                                                {f.name}/
-                                            </button>
-                                        ) : f.type === "link" ? (
-                                            <span className="inline-flex flex-wrap items-center gap-1.5">
-                                                <LinkIcon className="h-3.5 w-3.5 shrink-0 text-ink-muted"/>
-                                                {f.name}
-                                                {f.target && <span className="text-ink-muted">→ {f.target}</span>}
-                                            </span>
-                                        ) : (
-                                            <button type="button" onClick={() => setViewing(f.name)} className="text-left hover:text-accent hover:underline">
-                                                {f.name}
-                                            </button>
-                                        )}
-                                    </Cell>
-                                    <Cell className="whitespace-nowrap tabular-nums">{f.type === "file" ? formatBytes(f.size, i18n.language) || "0 B" : ""}</Cell>
-                                    <Cell data-origin={origin?.kind ?? "unknown"}>
-                                        {f.type !== "file" ? null : origin?.kind === "installed" ? (
-                                            <span className="inline-flex flex-wrap items-center gap-x-1.5">
-                                                <span className={cn(BADGE, "border-line-strong")}>{t("volumeFiles.installed.badge")}</span>
-                                                <span className="text-ink-muted">
-                                                    <InstalledFrom origin={origin} onKey={setKeyShown}/>
-                                                    {origin.changed && ` · ${t("volumeFiles.changedSince")}`}
-                                                </span>
-                                            </span>
-                                        ) : origin ? (
-                                            <span className="inline-flex flex-wrap items-center gap-x-1.5">
-                                                <span className={cn(BADGE, "border-accent text-accent")}>{t("volumeFiles.uploaded")}</span>
-                                                <span className="text-ink-muted">
-                                                    {t(origin.by ? "volumeFiles.uploadedByAt" : "volumeFiles.uploadedAt", {by: origin.by, at: formatDateTime(origin.at, i18n.language)})}
-                                                    {origin.changed && ` · ${t("volumeFiles.changedSince")}`}
-                                                </span>
-                                            </span>
-                                        ) : <span className="text-ink-muted">{t("volumeFiles.notUploaded")}</span>}
-                                    </Cell>
-                                    <Cell className="w-8 text-right">
-                                        <IconButton
-                                            size="sm"
-                                            label={t("volumeFiles.deleteOne", {name: f.name})}
-                                            disabled={deleting === f.name}
-                                            onClick={() => setDeleteAsked({name: f.name, type: f.type, origin, node, dir})}
-                                        >
-                                            <TrashIcon className="h-3.5 w-3.5"/>
-                                        </IconButton>
-                                    </Cell>
-                                </Row>
-                            );
-                        })}
-                    </tbody>
-                </Table>
-            )}
-            {keyShown && (
-                <KeysSection
-                    key={`${keyShown.from}:${keyShown.key}`}
-                    decodedObjectName={keyShown.from}
-                    keyOnly={keyShown.key}
-                    onKeyClosed={() => setKeyShown(null)}
-                    openSnackbar={(message) => setError(message)}
-                />
-            )}
-            {viewing !== null && (
-                <VolumeFileDialog
-                    key={`${node}:${dir}:${viewing}`}
-                    path={path}
-                    node={node}
-                    dir={dir}
-                    name={viewing}
-                    origin={fileOrigin(files?.find((f) => f.name === viewing))}
-                    stamp={stampOf(files?.find((f) => f.name === viewing))}
-                    onKey={(origin) => {
-                        setViewing(null);
-                        setKeyShown(origin);
-                    }}
-                    onClose={() => setViewing(null)}
-                    onSaved={() => void refresh()}
-                    onDelete={() => {
-                        const file = files?.find((f) => f.name === viewing);
-                        setViewing(null);
-                        setDeleteAsked({name: viewing, type: "file", origin: fileOrigin(file), node, dir});
-                    }}
-                />
-            )}
-            <Dialog
-                open={deleteAsked !== null}
-                onClose={() => setDeleteAsked(null)}
-                title={t("volumeFiles.deleteQuestion", {name: deleteAsked?.name ?? ""})}
-                footer={(
-                    <>
-                        <Button onClick={() => setDeleteAsked(null)}>{t("volumeFiles.cancel")}</Button>
-                        <Button variant="delete" disabled={deleting !== ""} onClick={() => remove(deleteAsked)}>
-                            {deleting !== "" ? t("volumeFiles.deleting") : t("volumeFiles.delete")}
-                        </Button>
-                    </>
-                )}
-            >
-                {deleteAsked && t(deleteAsked.type === "dir" ? "volumeFiles.deleteDirText"
-                    : deleteAsked.type === "link" ? "volumeFiles.deleteLinkText"
-                    : deleteAsked.origin?.kind === "installed" ? (deleteAsked.origin.url ? "volumeFiles.installed.deleteTextUrl" : "volumeFiles.installed.deleteText")
-                    : deleteAsked.origin ? "volumeFiles.deleteText" : "volumeFiles.deleteForeignText", {from: deleteAsked.origin?.from, key: deleteAsked.origin?.key})}
-            </Dialog>
-            <Dialog
-                open={replacing !== null}
-                onClose={() => setReplacing(null)}
-                title={t("volumeFiles.replace.title", {name: replacing?.file.name ?? ""})}
-                footer={(
-                    <>
-                        <Button onClick={() => setReplacing(null)}>{t("volumeFiles.cancel")}</Button>
-                        <Button
-                            variant="delete"
-                            onClick={() => {
-                                const {file, node: to, dir: into} = replacing;
-                                setReplacing(null);
-                                void send(file, {replace: true, node: to, dir: into});
-                            }}
-                        >
-                            {t("volumeFiles.replace.confirm")}
-                        </Button>
-                    </>
-                )}
-            >
-                {t("volumeFiles.replace.text", {name: replacing?.file.name ?? ""})}
-            </Dialog>
-            <Dialog
-                open={creating !== null}
-                onClose={() => setCreating(null)}
-                title={t("volumeFiles.mkdir.title", {dir: `/${dir}`})}
-                footer={(
-                    <>
-                        <Button onClick={() => setCreating(null)}>{t("volumeFiles.cancel")}</Button>
-                        <Button variant="create" disabled={!creating?.name.trim()} onClick={create}>{t("volumeFiles.mkdir.confirm")}</Button>
-                    </>
-                )}
-            >
-                <form onSubmit={(e) => {
-                    e.preventDefault();
-                    if (creating?.name.trim()) void create();
-                }} className="space-y-2">
-                    <Field label={t("volumeFiles.mkdir.name")}>
-                        {(control) => (
-                            <Input {...control} autoComplete="off" value={creating?.name ?? ""} onChange={(e) => setCreating({name: e.target.value, error: ""})}/>
-                        )}
-                    </Field>
-                    {creating?.error && <Alert>{creating.error}</Alert>}
-                </form>
-            </Dialog>
-        </Section>
+                >
+                    {deleteAsked && t(deleteAsked.type === "dir" ? "volumeFiles.deleteDirText"
+                        : deleteAsked.type === "link" ? "volumeFiles.deleteLinkText"
+                        : deleteAsked.origin?.kind === "installed" ? (deleteAsked.origin.url ? "volumeFiles.installed.deleteTextUrl" : "volumeFiles.installed.deleteText")
+                        : deleteAsked.origin ? "volumeFiles.deleteText" : "volumeFiles.deleteForeignText", {from: deleteAsked.origin?.from, key: deleteAsked.origin?.key})}
+                </Dialog>
+                <Dialog
+                    open={replacing !== null}
+                    onClose={() => setReplacing(null)}
+                    title={t("volumeFiles.replace.title", {name: replacing?.file.name ?? ""})}
+                    footer={(
+                        <>
+                            <Button onClick={() => setReplacing(null)}>{t("volumeFiles.cancel")}</Button>
+                            <Button
+                                variant="delete"
+                                onClick={() => {
+                                    const {file, node: to, dir: into} = replacing;
+                                    setReplacing(null);
+                                    void send(file, {replace: true, node: to, dir: into});
+                                }}
+                            >
+                                {t("volumeFiles.replace.confirm")}
+                            </Button>
+                        </>
+                    )}
+                >
+                    {t("volumeFiles.replace.text", {name: replacing?.file.name ?? ""})}
+                </Dialog>
+                <Dialog
+                    open={creating !== null}
+                    onClose={() => setCreating(null)}
+                    title={t("volumeFiles.mkdir.title", {dir: `/${dir}`})}
+                    footer={(
+                        <>
+                            <Button onClick={() => setCreating(null)}>{t("volumeFiles.cancel")}</Button>
+                            <Button variant="create" disabled={!creating?.name.trim()} onClick={create}>{t("volumeFiles.mkdir.confirm")}</Button>
+                        </>
+                    )}
+                >
+                    <form onSubmit={(e) => {
+                        e.preventDefault();
+                        if (creating?.name.trim()) void create();
+                    }} className="space-y-2">
+                        <Field label={t("volumeFiles.mkdir.name")}>
+                            {(control) => (
+                                <Input {...control} autoComplete="off" value={creating?.name ?? ""} onChange={(e) => setCreating({name: e.target.value, error: ""})}/>
+                            )}
+                        </Field>
+                        {creating?.error && <Alert>{creating.error}</Alert>}
+                    </form>
+                </Dialog>
+            </Section>
+            {fileDialog}
+        </>
     );
 }
