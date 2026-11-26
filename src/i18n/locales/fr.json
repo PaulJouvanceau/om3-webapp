@@ -1052,6 +1052,7 @@
     "subtitle": "{{instance}} sur {{node}}",
     "connected": "Connecté",
     "disconnected": "Déconnecté",
+    "pausedState": "En pause",
     "loading": "Chargement des journaux",
     "loadingEllipsis": "Chargement des journaux...",
     "pause": "Pause",

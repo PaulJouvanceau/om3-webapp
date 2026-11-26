@@ -1052,6 +1052,7 @@
     "subtitle": "{{instance}} on {{node}}",
     "connected": "Connected",
     "disconnected": "Disconnected",
+    "pausedState": "Paused",
     "loading": "Loading logs",
     "loadingEllipsis": "Loading logs...",
     "pause": "Pause",

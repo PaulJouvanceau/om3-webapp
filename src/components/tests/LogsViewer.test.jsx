@@ -299,6 +299,28 @@ describe('LogsViewer', () => {
             expect(screen.getByRole('button', {name: 'Resume'})).toHaveAttribute('aria-pressed', 'true');
         });
 
+        test('paused, said paused, not connected; resumed, connected again; one stream a node opened', async () => {
+            // A stream held open: the daemon not ending it, as a follow does.
+            global.fetch = vi.fn((url, {signal}) => Promise.resolve({
+                ok: true,
+                status: 200,
+                body: {getReader: () => ({
+                    read: () => new Promise((resolve, reject) => signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), {name: 'AbortError'})))),
+                    releaseLock: () => {},
+                })},
+            }));
+            renderComponent();
+            await screen.findByText('Connected');
+            expect(global.fetch).toHaveBeenCalledTimes(1);
+            fireEvent.click(screen.getByRole('button', {name: 'Pause'}));
+            await screen.findByText('Paused');
+            expect(screen.queryByText('Connected')).not.toBeInTheDocument();
+            expect(screen.queryByText('Disconnected')).not.toBeInTheDocument();
+            fireEvent.click(screen.getByRole('button', {name: 'Resume'}));
+            await screen.findByText('Connected');
+            expect(global.fetch).toHaveBeenCalledTimes(2);
+        });
+
         test('pauses and resumes streaming - covers abort during reading', async () => {
             const now = Date.now();
             mockSuccessfulFetch([{__REALTIME_TIMESTAMP: now * 1000, MESSAGE: 'First log'}], 50);

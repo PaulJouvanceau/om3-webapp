@@ -494,18 +494,13 @@ const LogsViewer = ({
             return;
         }
         if (!isPaused) startStreaming();
+        // Paused, or other logs: the streams closed, said so, none of them open still.
         return () => {
             if (abortControllerRef.current) abortControllerRef.current.abort();
+            streamingRef.current = new Set();
+            setIsConnected(false);
         };
     }, [nodes, type, instanceName, startStreaming, isPaused, setError, t]);
-
-    useEffect(() => {
-        if (isPaused) {
-            if (abortControllerRef.current) abortControllerRef.current.abort();
-        } else {
-            startStreaming();
-        }
-    }, [isPaused, startStreaming]);
 
     const formatTime = (timestamp) =>
         timestamp.toLocaleTimeString(i18n.language, {
@@ -577,14 +572,15 @@ const LogsViewer = ({
             {/* Header: what is shown, the connection, the actions */}
             <div className="flex flex-wrap items-center gap-3">
                 <span className="text-ink-muted">{buildSubtitle()}</span>
+                {/* Paused on purpose: said so, not as a connection lost. */}
                 <span
                     className="inline-flex items-center gap-1"
-                    data-state={isConnected ? "up" : "down"}
+                    data-state={isPaused ? "na" : isConnected ? "up" : "down"}
                 >
-                    <span className={isConnected ? "text-state-up" : "text-state-down"}>
-                        <StateGlyph state={isConnected ? "up" : "down"}/>
+                    <span className={isPaused ? "text-ink-muted" : isConnected ? "text-state-up" : "text-state-down"}>
+                        <StateGlyph state={isPaused ? "na" : isConnected ? "up" : "down"}/>
                     </span>
-                    <span>{isConnected ? t("logs.connected") : t("logs.disconnected")}</span>
+                    <span>{isPaused ? t("logs.pausedState") : isConnected ? t("logs.connected") : t("logs.disconnected")}</span>
                 </span>
                 {isLoading && <Spinner label={t("logs.loading")}/>}
                 <div className="ml-auto flex items-center gap-2">
