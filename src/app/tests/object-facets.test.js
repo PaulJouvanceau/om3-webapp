@@ -110,6 +110,25 @@ describe('objectFacets', () => {
         expect(objectFacets(NAMES, {upInstances: parseCount('>0')}, opts).namespace).toEqual({ns1: 2, ns2: 1});
     });
 
+    test('a namespace\'s configuration counted as the table lists it: not beside other objects of its namespace, alone counted', () => {
+        const objects = {
+            'a/svc/one': {avail: 'up'},
+            'a/svc/two': {avail: 'down'},
+            'a/nscfg/namespace': {avail: 'n/a'},
+            'b/svc/three': {avail: 'up'},
+            'c/nscfg/namespace': {avail: 'n/a'},
+        };
+        const names = Object.keys(objects);
+        const of = (filters) => objectFacets(names, filters, {...opts, objects, kindOf: (name) => name.split('/')[1]});
+        // a lists its two services, its configuration in its line; c, its configuration alone.
+        expect(of({}).namespace).toEqual({a: 2, b: 1, c: 1});
+        expect(of({}).kind).toEqual({svc: 3, nscfg: 2});
+        // Up: a keeps one service. Down: one. n/a: the configurations alone, a's and c's.
+        expect(of({}).avail).toEqual({up: 2, down: 1, 'n/a': 2});
+        // The services of a up and down chosen: its configuration not listed, not counted.
+        expect(of({states: {avail: ['up', 'down']}}).namespace).toEqual({a: 2, b: 1});
+    });
+
     test('a filter the tab has not keeps every object', () => {
         const facets = objectFacets(NAMES, {kinds: ['vol'], states: {avail: ['down']}, upInstances: parseCount('5')}, {...opts, useKind: false, useState: false});
         expect(facets.namespace).toEqual({ns1: 3, ns2: 3});

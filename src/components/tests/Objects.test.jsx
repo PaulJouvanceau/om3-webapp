@@ -1409,6 +1409,17 @@ describe('Objects Component', () => {
             expect(within(availability()).getByRole('button', {name: /^up/}).querySelector('.truncate')).toHaveClass('line-through');
         });
 
+        test('a namespace counted as many objects as it lists: its configuration in its line, not counted', async () => {
+            setup(TWO_KINDS, '?list=any', WIDE);
+            await waitForLoad();
+            const count = Number(values('Namespace').find(([text]) => text.startsWith('test-ns'))[0].slice('test-ns'.length));
+            fireEvent.click(within(facet('Namespace')).getByRole('button', {name: /^test-ns/}));
+            await waitFor(() => expect(screen.queryByRole('row', {name: /root\/svc\/test3/})).not.toBeInTheDocument());
+            expect(rail().querySelector('[data-rail-head]')).toHaveTextContent(`${count} objects`);
+            // Its services alone: the configuration of test-ns, in the line of test-ns.
+            expect(count).toBe(Object.keys(TWO_KINDS.objectStatus).filter((n) => n.startsWith('test-ns/svc/')).length);
+        });
+
         test('the name searched from the rail', async () => {
             setup({}, '', WIDE);
             await waitForLoad();

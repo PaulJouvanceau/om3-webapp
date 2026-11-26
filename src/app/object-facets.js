@@ -97,7 +97,8 @@ export function stateKept(status, selected, reversed = []) {
  * State filter among the objects the name, up instances, other fields, namespace and
  * kind filters keep; those of the namespaces among the objects the others keep; those
  * of the kinds likewise. `useState` and `useKind` false, those filters keep every
- * object, as on the tabs that have them not. `states`, the values chosen of each field
+ * object, as on the tabs that have them not. A namespace's configuration counted where
+ * the table lists it, its namespace keeping nothing else. `states`, the values chosen of each field
  * by its key; `reversed`, the keys of the fields reversed (stateKept); `upInstances`, a
  * comparison of the instances up (parseCount).
  */
@@ -112,7 +113,7 @@ export function objectFacets(names, filters, {objects, namespaceOf, kindOf, useS
             return value === undefined ? [] : [value];
         },
     }]));
-    return facetCounts(names, {
+    const spec = {
         match: (name) => (searchLower === "" || name.toLowerCase().includes(searchLower))
             && (!useState || countKept(objects[name]?.up_instances_count, upInstances)),
         facets: {
@@ -120,7 +121,30 @@ export function objectFacets(names, filters, {objects, namespaceOf, kindOf, useS
             namespace: {selected: namespaces, valuesOf: (name) => [namespaceOf(name)]},
             kind: {selected: useKind ? kinds : [], valuesOf: (name) => [kindOf(name)]},
         },
-    });
+    };
+    // Counted as the table lists them: the configuration of a namespace has no line of its
+    // own, the line of its namespace standing for it, unless nothing else of it is kept.
+    // Each object counted alone, a namespace's counted apart, its configuration added to
+    // a value where none of its other objects has it.
+    const byNamespace = new Map();
+    for (const name of names) {
+        const ns = namespaceOf(name);
+        if (!byNamespace.has(ns)) byNamespace.set(ns, {others: [], configs: []});
+        byNamespace.get(ns)[kindOf(name) === "nscfg" ? "configs" : "others"].push(name);
+    }
+    const counts = Object.fromEntries(Object.keys(spec.facets).map((facet) => [facet, {}]));
+    for (const {others, configs} of byNamespace.values()) {
+        const kept = facetCounts(others, spec);
+        const alone = configs.length > 0 ? facetCounts(configs, spec) : null;
+        for (const facet of Object.keys(counts)) {
+            const values = new Set([...Object.keys(kept[facet]), ...Object.keys(alone?.[facet] ?? {})]);
+            for (const value of values) {
+                const n = kept[facet][value] || alone?.[facet][value] || 0;
+                if (n > 0) counts[facet][value] = (counts[facet][value] ?? 0) + n;
+            }
+        }
+    }
+    return counts;
 }
 
 /**
