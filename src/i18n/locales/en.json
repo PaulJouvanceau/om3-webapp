@@ -527,7 +527,8 @@
       "refusedUrl": "{{name}} is installed from {{from}}: change the source url, the next install fetches the file.",
       "deleteTextUrl": "It is installed from {{from}}: the next install fetches it again.",
       "notEditedUrl": "change the source url, the next install fetches the file"
-    }
+    },
+    "conflict": "The file was changed by someone else since you opened it. Your changes are not saved: copy them, close the file and open it again."
   },
   "console": {
     "display": {

@@ -49,6 +49,23 @@ export function InstalledFrom({origin, onKey}) {
 export const withEnding = (text, noTrailingLineFeed) =>
     text === "" || noTrailingLineFeed ? text.replace(/\n+$/, "") : text.endsWith("\n") ? text : `${text}\n`;
 
+/** Whether two files hold the same bytes; none read, never. */
+const sameBytes = async (a, b) => {
+    if (!a || !b || a.size !== b.size) return false;
+    // Read by a FileReader where a blob has no arrayBuffer of its own.
+    const [x, y] = await Promise.all([a, b].map((blob) => (typeof blob.arrayBuffer === "function"
+        ? blob.arrayBuffer()
+        : new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(reader.error);
+            reader.readAsArrayBuffer(blob);
+        }))));
+    const u = new Uint8Array(x);
+    const v = new Uint8Array(y);
+    return u.every((byte, i) => byte === v[i]);
+};
+
 /** Whether a text read ends without a line feed: an empty one has no last line, its lines ended as usual once written. */
 const endsUnfed = (text) => text !== "" && !text.endsWith("\n");
 
@@ -78,6 +95,9 @@ export function VolumeFileDialog({path, node, dir, name, origin = null, stamp = 
     // kept on a failure.
     const [changes, setChanges] = useState(0);
     const readStamp = useRef(stamp);
+    // The bytes of the file as read, what an edit starts from: a save compares the file
+    // with them first, another's change since not written over unseen.
+    const readBytes = useRef(/** @type {Blob | null} */ (null));
     const busy = useRef(false);
     const idle = editing === null && !saving;
     busy.current = !idle;
@@ -94,6 +114,7 @@ export function VolumeFileDialog({path, node, dir, name, origin = null, stamp = 
             .then(async ({blob, total, partial}) => {
                 const content = await parseBlobContent(blob, {hexLimit: HEX_SHOWN});
                 if (live && !(quiet && busy.current)) {
+                    readBytes.current = blob;
                     setRead({...content, total, partial, hexPartial: content.type === "binary" && blob.size > HEX_SHOWN});
                     setNoTrailingLineFeed(content.type === "text" && endsUnfed(content.content));
                 }
@@ -114,9 +135,19 @@ export function VolumeFileDialog({path, node, dir, name, origin = null, stamp = 
         const written = withEnding(editing, noTrailingLineFeed);
         // Its byte order mark, read out of the text, written back first.
         const bytes = encodeText(written, {bom: read.format?.bom ?? false, eol: "lf"});
+        // What was said of the last save, a refusal or a conflict, not said of this one.
+        setError(null);
         try {
+            // No write made on a condition here: the file read again, as a key is, and
+            // written only if it is still what the edit started from.
+            const current = await readFileHead(path, node, name, dir, SHOWN);
+            if (current.partial || !(await sameBytes(current.blob, readBytes.current))) {
+                setError(new Error(t("volumeFiles.conflict")));
+                return;
+            }
             await uploadFile(path, node, new File([bytes], name), undefined, {replace: true, dir}).done;
-            setRead((r) => ({...r, content: written, total: new Blob([bytes]).size}));
+            readBytes.current = new Blob([bytes]);
+            setRead((r) => ({...r, content: written, total: readBytes.current.size}));
             setEditing(null);
             onSaved?.();
         } catch (err) {

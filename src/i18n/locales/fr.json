@@ -527,7 +527,8 @@
       "refusedUrl": "{{name}} est installé depuis {{from}} : modifiez plutôt l'url de la source, la prochaine installation récupérera le fichier.",
       "deleteTextUrl": "Il est installé depuis {{from}} : la prochaine installation le récupérera à nouveau.",
       "notEditedUrl": "modifiez plutôt l'url de la source, la prochaine installation récupérera le fichier"
-    }
+    },
+    "conflict": "Le fichier a été modifié par quelqu'un d'autre depuis que vous l'avez ouvert. Vos modifications ne sont pas enregistrées : copiez-les, fermez le fichier et ouvrez-le à nouveau."
   },
   "console": {
     "display": {

@@ -316,6 +316,45 @@ describe("VolumeFiles", () => {
             expect(within(dialog).getByRole("button", {name: "Edit"})).toBeInTheDocument();
         });
 
+        test("changed by another since it was read: not written over, said, the edit kept", async () => {
+            const dialog = await open("haproxy.cfg", {blob: text("global\n"), total: 7, partial: false});
+            await within(dialog).findByDisplayValue(/global/);
+            await userEvent.click(within(dialog).getByRole("button", {name: "Edit"}));
+            const box = within(dialog).getByRole("textbox", {name: "File content"});
+            await userEvent.type(box, "defaults");
+            // Written on its node meanwhile.
+            readFileHead.mockResolvedValue({blob: text("global\nmaxconn 10\n"), total: 19, partial: false});
+            await userEvent.click(within(dialog).getByRole("button", {name: "Save"}));
+            expect(await within(dialog).findByText(/changed by someone else since you opened it/)).toBeInTheDocument();
+            expect(uploadFile).not.toHaveBeenCalled();
+            expect(box).toHaveValue("global\ndefaults");
+            // Grown past what is read: changed too.
+            readFileHead.mockResolvedValue({blob: text("global\n"), total: 2000000, partial: true});
+            await userEvent.click(within(dialog).getByRole("button", {name: "Save"}));
+            await waitFor(() => expect(readFileHead).toHaveBeenCalledTimes(3));
+            expect(uploadFile).not.toHaveBeenCalled();
+        });
+
+        test("a save refused, said; the next written, said no more; saved, its own write the one the next edit starts from", async () => {
+            const dialog = await open("haproxy.cfg", {blob: text("global\n"), total: 7, partial: false});
+            await within(dialog).findByDisplayValue(/global/);
+            await userEvent.click(within(dialog).getByRole("button", {name: "Edit"}));
+            await userEvent.type(within(dialog).getByRole("textbox", {name: "File content"}), "defaults");
+            uploadFile.mockImplementationOnce(() => ({done: Promise.reject(new Error("BOOM")), abort: () => {}}));
+            await userEvent.click(within(dialog).getByRole("button", {name: "Save"}));
+            expect(await within(dialog).findByText("BOOM")).toBeInTheDocument();
+            await userEvent.click(within(dialog).getByRole("button", {name: "Save"}));
+            await waitFor(() => expect(within(dialog).getByRole("button", {name: "Edit"})).toBeInTheDocument());
+            expect(within(dialog).queryByText("BOOM")).toBeNull();
+            // The file as written: the next edit saved over it, no conflict.
+            readFileHead.mockResolvedValue({blob: text("global\ndefaults\n"), total: 16, partial: false});
+            await userEvent.click(within(dialog).getByRole("button", {name: "Edit"}));
+            await userEvent.type(within(dialog).getByRole("textbox", {name: "File content"}), "x");
+            await userEvent.click(within(dialog).getByRole("button", {name: "Save"}));
+            await waitFor(() => expect(uploadFile).toHaveBeenCalledTimes(3));
+            expect(within(dialog).queryByText(/changed by someone else/)).toBeNull();
+        });
+
         test("changed on its node, as the list read again says: read again unless edited, kept on a failure", async () => {
             const dialog = await open("haproxy.cfg", {blob: text("global\n"), total: 7, partial: false});
             await within(dialog).findByDisplayValue(/global/);
