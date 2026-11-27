@@ -110,7 +110,7 @@ describe('objectFacets', () => {
         expect(objectFacets(NAMES, {upInstances: parseCount('>0')}, opts).namespace).toEqual({ns1: 2, ns2: 1});
     });
 
-    test('a namespace\'s configuration counted as the table lists it: not beside other objects of its namespace, alone counted', () => {
+    test('a namespace\'s configuration not counted, the table giving it no row of its own; but by the kind nscfg', () => {
         const objects = {
             'a/svc/one': {avail: 'up'},
             'a/svc/two': {avail: 'down'},
@@ -120,13 +120,19 @@ describe('objectFacets', () => {
         };
         const names = Object.keys(objects);
         const of = (filters) => objectFacets(names, filters, {...opts, objects, kindOf: (name) => name.split('/')[1]});
-        // a lists its two services, its configuration in its line; c, its configuration alone.
-        expect(of({}).namespace).toEqual({a: 2, b: 1, c: 1});
+        // a lists its two services, its configuration in its line; c, its line alone, no row.
+        expect(of({}).namespace).toEqual({a: 2, b: 1});
+        expect(of({}).avail).toEqual({up: 2, down: 1});
+        // The kind nscfg counted: chosen, it lists the lines of the two namespaces.
         expect(of({}).kind).toEqual({svc: 3, nscfg: 2});
-        // Up: a keeps one service. Down: one. n/a: the configurations alone, a's and c's.
-        expect(of({}).avail).toEqual({up: 2, down: 1, 'n/a': 2});
-        // The services of a up and down chosen: its configuration not listed, not counted.
-        expect(of({states: {avail: ['up', 'down']}}).namespace).toEqual({a: 2, b: 1});
+        // Chosen, the configurations counted, each its namespace's line.
+        expect(of({kinds: ['nscfg']}).namespace).toEqual({a: 1, c: 1});
+        expect(of({kinds: ['nscfg']}).avail).toEqual({'n/a': 2});
+        // With the services: a's configuration in its line beside them, c's alone.
+        expect(of({kinds: ['svc', 'nscfg']}).namespace).toEqual({a: 2, b: 1, c: 1});
+        // A tab with no kind filter: none counted, whatever an address says.
+        expect(objectFacets(names, {kinds: ['nscfg']}, {...opts, objects, useKind: false, kindOf: (name) => name.split('/')[1]}).namespace)
+            .toEqual({a: 2, b: 1});
     });
 
     test('a filter the tab has not keeps every object', () => {

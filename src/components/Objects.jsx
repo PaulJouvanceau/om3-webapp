@@ -18,7 +18,7 @@ import {Button, buttonClass} from "../ui/components/Button";
 import {cn} from "../ui/cn";
 import {Checkbox} from "../ui/components/Field";
 import {useMediaQuery} from "../ui/lib/media";
-import {REVERSED_PARAM, STATE_FIELDS, VALIDATION_KEY, countKept, fieldValues, fieldsOf, objectFacets, parseCount, reversedOf, stateKept, statesOf} from "../app/object-facets";
+import {REVERSED_PARAM, STATE_FIELDS, VALIDATION_KEY, configsCounted, countKept, fieldValues, fieldsOf, objectFacets, parseCount, reversedOf, stateKept, statesOf} from "../app/object-facets";
 import {useConfigValidations} from "../hooks/useConfigValidations";
 import {FilterRail, FilterToolbar} from "./FilterRail";
 import {BADGE, KeyCells, NotProvisionedMark, OrchestrateBadge, PropertyCells, SideText, StatusMarks, volumeUsage} from "./ObjectCells";
@@ -1071,7 +1071,12 @@ const Objects = () => {
         </Button>
     );
 
-    const objectCount = <p className="text-ink-muted tabular-nums">{t("objects.count", {count: rowObjectNames.length})}</p>;
+    // A row an object, as the facets count them: the configuration of a namespace none,
+    // its namespace's line standing for it, but once the kind nscfg is chosen.
+    const shownCount = configsCounted(deferredSelectedKinds, hasKindFilter)
+        ? rowObjectNames.length
+        : rowObjectNames.filter((name) => !isNscfg(name)).length;
+    const objectCount = <p className="text-ink-muted tabular-nums">{t("objects.count", {count: shownCount})}</p>;
 
     // A new object, and the actions on the selection: over the table, or at the head of the rail.
     const listActions = (align) => (

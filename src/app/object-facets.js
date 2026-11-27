@@ -98,9 +98,9 @@ export function stateKept(status, selected, reversed = []) {
  * State filter among the objects the name, up instances, other fields, namespace and
  * kind filters keep; those of the namespaces among the objects the others keep; those
  * of the kinds likewise. `useState` and `useKind` false, those filters keep every
- * object, as on the tabs that have them not. A namespace's configuration counted where
- * the table lists it, its namespace keeping nothing else. `states`, the values chosen of each field
- * by its key; `reversed`, the keys of the fields reversed (stateKept); `upInstances`, a
+ * object, as on the tabs that have them not. A namespace's configuration not counted,
+ * the table giving it no row of its own, but by the kind nscfg (configsCounted).
+ * `states`, the values chosen of each field by its key; `reversed`, the keys of the fields reversed (stateKept); `upInstances`, a
  * comparison of the instances up (parseCount).
  */
 export function objectFacets(names, filters, {objects, namespaceOf, kindOf, useState = true, useKind = true}) {
@@ -123,10 +123,20 @@ export function objectFacets(names, filters, {objects, namespaceOf, kindOf, useS
             kind: {selected: useKind ? kinds : [], valuesOf: (name) => [kindOf(name)]},
         },
     };
-    // Counted as the table lists them: the configuration of a namespace has no line of its
-    // own, the line of its namespace standing for it, unless nothing else of it is kept.
-    // Each object counted alone, a namespace's counted apart, its configuration added to
-    // a value where none of its other objects has it.
+    // Counted as the table shows them, a row an object: the configuration of a namespace
+    // has none, the line of its namespace standing for it, alone in it or not. Not
+    // counted, but by the kind nscfg, a choice of it listing that many lines; once
+    // chosen, counted where the table lists them, a namespace's line for each kept
+    // alone in its namespace (configsCounted).
+    const others = [];
+    const configs = [];
+    for (const name of names) (kindOf(name) === "nscfg" ? configs : others).push(name);
+    if (!configsCounted(kinds, useKind)) {
+        const counts = facetCounts(others, spec);
+        const configKind = facetCounts(configs, spec).kind.nscfg;
+        if (configKind) counts.kind.nscfg = configKind;
+        return counts;
+    }
     const byNamespace = new Map();
     for (const name of names) {
         const ns = namespaceOf(name);
@@ -134,19 +144,27 @@ export function objectFacets(names, filters, {objects, namespaceOf, kindOf, useS
         byNamespace.get(ns)[kindOf(name) === "nscfg" ? "configs" : "others"].push(name);
     }
     const counts = Object.fromEntries(Object.keys(spec.facets).map((facet) => [facet, {}]));
-    for (const {others, configs} of byNamespace.values()) {
-        const kept = facetCounts(others, spec);
-        const alone = configs.length > 0 ? facetCounts(configs, spec) : null;
+    for (const {others: of, configs: alone} of byNamespace.values()) {
+        const kept = facetCounts(of, spec);
+        const lone = alone.length > 0 ? facetCounts(alone, spec) : null;
         for (const facet of Object.keys(counts)) {
-            const values = new Set([...Object.keys(kept[facet]), ...Object.keys(alone?.[facet] ?? {})]);
+            const values = new Set([...Object.keys(kept[facet]), ...Object.keys(lone?.[facet] ?? {})]);
             for (const value of values) {
-                const n = kept[facet][value] || alone?.[facet][value] || 0;
+                const n = kept[facet][value] || lone?.[facet][value] || 0;
                 if (n > 0) counts[facet][value] = (counts[facet][value] ?? 0) + n;
             }
         }
     }
     return counts;
 }
+
+/**
+ * Whether the configurations of the namespaces are counted, in the facets and in the
+ * count of the objects: only once the kind nscfg is chosen, the lines of their
+ * namespaces then what the table lists of them. Else none, a row an object, and the
+ * configuration of a namespace none of its own.
+ */
+export const configsCounted = (kinds = [], useKind = true) => useKind && kinds.includes("nscfg");
 
 /**
  * The State filter of an address: the values chosen of each field, by its key, from

@@ -1423,6 +1423,28 @@ describe('Objects Component', () => {
             expect(count).toBe(Object.keys(TWO_KINDS.objectStatus).filter((n) => n.startsWith('test-ns/svc/')).length);
         });
 
+        test('a namespace holding its configuration alone: its line listed, no row, not counted; the kind nscfg chosen, counted', async () => {
+            const LONE = {
+                objectStatus: {...TWO_KINDS.objectStatus, 'lone/nscfg/namespace': {avail: 'n/a', frozen: 'unfrozen', provisioned: 'true'}},
+                objectInstanceStatus: {...TWO_KINDS.objectInstanceStatus, 'lone/nscfg/namespace': {}},
+            };
+            setup(LONE, '?list=any', WIDE);
+            await waitForLoad();
+            // Its line drawn, for the namespace to be listed; no object under it.
+            expect(document.querySelector('[data-namespace-row="lone"]')).toBeInTheDocument();
+            // Offered still, its count none: chosen, it lists its line and no object.
+            expect(values('Namespace').map(([text]) => text)).toContain('lone0');
+            // The objects said, a row each: not the configurations, in the lines of their namespaces.
+            const objectRows = Object.keys(LONE.objectStatus).filter((name) => !name.includes('/nscfg/')).length;
+            expect(rail().querySelector('[data-rail-head]')).toHaveTextContent(`${objectRows} objects`);
+            // The kind nscfg counted: chosen, it lists the line of each namespace.
+            const kind = values('Kind').find(([text]) => text.startsWith('nscfg'));
+            expect(kind[0]).toBe('nscfg2');
+            fireEvent.click(within(facet('Kind')).getByRole('button', {name: /^nscfg/}));
+            await waitFor(() => expect(rail().querySelector('[data-rail-head]')).toHaveTextContent('2 objects'));
+            expect(values('Namespace').map(([text]) => text)).toEqual(expect.arrayContaining(['lone1', 'test-ns1']));
+        });
+
         test('the name searched from the rail', async () => {
             setup({}, '', WIDE);
             await waitForLoad();
