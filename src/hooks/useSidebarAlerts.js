@@ -7,6 +7,7 @@ import i18n from "../i18n";
 import {URL_NETWORK, URL_NODE_EVENT, URL_POOL} from "../config/apiPath.js";
 import logger from "../utils/logger.js";
 import {childrenDown} from "../app/statusboard";
+import {meshLinks} from "../app/heartbeat-mesh";
 import useEventStore from "./useEventStore.js";
 import {onSessionEnd} from "../app/session-end";
 import {followRunningOrchestrations, observeMonitors, observeOrchestration} from "../app/action-tracker";
@@ -393,22 +394,17 @@ export function objectsAlert(objects, monitorsOf = () => []) {
 }
 
 /**
- * Heartbeats: each rx or tx stream of each node a link, down when it does not run
- * or a peer stopped beating. Orange when one link is down, red when all are.
+ * Heartbeats: the links of the mesh, as the overview of the heartbeats counts them
+ * (meshLinks): each rx or tx stream of each node a link toward each of its peers,
+ * down when the stream does not run or the peer does not beat. Not a link a stream:
+ * from three nodes up, a stream has two peers or more, and the menu said fewer links,
+ * and fewer down, than the page it opens. Orange when one link is down, red when all are.
  */
 export function heartbeatAlert(heartbeatStatus) {
-    let total = 0;
-    let down = 0;
-    for (const node of Object.values(heartbeatStatus || {})) {
-        for (const stream of node?.streams || []) {
-            total++;
-            const failing = (stream?.state !== undefined && stream.state !== "running") ||
-                Object.values(stream?.peers || {}).some((peer) => peer?.is_beating === false);
-            if (failing) down++;
-        }
-    }
+    const links = meshLinks(heartbeatStatus || {});
+    const down = links.filter((link) => link.state !== "up").length;
     if (down === 0) return null;
-    return {level: down === total ? "down" : "warn", text: i18n.t("alerts.linksDown", {count: down, total})};
+    return {level: down === links.length ? "down" : "warn", text: i18n.t("alerts.linksDown", {count: down, total: links.length})};
 }
 
 /**

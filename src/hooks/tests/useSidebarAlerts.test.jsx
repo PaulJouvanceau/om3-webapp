@@ -172,6 +172,22 @@ describe('heartbeatAlert', () => {
         expect(heartbeatAlert({n1: {streams: [stream('stopped', true), stream('running', true)]}}).level).toBe('warn');
     });
 
+    test('a link a stream and a peer, as the overview counts them: three nodes, a peer of two not beating', () => {
+        // Each node, hb#1 rx and tx toward its two peers: 3 × 2 × 2 = 12 links.
+        const peers = (node, down) => Object.fromEntries(['n1', 'n2', 'n3'].filter((n) => n !== node)
+            .map((n) => [n, {is_beating: !(down && n === 'n3')}]));
+        const streams = (node, down = false) => [
+            {id: 'hb#1.rx', state: 'running', peers: peers(node, down)},
+            {id: 'hb#1.tx', state: 'running', peers: peers(node)},
+        ];
+        const status = {n1: {streams: streams('n1', true)}, n2: {streams: streams('n2')}, n3: {streams: streams('n3')}};
+        // n1 not hearing n3: one link down of 12, not one stream of 6.
+        expect(heartbeatAlert(status)).toEqual({level: 'warn', text: '1 of 12 heartbeat links down'});
+        // A stream stopped: down toward each of its peers.
+        status.n2.streams[1].state = 'stopped';
+        expect(heartbeatAlert(status)).toEqual({level: 'warn', text: '3 of 12 heartbeat links down'});
+    });
+
     test('red when all the links are down', () => {
         expect(heartbeatAlert({n1: {streams: [stream('stopped', true), stream('running', false)]}}))
             .toEqual({level: 'down', text: '2 of 2 heartbeat links down'});
