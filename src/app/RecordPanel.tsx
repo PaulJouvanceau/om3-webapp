@@ -50,10 +50,19 @@ export function PanelTitle({
   }, [open, currentKey]);
 
   const icon = recordId === undefined ? "service" : stepIcon({ kind, id: recordId });
+  // A path too long for the bar, its head cut before its name: "usecases/s…/child", not
+  // "usecases/svc…"; the name itself cut only once nothing of the head is left. Its two
+  // parts read as one name: "usecases/svc/child", not "usecases/svc/ child".
+  const cut = title.lastIndexOf("/") + 1;
+  const head = title.slice(0, cut);
+  const name = title.slice(cut);
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2">
       <ObjectIcon kind={icon} />
-      <h2 className="truncate text-title font-semibold">{title}</h2>
+      <h2 className="flex min-w-0 text-title font-semibold" title={title} aria-label={title}>
+        {head !== "" && <span className="min-w-0 shrink-[1000] truncate">{head}</span>}
+        <span className="min-w-0 truncate">{name}</span>
+      </h2>
       {slotRef !== undefined && <div ref={slotRef} className="flex shrink-0 items-center gap-1" />}
     </div>
   );

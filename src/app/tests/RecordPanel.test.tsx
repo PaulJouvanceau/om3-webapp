@@ -122,6 +122,20 @@ describe("record panels", () => {
     expect(within(panel).getByText("content of status")).toBeInTheDocument();
   });
 
+  test("a path too long for the bar cut in its head, not in its name: the whole path its name and its hint", () => {
+    renderView();
+    fireEvent.click(screen.getByRole("button", { name: "web" }));
+    const title = screen.getByRole("heading", { name: "ns1/svc/web" });
+    expect(title).toHaveAttribute("title", "ns1/svc/web");
+    const [head, name] = [...title.children];
+    // The head given up first, the name only once nothing of the head is left.
+    expect(head).toHaveTextContent("ns1/svc/");
+    expect(head).toHaveClass("truncate", "shrink-[1000]");
+    expect(name).toHaveTextContent(/^web$/);
+    expect(name).toHaveClass("truncate");
+    expect(name).not.toHaveClass("shrink-[1000]");
+  });
+
   test("a value without an id stays plain text", () => {
     renderView();
     expect(screen.getByText("plain").closest("button")).toBeNull();
