@@ -6,8 +6,8 @@ import {ConfigValidationResult, ValidateButton, useConfigValidation} from '../Co
 
 const URL = '/api/node/name/n1/config/validate';
 
-function Validation({url = URL}) {
-    const {result, validate, reset} = useConfigValidation(url);
+function Validation({url = URL, changes = 0}) {
+    const {result, validate, reset} = useConfigValidation(url, changes);
     return (
         <>
             <ValidateButton onClick={() => void validate()}/>
@@ -52,6 +52,39 @@ describe('ConfigValidation', () => {
         render(<Validation/>);
         await run();
         expect(screen.getByText(/^The configuration could not be validated: /)).toBeInTheDocument();
+    });
+
+    test('the configuration changed since, by someone else: the result not left shown, said to validate again', async () => {
+        answer(200, {kind: 'ConfigAlertList', items: [{level: 'warning', key: 'a', kind: 'deprecated'}]});
+        const {rerender} = render(<Validation changes={0}/>);
+        await run();
+        expect(screen.getByText('1 warning')).toBeInTheDocument();
+        rerender(<Validation changes={1}/>);
+        expect(screen.queryByText('1 warning')).toBeNull();
+        expect(screen.getByText('The configuration changed since it was validated: validate it again.')).toBeInTheDocument();
+        // Validated again: the result of the configuration as it is now.
+        answer(200, {kind: 'ConfigAlertList', items: []});
+        await run();
+        expect(screen.getByText('The configuration is valid: no error, no warning.')).toBeInTheDocument();
+    });
+
+    test('changed while validated: the answer, of the configuration before, dropped; nothing shown, nothing said', async () => {
+        let respond;
+        global.fetch = vi.fn(() => new Promise((resolve) => {
+            respond = resolve;
+        }));
+        const {rerender} = render(<Validation changes={0}/>);
+        await run();
+        rerender(<Validation changes={1}/>);
+        await act(async () => {
+            respond(new Response(JSON.stringify({kind: 'ConfigAlertList', items: []}), {status: 200}));
+        });
+        expect(screen.queryByText(/The configuration is valid/)).toBeNull();
+        expect(screen.getByText(/changed since it was validated/)).toBeInTheDocument();
+        // Closed, then changed again: nothing to say of a result no longer shown.
+        fireEvent.click(screen.getByRole('button', {name: 'Close the validation'}));
+        rerender(<Validation changes={2}/>);
+        expect(screen.queryByText(/changed since it was validated/)).toBeNull();
     });
 
     test('another address, the result of the last one gone', async () => {

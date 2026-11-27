@@ -247,6 +247,7 @@
     "unsupported": "This daemon does not validate a configuration: it is older than the validation.",
     "failed": "The configuration could not be validated: {{message}}",
     "none": "The configuration is valid: no error, no warning.",
+    "stale": "The configuration changed since it was validated: validate it again.",
     "errors_one": "{{count}} error",
     "errors_other": "{{count}} errors",
     "warnings_one": "{{count}} warning",

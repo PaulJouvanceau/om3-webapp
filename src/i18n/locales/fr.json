@@ -247,6 +247,7 @@
     "unsupported": "Ce démon ne valide pas de configuration : il est antérieur à la validation.",
     "failed": "La configuration n'a pas pu être validée : {{message}}",
     "none": "La configuration est valide : aucune erreur, aucun avertissement.",
+    "stale": "La configuration a changé depuis sa validation : validez-la à nouveau.",
     "errors_one": "{{count}} erreur",
     "errors_other": "{{count}} erreurs",
     "warnings_one": "{{count}} avertissement",

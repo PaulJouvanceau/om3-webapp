@@ -117,6 +117,16 @@ export function useInstanceConfigChanges(path) {
 }
 
 /**
+ * The changes of the configuration of the object `path` on `node`, by its checksum
+ * (InstanceConfigUpdated): its file written there by om, by another user, by a node.
+ * Compared by value: the stream opening again replays the same.
+ */
+export function useInstanceConfigChecksumChanges(path, node) {
+    useObjectEvents(path, INSTANCE_CONFIG_EVENTS);
+    return useChangeCount(useEventStore((s) => (path && node ? s.instanceConfig?.[path]?.[node]?.csum ?? "" : "")));
+}
+
+/**
  * The changes of the status of the instances of `path` (InstanceStatusUpdated), of its
  * resource `rid` only when given, compared by value: a status the daemon sends again
  * unchanged reads nothing.

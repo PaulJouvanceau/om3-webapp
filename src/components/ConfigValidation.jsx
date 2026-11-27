@@ -28,9 +28,11 @@ const isRouter404 = (status, body) => status === 404 && body?.message === "Not F
  * too, nothing written. `result` null before, then {loading}, {alerts}, {error} or
  * {unsupported}; `reset` forgets it, as a configuration written since makes it stale.
  * Only the answer to the last request counts: one to an older draft, come after, is
- * dropped.
+ * dropped. `changes`, a count of the changes of the configuration validated, by
+ * whoever made them (useLiveChanges): on each, a result shown, or awaited, is of
+ * the configuration before it, {stale} in its place, saying to validate again.
  */
-export function useConfigValidation(url) {
+export function useConfigValidation(url, changes = 0) {
     const [result, setResult] = useState(null);
     const last = useRef(0);
     const validate = useCallback(async (text) => {
@@ -73,6 +75,15 @@ export function useConfigValidation(url) {
         last.current += 1;
         setResult(null);
     }, [url]);
+    // The configuration changed since, another user, om, a node: what was found is not
+    // of it any more. Said so, not left shown as if it were; nothing shown, nothing said.
+    const seen = useRef(changes);
+    useEffect(() => {
+        if (seen.current === changes) return;
+        seen.current = changes;
+        last.current += 1;
+        setResult((previous) => (previous === null || previous.stale ? previous : {stale: true}));
+    }, [changes]);
     return {result, validate, reset};
 }
 
@@ -96,6 +107,7 @@ export function ConfigValidationResult({result, onClose, quietWhenValid = false}
         </IconButton>
     );
     if (result.loading) return <Spinner label={t("configValidate.checking")}/>;
+    if (result.stale) return quietWhenValid ? null : <Alert tone="info" action={close}>{t("configValidate.stale")}</Alert>;
     if (result.unsupported) return <Alert tone="info" action={close}>{t("configValidate.unsupported")}</Alert>;
     if (result.error) return <Alert action={close}>{t("configValidate.failed", {message: result.error})}</Alert>;
     const {alerts} = result;

@@ -18,6 +18,7 @@ import {useIsRoot} from "../hooks/useGrants";
 import {ForceRefusal} from "./ConfigWriteControls";
 import ConfigEvalDialog from "./ConfigEvalDialog";
 import {ConfigValidationResult, DraftValidation, ValidateButton, useConfigValidation} from "./ConfigValidation";
+import {useInstanceConfigChecksumChanges} from "../hooks/useLiveChanges.js";
 import useEventStore from "../hooks/useEventStore.js";
 import {newId, withId} from "../app/object-create";
 import {designChanges, designStart, designText, parseDesign, rootOnlyKind, shownKeyword} from "../app/object-design";
@@ -418,11 +419,13 @@ const ConfigSection = ({
     // The keywords evaluated, as on a node of the object (om config eval --impersonate).
     const [evalOpen, setEvalOpen] = useState(false);
     // The configuration validated as loaded on the node read, its drivers checking it
-    // there (om <path> config validate): stale once a change is written.
+    // there (om <path> config validate): stale once a change is written, here or by
+    // anyone else, its checksum on that node changing.
+    const validatedChanges = useInstanceConfigChecksumChanges(decodedObjectName, configNode);
     const validation = useConfigValidation(configNode && !absent ? (() => {
         const {namespace, kind, name} = parseObjectPath(decodedObjectName);
         return `${URL_NODE}/${encodeURIComponent(configNode)}/instance/path/${namespace}/${kind}/${name}/config/validate`;
-    })() : null);
+    })() : null, validatedChanges);
     const scope = useEventStore((s) => s.objectStatus?.[decodedObjectName]?.scope);
     const [newConfigFile, setNewConfigFile] = useState(null);
     // Why the daemon refused the file uploaded, and who may write it anyway.

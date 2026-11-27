@@ -847,15 +847,16 @@ function NodeConfig({node}) {
     const [showSecrets, setShowSecrets] = useState(false);
     const secondsLeft = useAutoHide(showSecrets, () => setShowSecrets(false));
     // Written elsewhere, read again: an edit in progress keeps its draft, its base told apart on save.
-    const file = useNodeResource(node, `config/file?redact-secrets=${!showSecrets}`, {text: true, changes: useConfigChanges(node)});
+    const configChanges = useConfigChanges(node);
+    const file = useNodeResource(node, `config/file?redact-secrets=${!showSecrets}`, {text: true, changes: configChanges});
     // The edit in progress, kept when a tab of the panel is left: found again on coming back.
     const [edit, setEdit] = useEditDraft(`node\u0000${node}`);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState(null);
     const [evalOpen, setEvalOpen] = useState(false);
     // The configuration validated on the node, the cluster's merged (om node config
-    // validate): stale once the file is written.
-    const validation = useConfigValidation(nodeUrl(node, "config/validate"));
+    // validate): stale once the file is written, here or by anyone else, the node's or the cluster's.
+    const validation = useConfigValidation(nodeUrl(node, "config/validate"), configChanges);
 
     // The file as stored, its secrets in clear: what an edit starts from and writes back.
     const read = async () => {

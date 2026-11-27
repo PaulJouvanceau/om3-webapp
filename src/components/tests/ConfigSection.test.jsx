@@ -9,6 +9,7 @@ import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 import i18n from '../../i18n';
 import {PencilIcon, SlidersIcon} from '../../ui/icons';
 import {useActionTracker} from '../../app/action-tracker';
+import useEventStore from '../../hooks/useEventStore.js';
 
 // ── Hoisted variables ─────────────────────────────────────────────────
 const {
@@ -385,6 +386,32 @@ describe('ConfigSection Component', () => {
         await act(() => user.click(run));
         expect(await screen.findByText('The configuration is valid: no error, no warning.')).toBeInTheDocument();
         expect(validated).toEqual(['/api/node/name/node1/instance/path/root/cfg/cfg1/config/validate']);
+    });
+
+    test('the configuration changed on the node by someone else: its validation not left shown, said stale', async () => {
+        const csum = (value) => act(() => {
+            useEventStore.setState((s) => ({instanceConfig: {...s.instanceConfig, 'root/cfg/cfg1': {node1: {csum: value}}}}));
+        });
+        await csum('one');
+        global.fetch.mockImplementation((url, options) => (url.endsWith('/config/validate')
+            ? Promise.resolve(new Response(JSON.stringify({kind: 'ConfigAlertList', items: []}), {status: 200}))
+            : defaultFetchMock(url, options)));
+        try {
+            renderConfig({inline: true});
+            await act(async () => user.click(await screen.findByRole('button', {name: 'Validate the configuration'})));
+            expect(await screen.findByText('The configuration is valid: no error, no warning.')).toBeInTheDocument();
+            // The stream replaying the same: still of the configuration validated.
+            await csum('one');
+            expect(screen.getByText('The configuration is valid: no error, no warning.')).toBeInTheDocument();
+            await csum('two');
+            expect(screen.queryByText(/The configuration is valid/)).toBeNull();
+            expect(screen.getByText('The configuration changed since it was validated: validate it again.')).toBeInTheDocument();
+        } finally {
+            act(() => useEventStore.setState((s) => {
+                const {['root/cfg/cfg1']: _, ...rest} = s.instanceConfig ?? {};
+                return {instanceConfig: rest};
+            }));
+        }
     });
 
     test('a configuration not yet created: nothing to validate', async () => {
