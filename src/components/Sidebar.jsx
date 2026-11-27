@@ -4,7 +4,7 @@ import {useTranslation} from "react-i18next";
 import {cn} from "../ui/cn";
 import {useMediaQuery} from "../ui/lib/media";
 import {AlertMark} from "../ui/components/AlertMark";
-import {CaretRightIcon, SparklesIcon} from "../ui/icons";
+import {CaretRightIcon, ExternalLinkIcon, SparklesIcon} from "../ui/icons";
 import {ALL_LIST, OBJECT_LISTS, listUrl} from "../utils/objectLists";
 import {useAiOffered} from "../hooks/useAiAvailable.js";
 import AiActivityBadge from "./AiActivityBadge.jsx";
@@ -19,6 +19,9 @@ import AiActivityBadge from "./AiActivityBadge.jsx";
  * entry of the assistant, shown to whom can use it. A section with `to` is an
  * entry itself, its title the link.
  */
+/** The documentation of OpenSVC, its book: a site of its own, opened in a new tab. */
+export const BOOK_URL = "https://book.opensvc.com";
+
 export const NAV_SECTIONS = [
     {
         key: "cluster",
@@ -59,12 +62,13 @@ export const NAV_SECTIONS = [
         })),
     },
     {
-        // The assistant, then the words of OpenSVC, said plainly.
+        // The assistant, then the words of OpenSVC, said plainly, then its book.
         key: "help",
         labelKey: "nav.sections.help",
         entries: [
             {id: "ai", to: "/ai", labelKey: "nav.routes.ai", assistant: true},
             {id: "glossary", to: "/glossary", labelKey: "nav.routes.glossary"},
+            {id: "book", href: BOOK_URL, labelKey: "nav.routes.book"},
             {id: "about", to: "/about", labelKey: "nav.routes.about"},
         ],
     },
@@ -193,8 +197,16 @@ function NavSection({section, alerts, onNavigate, assistant}) {
             )}
             {/* Its entries indented under its title, along a line that ties them to it; none, no line. */}
             {section.entries.length > 0 && <ul className="ml-2 border-l border-line pl-1">
-                {section.entries.filter((entry) => assistant || !entry.assistant).map(({id, to, labelKey, list, assistant: isAssistant}) => {
-                    const link = list === undefined ? (
+                {section.entries.filter((entry) => assistant || !entry.assistant).map(({id, to, href, labelKey, list, assistant: isAssistant}) => {
+                    const link = href !== undefined ? (
+                        // Out of the webapp: a new tab, the page and its state kept; said so, an arrow
+                        // leaving a box after its name, and in words to a screen reader.
+                        <a href={href} target="_blank" rel="noopener noreferrer" onClick={onNavigate} className={cn(LINK, "group")}>
+                            {t(labelKey)}
+                            <ExternalLinkIcon aria-hidden="true" width={12} height={12} className="shrink-0 opacity-70 group-hover:opacity-100"/>
+                            <span className="sr-only">{t("nav.opensInNewTab")}</span>
+                        </a>
+                    ) : list === undefined ? (
                         <NavLink
                             to={to}
                             onClick={onNavigate}

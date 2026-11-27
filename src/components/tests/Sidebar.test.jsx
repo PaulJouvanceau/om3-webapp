@@ -2,7 +2,7 @@ import React from 'react';
 import {render, screen, act, renderHook, within, fireEvent} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {describe, test, expect, beforeEach, afterEach, vi} from 'vitest';
-import {Sidebar, NAV_SECTIONS, COMPACT_QUERY, menuAlert, useSidebarOpen} from '../Sidebar';
+import {Sidebar, NAV_SECTIONS, BOOK_URL, COMPACT_QUERY, menuAlert, useSidebarOpen} from '../Sidebar';
 import i18n from '../../i18n';
 
 const {mockPills} = vi.hoisted(() => ({mockPills: {current: {}}}));
@@ -69,10 +69,10 @@ describe('Sidebar', () => {
         expect(link.querySelector('svg')).not.toBeNull();
     });
 
-    test('three sections: the cluster, its links, nodes, namespaces, networks, pools, stores, arrays and resources; the objects, their title all of them, then by kind; the help, its glossary and its about', () => {
+    test('three sections: the cluster, its links, nodes, namespaces, networks, pools, stores, arrays and resources; the objects, their title all of them, then by kind; the help, its glossary, its book and its about', () => {
         renderSidebar();
         expect(screen.getAllByRole('heading').map((h) => h.textContent)).toEqual(['Cluster', 'Relay', 'Objects', 'Help']);
-        expect(linkNames(section('Help'))).toEqual(['Glossary', 'About']);
+        expect(linkNames(section('Help'))).toEqual(['Glossary', 'Documentation(opens in a new tab)', 'About']);
         // A title of no page of its own: a heading, no link.
         expect(within(screen.getByRole('heading', {name: 'Help'})).queryByRole('link')).not.toBeInTheDocument();
         expect(linkNames(section('Cluster'))).toEqual(CLUSTER);
@@ -106,14 +106,26 @@ describe('Sidebar', () => {
             Configs: '/objects?list=configs', Secrets: '/objects?list=secrets', Users: '/objects?list=users',
             'AI assistant': '/ai',
             Glossary: '/glossary',
+            'Documentation(opens in a new tab)': BOOK_URL,
             About: '/about',
         });
         // The same for every entry, from the catalog.
         for (const {entries} of NAV_SECTIONS) {
-            for (const {to, labelKey} of entries) {
-                expect(screen.getByRole('link', {name: i18n.t(labelKey)})).toHaveAttribute('href', to);
+            for (const {to, href, labelKey} of entries) {
+                const name = href === undefined ? i18n.t(labelKey) : `${i18n.t(labelKey)} ${i18n.t('nav.opensInNewTab')}`;
+                expect(screen.getByRole('link', {name})).toHaveAttribute('href', to ?? href);
             }
         }
+    });
+
+    test('the book of OpenSVC: out of the webapp, in a new tab, said so', () => {
+        renderSidebar();
+        const book = screen.getByRole('link', {name: 'Documentation (opens in a new tab)'});
+        expect(book).toHaveAttribute('href', 'https://book.opensvc.com');
+        expect(book).toHaveAttribute('target', '_blank');
+        // The page it leaves not reachable from it.
+        expect(book).toHaveAttribute('rel', 'noopener noreferrer');
+        expect(book.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
     });
 
     test.each([...CLUSTER, ...OBJECTS])('draws the %s entry by its name alone, no icon', (name) => {

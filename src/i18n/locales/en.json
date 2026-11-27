@@ -1359,9 +1359,11 @@
       "arrays": "Arrays",
       "ai": "AI assistant",
       "glossary": "Glossary",
+      "book": "Documentation",
       "about": "About"
     },
     "main": "Main",
+    "opensInNewTab": "(opens in a new tab)",
     "loading": "Loading...",
     "hideMenu": "Hide menu",
     "showMenu": "Show menu",

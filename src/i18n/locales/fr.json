@@ -1359,9 +1359,11 @@
       "arrays": "Baies de stockage",
       "ai": "Assistant IA",
       "glossary": "Glossaire",
+      "book": "Documentation",
       "about": "À propos"
     },
     "main": "Principal",
+    "opensInNewTab": "(s’ouvre dans un nouvel onglet)",
     "loading": "Chargement...",
     "hideMenu": "Masquer le menu",
     "showMenu": "Afficher le menu",
