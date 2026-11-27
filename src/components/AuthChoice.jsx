@@ -5,7 +5,7 @@ import {ProductTag} from "../ui/components/ProductTag";
 import {Button} from "../ui/components/Button";
 import {Spinner} from "../ui/components/Spinner";
 import {KeyIcon, UserIcon} from "../ui/icons";
-import useAuthInfo from "../hooks/AuthInfo.jsx";
+import {useAuthInfoState} from "../hooks/AuthInfo.jsx";
 import oidcConfiguration from "../config/oidcConfiguration.js";
 import {useNavigate} from "react-router-dom";
 import {useOidc} from "../context/OidcAuthContext.tsx";
@@ -13,7 +13,8 @@ import logger from '../utils/logger.js';
 
 function AuthChoice({authInfo: authInfoProp}) {
     const {userManager, recreateUserManager} = useOidc();
-    const localAuthInfo = useAuthInfo();
+    // Shared with the app: read once for the page, tried again while it fails.
+    const {info: localAuthInfo, failed} = useAuthInfoState();
     const authInfo = authInfoProp ?? localAuthInfo;
     const navigate = useNavigate();
     const {t} = useTranslation();
@@ -64,8 +65,12 @@ function AuthChoice({authInfo: authInfoProp}) {
             </p>
 
             {!authInfo ? (
-                <div className="flex justify-center py-2">
+                <div className="flex flex-col items-center gap-2 py-2">
                     <Spinner label={t("auth.choice.loading")}/>
+                    {/* Not read yet: said, the spinner going on while it is tried again. */}
+                    {failed && (
+                        <p role="status" className="text-center text-ink-muted">{t("auth.choice.retrying")}</p>
+                    )}
                 </div>
             ) : (
                 <div className="flex flex-col gap-2">

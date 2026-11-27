@@ -12,6 +12,7 @@ const {
     mockUseOidc,
     mockOidcConfiguration,
     mockRecreateUserManager,
+    mockFailed,
 } = vi.hoisted(() => {
     const mockNavigate = vi.fn();
     const mockUseNavigate = vi.fn(() => mockNavigate);
@@ -19,7 +20,10 @@ const {
     const mockUseOidc = vi.fn();
     const mockOidcConfiguration = vi.fn();
     const mockRecreateUserManager = vi.fn();
+    // Whether the last read of the authentication methods failed, as the tests set it.
+    const mockFailed = {current: false};
     return {
+        mockFailed,
         mockNavigate,
         mockUseNavigate,
         mockUseAuthInfo,
@@ -40,6 +44,7 @@ vi.mock('react-router-dom', async (importOriginal) => {
 
 vi.mock('../../hooks/AuthInfo', () => ({
     default: mockUseAuthInfo,
+    useAuthInfoState: () => ({info: mockUseAuthInfo(), failed: mockFailed.current}),
 }));
 
 vi.mock('../../context/OidcAuthContext', () => ({
@@ -68,6 +73,7 @@ describe('AuthChoice Component', () => {
             recreateUserManager: mockRecreateUserManager,
         });
         mockUseAuthInfo.mockReturnValue(null);
+        mockFailed.current = false;
         mockOidcConfiguration.mockReturnValue({
             issuer: 'mock-issuer',
             client_id: 'mock-client',
@@ -97,6 +103,15 @@ describe('AuthChoice Component', () => {
         mockUseAuthInfo.mockReturnValue(null);
         renderComponent();
         expect(screen.getByRole('status')).toHaveTextContent('Loading authentication methods');
+        expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    });
+
+    test('the methods not read, tried again: said so, the spinner going on', () => {
+        mockUseAuthInfo.mockReturnValue(undefined);
+        mockFailed.current = true;
+        renderComponent();
+        const said = screen.getAllByRole('status').map((s) => s.textContent);
+        expect(said).toEqual(expect.arrayContaining([expect.stringContaining('Loading authentication methods'), 'The cluster did not answer. Trying again…']));
         expect(screen.queryByRole('button')).not.toBeInTheDocument();
     });
 

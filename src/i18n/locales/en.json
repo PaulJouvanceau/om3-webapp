@@ -332,6 +332,7 @@
       "title": "Authentication methods",
       "prompt": "Please select one of the authentication methods the cluster advertises.",
       "loading": "Loading authentication methods",
+      "retrying": "The cluster did not answer. Trying again…",
       "openid": "OpenID",
       "login": "Login"
     },

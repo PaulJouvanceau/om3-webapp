@@ -1,5 +1,6 @@
 import {renderHook, act} from '@testing-library/react';
-import useAuthInfo from '../AuthInfo';
+import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
+import useAuthInfo, {RETRY_DELAYS, resetAuthInfo, useAuthInfoState} from '../AuthInfo';
 import {URL_AUTH_INFO} from '../../config/apiPath';
 import logger from '../../utils/logger.js';
 
@@ -7,129 +8,118 @@ vi.mock('../../config/apiPath', () => ({
     URL_AUTH_INFO: 'http://mock-api/auth-info',
 }));
 
-describe('useAuthInfo hook', () => {
+const ok = (data) => ({ok: true, status: 200, json: vi.fn().mockResolvedValue(data)});
+const notOk = (status) => ({ok: false, status, statusText: 'Service Unavailable', json: vi.fn().mockResolvedValue({title: 'down'})});
+/** The promises of a read settled, and the renders after them. */
+const settle = () => act(async () => {
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+});
+/** The delay before a new read gone by. */
+const wait = (ms) => act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
+});
+
+describe('useAuthInfo', () => {
+    const info = {methods: ['basic'], openid: {issuer: 'https://idp', client_id: 'om3'}};
     let originalFetch;
-    let loggerErrorSpy;
+
     beforeEach(() => {
+        vi.useFakeTimers();
+        resetAuthInfo();
         originalFetch = global.fetch;
-        loggerErrorSpy = vi.spyOn(logger, 'error').mockImplementation(() => {});
-        loggerErrorSpy.mockClear();
+        vi.spyOn(logger, 'error').mockImplementation(() => {});
     });
     afterEach(() => {
         global.fetch = originalFetch;
-        loggerErrorSpy.mockRestore();
+        vi.useRealTimers();
+        vi.restoreAllMocks();
+        resetAuthInfo();
     });
-    test('returns undefined initially', () => {
-        global.fetch = jest.fn();
+
+    test('undefined until read, then the methods the cluster advertises', async () => {
+        global.fetch = vi.fn().mockResolvedValue(ok(info));
         const {result} = renderHook(() => useAuthInfo());
         expect(result.current).toBeUndefined();
-    });
-    test('fetches and sets authInfo on successful response', async () => {
-        const mockData = {user: 'testuser', role: 'admin'};
-        global.fetch = jest.fn().mockResolvedValue({
-            json: jest.fn().mockResolvedValue(mockData),
-        });
-        const {result} = renderHook(() => useAuthInfo());
-        await act(async () => {
-            await Promise.resolve();
-        });
-        expect(result.current).toEqual(mockData);
+        await settle();
+        expect(result.current).toEqual(info);
         expect(global.fetch).toHaveBeenCalledWith(URL_AUTH_INFO);
     });
-    test('keeps authInfo undefined and logs error on fetch failure', async () => {
-        const error = new Error('Network error');
-        global.fetch = jest.fn().mockRejectedValue(error);
+
+    test('a read failed at the load of the page: tried again a little later, read then', async () => {
+        global.fetch = vi.fn()
+            .mockRejectedValueOnce(new Error('Network error'))
+            .mockRejectedValueOnce(new Error('Network error'))
+            .mockResolvedValueOnce(ok(info));
+        const {result} = renderHook(() => useAuthInfoState());
+        await settle();
+        expect(result.current).toEqual({info: undefined, failed: true});
+        // Not before its delay.
+        await wait(RETRY_DELAYS[0] - 1);
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+        await wait(1);
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+        // The next, a longer delay.
+        await wait(RETRY_DELAYS[1]);
+        expect(global.fetch).toHaveBeenCalledTimes(3);
+        expect(result.current).toEqual({info, failed: false});
+        // Read, not read again.
+        await wait(RETRY_DELAYS.at(-1) * 2);
+        expect(global.fetch).toHaveBeenCalledTimes(3);
+    });
+
+    test('an answer not ok, a daemon starting: not taken for the methods, tried again', async () => {
+        global.fetch = vi.fn().mockResolvedValueOnce(notOk(503)).mockResolvedValueOnce(ok(info));
+        const {result} = renderHook(() => useAuthInfoState());
+        await settle();
+        expect(result.current).toEqual({info: undefined, failed: true});
+        await wait(RETRY_DELAYS[0]);
+        expect(result.current.info).toEqual(info);
+    });
+
+    test('the delays grow up to the last, then repeat it', async () => {
+        global.fetch = vi.fn().mockRejectedValue(new Error('down'));
+        renderHook(() => useAuthInfo());
+        await settle();
+        for (const [i, delay] of [...RETRY_DELAYS, RETRY_DELAYS.at(-1)].entries()) {
+            await wait(delay);
+            expect(global.fetch).toHaveBeenCalledTimes(i + 2);
+        }
+    });
+
+    test('the browser online again: tried again at once, not after its delay', async () => {
+        global.fetch = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(ok(info));
         const {result} = renderHook(() => useAuthInfo());
+        await settle();
         await act(async () => {
-            await Promise.resolve();
+            window.dispatchEvent(new Event('online'));
         });
-        expect(result.current).toBeUndefined();
-        expect(loggerErrorSpy).toHaveBeenCalledWith(error);
+        await settle();
+        expect(result.current).toEqual(info);
+        expect(global.fetch).toHaveBeenCalledTimes(2);
     });
-    test('keeps authInfo undefined and logs error on JSON parsing failure', async () => {
-        const error = new Error('Invalid JSON');
-        global.fetch = jest.fn().mockResolvedValue({
-            json: jest.fn().mockRejectedValue(error),
-        });
+
+    test('read once for all who ask: the app, the sign-in choice, the return from the provider', async () => {
+        global.fetch = vi.fn().mockResolvedValue(ok(info));
+        const app = renderHook(() => useAuthInfo());
+        const choice = renderHook(() => useAuthInfo());
+        await settle();
+        expect(app.result.current).toEqual(info);
+        expect(choice.result.current).toEqual(info);
+        // Asked again later, given at once.
+        const callback = renderHook(() => useAuthInfo());
+        expect(callback.result.current).toEqual(info);
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    test('no one asking any more: not tried again; asked again, read anew', async () => {
+        global.fetch = vi.fn().mockRejectedValueOnce(new Error('down')).mockResolvedValueOnce(ok(info));
+        const {unmount} = renderHook(() => useAuthInfo());
+        await settle();
+        unmount();
+        await wait(RETRY_DELAYS.at(-1) * 2);
+        expect(global.fetch).toHaveBeenCalledTimes(1);
         const {result} = renderHook(() => useAuthInfo());
-        await act(async () => {
-            await Promise.resolve();
-        });
-        expect(result.current).toBeUndefined();
-        expect(loggerErrorSpy).toHaveBeenCalledWith(error);
-    });
-    test('fetch is called only once on mount', async () => {
-        const mockData = {user: 'testuser'};
-        const fetchMock = jest.fn().mockResolvedValue({
-            json: jest.fn().mockResolvedValue(mockData),
-        });
-        global.fetch = fetchMock;
-        const {result, rerender} = renderHook(() => useAuthInfo());
-        await act(async () => {
-            await Promise.resolve();
-        });
-        expect(result.current).toEqual(mockData);
-        rerender();
-        expect(fetchMock).toHaveBeenCalledTimes(1);
-    });
-    test('does not update state after unmount', async () => {
-        const mockData = {user: 'testuser'};
-        let resolveJson;
-        const jsonPromise = new Promise((res) => (resolveJson = res));
-        global.fetch = jest.fn().mockResolvedValue({
-            json: jest.fn(() => jsonPromise),
-        });
-        const {result, unmount} = renderHook(() => useAuthInfo());
-        unmount();
-        await act(async () => {
-            resolveJson(mockData);
-            await jsonPromise;
-        });
-        expect(result.current).toBeUndefined();
-    });
-    test('does not log error after unmount on fetch failure', async () => {
-        const error = new Error('Network error');
-        let rejectFetch;
-        const fetchPromise = new Promise((_, rej) => (rejectFetch = rej));
-        global.fetch = jest.fn(() => fetchPromise);
-        const {result, unmount} = renderHook(() => useAuthInfo());
-        unmount();
-        await act(async () => {
-            rejectFetch(error);
-            await Promise.resolve();
-        });
-        expect(result.current).toBeUndefined();
-        expect(loggerErrorSpy).not.toHaveBeenCalled();
-    });
-    test('does not log error after unmount on JSON parsing failure', async () => {
-        const error = new Error('Invalid JSON');
-        let rejectJson;
-        const jsonPromise = new Promise((_, rej) => (rejectJson = rej));
-        global.fetch = jest.fn().mockResolvedValue({
-            json: jest.fn(() => jsonPromise),
-        });
-        const {result, unmount} = renderHook(() => useAuthInfo());
-        unmount();
-        await act(async () => {
-            rejectJson(error);
-            await Promise.resolve();
-        });
-        expect(result.current).toBeUndefined();
-        expect(loggerErrorSpy).not.toHaveBeenCalled();
-    });
-    test('logs unhandled error if error occurs during error handling', async () => {
-        const networkError = new Error('Network error');
-        const handlingError = new Error('Error in error handler');
-        loggerErrorSpy.mockImplementationOnce(() => { throw handlingError; });
-        global.fetch = jest.fn().mockRejectedValue(networkError);
-        const {result} = renderHook(() => useAuthInfo());
-        await act(async () => {
-            await Promise.resolve();
-        });
-        expect(result.current).toBeUndefined();
-        expect(loggerErrorSpy).toHaveBeenCalledTimes(2);
-        expect(loggerErrorSpy.mock.calls[0][0]).toEqual(networkError);
-        expect(loggerErrorSpy.mock.calls[1][0]).toBe("Unhandled error in fetchData:");
-        expect(loggerErrorSpy.mock.calls[1][1]).toEqual(handlingError);
+        await settle();
+        expect(result.current).toEqual(info);
     });
 });

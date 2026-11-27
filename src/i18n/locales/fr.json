@@ -332,6 +332,7 @@
       "title": "Méthodes d'authentification",
       "prompt": "Veuillez choisir l'une des méthodes d'authentification proposées par le cluster.",
       "loading": "Chargement des méthodes d'authentification",
+      "retrying": "Le cluster n'a pas répondu. Nouvelle tentative…",
       "openid": "OpenID",
       "login": "Se connecter"
     },
