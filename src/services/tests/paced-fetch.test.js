@@ -1,5 +1,5 @@
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
-import {MAX_ATTEMPTS, PACE, pacedFetch, resetPacing, retryAfterMs} from '../paced-fetch.js';
+import {MAX_ATTEMPTS, PACE, RESERVE, pacedFetch, resetPacing, retryAfterMs} from '../paced-fetch.js';
 
 const answer = (status, retryAfter) => ({
     status,
@@ -62,6 +62,32 @@ describe('paced-fetch', () => {
         await vi.advanceTimersByTimeAsync(1000);
         expect(urls().slice(PACE.burst)).toEqual(['/api/write', '/api/read']);
         await Promise.all([...burst, read, write]);
+    });
+
+    test('in the background, the validations by the hundred: the reserve of the budget left to the others, after them', async () => {
+        global.fetch = vi.fn(() => Promise.resolve(answer(200)));
+        const validations = Array.from({length: 300}, (_, i) => pacedFetch(`/api/v${i}`, {}, {background: true}));
+        await vi.advanceTimersByTimeAsync(0);
+        // Of the burst, only what is over the reserve.
+        expect(global.fetch).toHaveBeenCalledTimes(PACE.burst - RESERVE);
+        // A read of the page, an action: at once, the reserve theirs.
+        const read = pacedFetch('/api/read');
+        const write = pacedFetch('/api/write', {method: 'POST'});
+        await vi.advanceTimersByTimeAsync(0);
+        expect(urls().slice(-2)).toEqual(['/api/read', '/api/write']);
+        // Then no faster than the rate, a little under it while the reserve fills again.
+        const before = global.fetch.mock.calls.length;
+        await vi.advanceTimersByTimeAsync(10000);
+        const sent = global.fetch.mock.calls.length - before;
+        expect(sent).toBeLessThanOrEqual(10 * PACE.rate);
+        expect(sent).toBeGreaterThan(5 * PACE.rate);
+        // Waiting, a read goes before them.
+        const later = pacedFetch('/api/later');
+        await vi.advanceTimersByTimeAsync(1000 / PACE.rate);
+        expect(urls()).toContain('/api/later');
+        await vi.advanceTimersByTimeAsync(60000);
+        await Promise.all([...validations, read, write, later]);
+        expect(global.fetch).toHaveBeenCalledTimes(303);
     });
 
     test('given up after MAX_ATTEMPTS, the last refusal answered', async () => {

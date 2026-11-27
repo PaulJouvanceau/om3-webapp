@@ -1,6 +1,7 @@
 import {useEffect, useMemo, useRef, useState} from "react";
 import {URL_NODE} from "../config/apiPath.js";
 import {authHeaders} from "../services/api.jsx";
+import {pacedFetch} from "../services/paced-fetch.js";
 import {parseObjectPath} from "../utils/objectUtils.jsx";
 
 /*
@@ -9,6 +10,12 @@ import {parseObjectPath} from "../utils/objectUtils.jsx";
  * of that node): one request an object, a few at a time, its result kept while its
  * configuration is the same, validated again once it changed (its checksum, as the
  * node says it).
+ *
+ * By the hundred on a large cluster, they go through the budget of the requests to
+ * the daemon (paced-fetch), in the background: after the actions and the tray, the
+ * page keeping its share, held while the daemon says it is asked too often (429).
+ * Sent as they came, four at a time as fast as answered, they used up the throttle of
+ * the address (20 a second, bursts of 100), the event stream of the page refused.
  */
 
 /** How many validations asked at once. */
@@ -62,17 +69,21 @@ export function useConfigValidations(names, {instances, configs, enabled = true}
             asked.current.add(key);
             const {namespace, kind, name: short} = parseObjectPath(name);
             let level;
+            let refused = false;
             try {
-                const response = await fetch(
+                const response = await pacedFetch(
                     `${URL_NODE}/${encodeURIComponent(node)}/instance/path/${namespace}/${kind}/${short}/config/validate`,
                     {headers: authHeaders(), cache: "no-cache"},
+                    {background: true},
                 );
+                // Still refused for asking too often, once asked again: not validated, nor failed.
+                refused = response.status === 429;
                 if (response.ok) level = validationLevel((await response.json())?.items);
             } catch {
                 // Not known: no validation for it.
             }
             asked.current.delete(key);
-            if (!mounted.current) return;
+            if (!mounted.current || refused) return;
             done.current.set(name, stamp);
             setLevels((prev) => {
                 if (prev.get(name) === level) return prev;
