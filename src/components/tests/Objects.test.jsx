@@ -1111,7 +1111,7 @@ describe('Objects Component', () => {
             expect(reverse()).toHaveAttribute('aria-pressed', 'false');
         });
 
-        test('Config filter: the topology, the orchestration and the placement policy, out of State; the configurations with warnings', async () => {
+        test('Config filter: the topology, the orchestration and the placement policy, out of State; the configurations with warnings, in State', async () => {
             mockValidations.current = new Map([['test-ns/svc/test1', 'warning'], ['test-ns/svc/test2', 'valid'], ['root/svc/test3', 'error']]);
             setup({
                 objectStatus: {
@@ -1123,21 +1123,24 @@ describe('Objects Component', () => {
             await waitForLoad();
             expect(within(filterGroup('State')).getAllByRole('group').map((g) => g.getAttribute('aria-label')))
                 .not.toEqual(expect.arrayContaining(['Topology', 'Orchestrate']));
+            // The alerts of the validation, a status log: of the State filter.
+            expect(within(filterGroup('State')).getAllByRole('group').map((g) => g.getAttribute('aria-label')))
+                .toContain('Validation');
             expect(within(filterGroup('Config')).getAllByRole('group').map((g) => g.getAttribute('aria-label')))
-                .toEqual(['Topology', 'Orchestrate', 'Validation']);
-            expect(within(filterGroup('Config › Validation')).getAllByRole('checkbox').map(optionText)).toEqual(['warnings', 'errors', 'valid']);
-            await selectFilter('Config › Validation', 'warnings');
+                .toEqual(['Topology', 'Orchestrate']);
+            expect(within(filterGroup('State › Validation')).getAllByRole('checkbox').map(optionText)).toEqual(['warnings', 'errors', 'valid']);
+            await selectFilter('State › Validation', 'warnings');
             await waitFor(() => expect(screen.queryByRole('row', {name: /test-ns\/svc\/test2/})).not.toBeInTheDocument());
             expect(screen.getByRole('row', {name: /test-ns\/svc\/test1/})).toBeInTheDocument();
             expect(screen.queryByRole('row', {name: /root\/svc\/test3/})).not.toBeInTheDocument();
-            expect(filterSummary('Config')).toHaveTextContent('ConfigValidation: warnings');
-            expect(filterSummary('State')).toHaveTextContent('StateAll');
+            expect(filterSummary('State')).toHaveTextContent('StateValidation: warnings');
+            expect(filterSummary('Config')).toHaveTextContent('ConfigAll');
             await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/objects?validation=warning', {replace: true}));
             // Cleared, the Config filter alone.
-            await selectFilter('State › Availability', 'up');
+            await selectFilter('Config › Topology', 'flex');
             fireEvent.click(within(filterGroup('Config')).getByRole('button', {name: 'Clear the Config filter'}));
             await waitFor(() => expect(filterSummary('Config')).toHaveTextContent('ConfigAll'));
-            expect(filterSummary('State')).toHaveTextContent('StateAvailability: up');
+            expect(filterSummary('State')).toHaveTextContent('StateValidation: warnings');
         });
 
         test('combining values of a field matches any of them', async () => {

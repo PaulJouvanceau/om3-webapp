@@ -17,7 +17,8 @@ export const VALIDATION_KEY = "config_validation";
  * the status, its parameter in the address, its values in the order shown (any
  * other value an object has after them, by name), those `offered` even none has
  * them, and its `group`, the filter it is a section of: State, what the object is
- * in; Config, what its configuration says, and its validation.
+ * in, the alerts of the validation of its configuration among them, a status log
+ * of its own; Config, what its configuration says.
  */
 export const STATE_FIELDS = [
     {key: "avail", param: "avail", group: "state", order: ["up", "down", "warn", "stdby up", "stdby down", "n/a", "undef"]},
@@ -25,10 +26,10 @@ export const STATE_FIELDS = [
     {key: "provisioned", param: "provisioned", group: "state", order: ["mixed", "true", "false", "n/a", "undef"]},
     {key: "frozen", param: "frozen", group: "state", order: ["mixed", "frozen", "unfrozen", "n/a"]},
     {key: "placement_state", param: "placement", group: "state", order: ["optimal", "non-optimal", "n/a", "undef"]},
+    {key: VALIDATION_KEY, param: "validation", group: "state", order: ["warning", "error", "valid"], offered: ["warning"]},
     {key: "topology", param: "topology", group: "config", order: ["failover", "flex"]},
     {key: "orchestrate", param: "orchestrate", group: "config", order: ["ha", "start", "no"]},
     {key: "placement_policy", param: "policy", group: "config", order: ["nodes order", "last start", "load avg", "shift", "spread", "score", "none"]},
-    {key: VALIDATION_KEY, param: "validation", group: "config", order: ["warning", "error", "valid"], offered: ["warning"]},
 ];
 
 /** The fields of a filter, by its group. */
