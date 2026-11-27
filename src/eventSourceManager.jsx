@@ -199,7 +199,8 @@ const createQueryString = (filters = DEFAULT_FILTERS, objectName = null, useCach
         queryFilters = validFilters.map(filter => encodeURIComponent(filter));
     }
 
-    const cacheParam = useCache ? 'cache=true' : 'cache=false';
+    // Replayed, its end said (ReplayDone): what it did not replay is gone (replayTracker).
+    const cacheParam = useCache ? 'cache=true&replay_done=true' : 'cache=false';
     return `${cacheParam}&${queryFilters.map(filter => `filter=${filter}`).join('&')}`;
 };
 
@@ -547,6 +548,81 @@ export const reconcileObjects = async (token) => {
     useEventStore.getState().removeObjects(gone);
 };
 
+/**
+ * The instances a stream replays, against those held: an instance deleted while no
+ * stream heard its deletion (another page claiming other events, a reconnection, a
+ * closed browser, the store kept in localStorage) is not replayed, and is dropped
+ * once the replay is said done. The daemon ends a replay so asked (`replay_done`)
+ * with a ReplayDone event; an older one does not, and nothing is dropped.
+ *
+ * What a stream replays is what its filters say: an instance is judged by a kind
+ * the stream asks of every instance, or of its path or its node; one of a path or
+ * a node it does not ask is not.
+ */
+const PRUNED = {
+    [EVENT_TYPES.INSTANCE_STATUS_UPDATED]: 'instanceStatusDeleted',
+    [EVENT_TYPES.INSTANCE_CONFIG_UPDATED]: 'instanceConfigDeleted',
+    [EVENT_TYPES.INSTANCE_MONITOR_UPDATED]: 'instanceMonitorDeleted',
+};
+
+/** For each kind of PRUNED a stream asks, whether an instance is one it replays; none, not judged. */
+export const replayScopes = (url) => {
+    const params = new URLSearchParams(url.split('?')[1] ?? '');
+    if (params.get('cache') !== 'true' && params.get('replay') !== 'true') return {};
+    const scopes = {};
+    for (const filter of params.getAll('filter')) {
+        const [kind, ...labels] = filter.split(',');
+        if (!PRUNED[kind]) continue;
+        const wanted = labels.map((label) => label.split('='));
+        // A label of no instance field: what it asks is not known here, not judged.
+        if (wanted.some(([key]) => key !== 'path' && key !== 'node')) continue;
+        (scopes[kind] ??= []).push(wanted);
+    }
+    return Object.fromEntries(Object.entries(scopes).map(([kind, filters]) => [kind,
+        (path, node) => filters.some((wanted) => wanted.every(([key, value]) => (key === 'path' ? path : node) === value))]));
+};
+
+/** The instances held of a kind: [path, node] each, as the store keys them. */
+const heldInstances = (kind) => {
+    const state = useEventStore.getState();
+    if (kind === EVENT_TYPES.INSTANCE_MONITOR_UPDATED) {
+        return Object.keys(state.instanceMonitor ?? {}).map((key) => {
+            const i = key.indexOf(':');
+            return [key.slice(i + 1), key.slice(0, i)];
+        });
+    }
+    const map = kind === EVENT_TYPES.INSTANCE_STATUS_UPDATED ? state.objectInstanceStatus : state.instanceConfig;
+    return Object.entries(map ?? {}).flatMap(([path, byNode]) => Object.keys(byNode ?? {}).map((node) => [path, node]));
+};
+
+/** The replay of a stream followed: `opened` as it (re)opens, `saw` each instance replayed, `done` at its end. */
+export const replayTracker = (url) => {
+    const scopes = replayScopes(url);
+    let seen = null;
+    return {
+        opened: () => {
+            seen = Object.fromEntries(Object.keys(scopes).map((kind) => [kind, new Set()]));
+        },
+        saw: (kind, path, node) => {
+            seen?.[kind]?.add(`${path}\0${node}`);
+        },
+        done: () => {
+            if (seen === null) return [];
+            const gone = [];
+            for (const [kind, covers] of Object.entries(scopes)) {
+                for (const [path, node] of heldInstances(kind)) {
+                    if (covers(path, node) && !seen[kind].has(`${path}\0${node}`)) gone.push({kind, path, node});
+                }
+            }
+            // The live events after it are not of the replay.
+            seen = null;
+            if (gone.length > 0) logger.info('🗑️ Dropping instances the replay did not hold:', gone);
+            for (const {kind, path, node} of gone) updateBuffer(PRUNED[kind], null, {path, node});
+            return gone;
+        },
+    };
+};
+
 export const clearEventBuffers = () => {
     clearBuffers();
 };
@@ -648,7 +724,18 @@ export const createEventSource = (url, token, filters = DEFAULT_FILTERS) => {
 
     currentToken = token;
     isPageActive = true;
+    // The updates of the stream left dropped, not its deletions: one waiting to be
+    // applied is not heard again, the replay of the new stream never saying it.
+    const deletions = {
+        instanceConfigDeleted: buffers.instanceConfigDeleted,
+        instanceStatusDeleted: buffers.instanceStatusDeleted,
+        instanceMonitorDeleted: buffers.instanceMonitorDeleted,
+        nodeDeleted: buffers.nodeDeleted,
+    };
     clearBuffers();
+    Object.assign(buffers, deletions);
+    if (Object.values(deletions).some((list) => list.length > 0)) scheduleFlush();
+    const replay = replayTracker(url);
 
     logger.info('🔗 Creating EventSource with URL:', url);
     currentEventSource = new EventSourcePolyfill(url, {
@@ -676,6 +763,8 @@ export const createEventSource = (url, token, filters = DEFAULT_FILTERS) => {
         if (eventCount > 0) {
             flushBuffers();
         }
+        // Replayed again from its start: what it holds read anew.
+        replay.opened();
         // Deletions may have been missed while no stream was open.
         void reconcileObjects(currentToken || token);
     };
@@ -752,6 +841,7 @@ export const createEventSource = (url, token, filters = DEFAULT_FILTERS) => {
                             instance_status: data.instance_status,
                             fullData: data
                         });
+                        replay.saw(eventType, instName, data.node);
                         updateBuffer('instanceStatus', `${instName}:${data.node}`, data.instance_status);
                     } else {
                         logger.warn('⚠️ INSTANCE_STATUS_UPDATED missing data:', {
@@ -780,6 +870,7 @@ export const createEventSource = (url, token, filters = DEFAULT_FILTERS) => {
                     break;
                 case EVENT_TYPES.INSTANCE_MONITOR_UPDATED:
                     if (data.node && data.path && data.instance_monitor) {
+                        replay.saw(eventType, data.path, data.node);
                         const key = `${data.node}:${data.path}`;
                         updateBuffer('instanceMonitor', key, data.instance_monitor);
                     }
@@ -787,6 +878,7 @@ export const createEventSource = (url, token, filters = DEFAULT_FILTERS) => {
                 case EVENT_TYPES.INSTANCE_CONFIG_UPDATED: {
                     const configName = data.path || data.labels?.path;
                     if (configName && data.node) {
+                        replay.saw(eventType, configName, data.node);
                         if (data.instance_config) {
                             updateBuffer('instanceConfig', `${configName}:${data.node}`, data.instance_config);
                         }
@@ -823,6 +915,11 @@ export const createEventSource = (url, token, filters = DEFAULT_FILTERS) => {
             // The events shown are those of the logger stream, opened with them: logged
             // here too, each one would be shown twice.
         });
+    });
+
+    // The end of the replay: the instances held it did not replay, gone.
+    addEventListener(currentEventSource, 'ReplayDone', () => {
+        replay.done();
     });
 
     currentEventSource.onerror = (error) => {
@@ -1154,7 +1251,7 @@ export const claimsQuery = (claims) => {
             valid.forEach(filter => queryFilters.add(encodeURIComponent(filter)));
         }
     }
-    const query = `cache=true&${[...queryFilters].sort().map(filter => `filter=${filter}`).join('&')}`;
+    const query = `cache=true&replay_done=true&${[...queryFilters].sort().map(filter => `filter=${filter}`).join('&')}`;
     return {query, types: [...types]};
 };
 

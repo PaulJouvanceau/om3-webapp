@@ -165,7 +165,9 @@ describe('eventSourceManager', () => {
         test('should create an EventSource and attach event listeners', () => {
             const es = createES();
             expect(EventSourcePolyfill).toHaveBeenCalled();
-            expect(es.addEventListener).toHaveBeenCalledTimes(13);
+            // The events of its filters, and the end of the replay (ReplayDone).
+            expect(es.addEventListener).toHaveBeenCalledTimes(14);
+            expect(es.addEventListener).toHaveBeenCalledWith('ReplayDone', expect.any(Function));
         });
 
         test('should close existing EventSource before creating a new one', () => {
@@ -1607,6 +1609,80 @@ describe('eventSourceManager', () => {
     });
 
     // ==================== Stream claims ====================
+    describe('the instances a replay does not hold', () => {
+        const status = {avail: 'up'};
+        const open = (query) => {
+            // One mock for every stream: the listeners of this one alone found.
+            mockEventSource.addEventListener.mockClear();
+            const es = eventSourceManager.createEventSource(`${URL_NODE_EVENT}?${query}`, 'fake-token');
+            es.onopen();
+            return es;
+        };
+
+        test('the kinds a replayed stream asks, of every instance or of its path or node; a stream not replayed, none', () => {
+            const scopes = eventSourceManager.replayScopes(`${URL_NODE_EVENT}?cache=true&replay_done=true&filter=InstanceStatusUpdated,path=a%2Fsvc%2Fx&filter=InstanceMonitorUpdated&filter=ObjectStatusUpdated`);
+            expect(Object.keys(scopes).sort()).toEqual(['InstanceMonitorUpdated', 'InstanceStatusUpdated']);
+            expect(scopes.InstanceStatusUpdated('a/svc/x', 'n1')).toBe(true);
+            expect(scopes.InstanceStatusUpdated('b/svc/y', 'n1')).toBe(false);
+            expect(scopes.InstanceMonitorUpdated('b/svc/y', 'n2')).toBe(true);
+            expect(eventSourceManager.replayScopes(`${URL_NODE_EVENT}?cache=false&filter=InstanceStatusUpdated`)).toEqual({});
+            // A label of no instance field: not judged.
+            expect(eventSourceManager.replayScopes(`${URL_NODE_EVENT}?cache=true&filter=InstanceStatusUpdated,namespace=a`)).toEqual({});
+        });
+
+        test('an instance held and not replayed, deleted while no stream heard it: dropped at the end of the replay', () => {
+            mockStore.objectInstanceStatus = {'a/svc/x': {n1: status, n2: status}};
+            mockStore.instanceMonitor = {'n1:a/svc/x': {}, 'n2:a/svc/x': {}};
+            const es = open('cache=true&replay_done=true&filter=InstanceStatusUpdated&filter=InstanceMonitorUpdated');
+            fire(getHandler(es, 'InstanceStatusUpdated'), {path: 'a/svc/x', node: 'n1', instance_status: status});
+            fire(getHandler(es, 'InstanceMonitorUpdated'), {path: 'a/svc/x', node: 'n1', instance_monitor: {}});
+            fire(getHandler(es, 'ReplayDone'), {count: 2});
+            eventSourceManager.forceFlush();
+            expect(mockStore.removeInstanceStatus.mock.calls).toEqual([['a/svc/x', 'n2']]);
+            expect(mockStore.removeInstanceMonitor.mock.calls).toEqual([['a/svc/x', 'n2']]);
+            // The live events after it are not of the replay: none dropped for them.
+            fire(getHandler(es, 'ReplayDone'), {count: 0});
+            eventSourceManager.forceFlush();
+            expect(mockStore.removeInstanceStatus).toHaveBeenCalledTimes(1);
+        });
+
+        test('no end of the replay said, an older daemon: nothing dropped; a path asked, the others not judged', () => {
+            mockStore.objectInstanceStatus = {'a/svc/x': {n1: status, n2: status}, 'b/svc/y': {n1: status}};
+            open('cache=true&filter=InstanceStatusUpdated');
+            eventSourceManager.forceFlush();
+            expect(mockStore.removeInstanceStatus).not.toHaveBeenCalled();
+            const es = open('cache=true&replay_done=true&filter=InstanceStatusUpdated,path=a%2Fsvc%2Fx');
+            fire(getHandler(es, 'InstanceStatusUpdated'), {path: 'a/svc/x', node: 'n1', instance_status: status});
+            fire(getHandler(es, 'ReplayDone'), {count: 1});
+            eventSourceManager.forceFlush();
+            expect(mockStore.removeInstanceStatus.mock.calls).toEqual([['a/svc/x', 'n2']]);
+        });
+
+        test('a configuration not replayed: its instance dropped; reconnected, replayed anew', () => {
+            mockStore.instanceConfig = {'a/svc/x': {n1: {}, n2: {}}};
+            const es = open('cache=true&replay_done=true&filter=InstanceConfigUpdated');
+            fire(getHandler(es, 'InstanceConfigUpdated'), {path: 'a/svc/x', node: 'n1', instance_config: {}});
+            // Reconnected before its end: what was replayed before counts no more.
+            es.onopen();
+            fire(getHandler(es, 'InstanceConfigUpdated'), {path: 'a/svc/x', node: 'n2', instance_config: {}});
+            fire(getHandler(es, 'ReplayDone'), {count: 1});
+            // Flushed as it reopened: the next flush a moment after.
+            mockNow += 20;
+            eventSourceManager.forceFlush();
+            expect(mockStore.removeInstanceFromObject.mock.calls).toEqual([['a/svc/x', 'n1']]);
+        });
+
+        test('a deletion waiting to be applied, a new stream opened: applied all the same', () => {
+            const es = createES();
+            fire(getHandler(es, 'InstanceConfigDeleted'), {path: 'a/svc/x', node: 'n2'});
+            fire(getHandler(es, 'InstanceStatusUpdated'), {path: 'a/svc/x', node: 'n1', instance_status: status});
+            // Another stream before the flush: the update of the old one left, its deletion kept.
+            createES();
+            eventSourceManager.forceFlush();
+            expect(mockStore.removeInstanceFromObject.mock.calls).toEqual([['a/svc/x', 'n2']]);
+        });
+    });
+
     describe('stream claims', () => {
         // The claims of one render are applied together, once its microtasks run.
         const settle = () => Promise.resolve();
@@ -1618,7 +1694,7 @@ describe('eventSourceManager', () => {
                 {filters: ['InstanceStatusUpdated', 'Bogus'], objectName: null},
             ]);
             // With the deletions of what they update: no view keeps what the daemon deleted.
-            expect(query).toBe('cache=true&filter=InstanceConfigDeleted&filter=InstanceStatusDeleted&filter=InstanceStatusUpdated&filter=ObjectDeleted&filter=ObjectStatusUpdated');
+            expect(query).toBe('cache=true&replay_done=true&filter=InstanceConfigDeleted&filter=InstanceStatusDeleted&filter=InstanceStatusUpdated&filter=ObjectDeleted&filter=ObjectStatusUpdated');
             expect(types).toEqual(['ObjectStatusUpdated', 'ObjectDeleted', 'InstanceStatusUpdated', 'InstanceStatusDeleted', 'InstanceConfigDeleted']);
         });
 
@@ -1634,7 +1710,7 @@ describe('eventSourceManager', () => {
         test('a panel over a list widens the stream, and closing it narrows it back', async () => {
             const releaseList = eventSourceManager.retainEventReception('tok', ['ObjectStatusUpdated']);
             await settle();
-            expect(openedUrls()).toEqual([`${URL_NODE_EVENT}?cache=true&filter=ObjectDeleted&filter=ObjectStatusUpdated`]);
+            expect(openedUrls()).toEqual([`${URL_NODE_EVENT}?cache=true&replay_done=true&filter=ObjectDeleted&filter=ObjectStatusUpdated`]);
 
             const releasePanel = eventSourceManager.retainEventReception('tok', ['InstanceConfigUpdated'], 'ns1/svc/web');
             await settle();
@@ -1645,7 +1721,7 @@ describe('eventSourceManager', () => {
             releasePanel();
             await settle();
             expect(openedUrls()).toHaveLength(3);
-            expect(openedUrls()[2]).toBe(`${URL_NODE_EVENT}?cache=true&filter=ObjectDeleted&filter=ObjectStatusUpdated`);
+            expect(openedUrls()[2]).toBe(`${URL_NODE_EVENT}?cache=true&replay_done=true&filter=ObjectDeleted&filter=ObjectStatusUpdated`);
 
             releaseList();
             await settle();
